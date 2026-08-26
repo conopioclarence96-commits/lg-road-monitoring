@@ -6725,6 +6725,9 @@ if ($is_completed_projects_view || $is_system_admin) {
             if (typeof currentProjectCompletionPercentage !== 'undefined') {
                 currentProjectCompletionPercentage = 0;
             }
+            if (typeof currentProjectMinCompletionPercentage !== 'undefined') {
+                currentProjectMinCompletionPercentage = 0;
+            }
             if (typeof currentLatestUpdateId !== 'undefined') {
                 currentLatestUpdateId = 0;
             }
@@ -6862,6 +6865,28 @@ if ($is_completed_projects_view || $is_system_admin) {
 
         var updateCompletionSliderBound = false;
         var completionSliderLocked = false;
+        // New/edited (latest) updates cannot go below the previous saved %.
+        var completionSliderMin = 0;
+
+        function setCompletionSliderMin(minPct) {
+            completionSliderMin = Math.max(0, Math.min(100, Math.round(Number(minPct) || 0)));
+            var trackEl = document.getElementById('addUpdateCompletionTrack');
+            var minHintEl = document.getElementById('addUpdateCompletionMinHint');
+            if (trackEl) {
+                trackEl.setAttribute('aria-valuemin', String(completionSliderMin));
+            }
+            if (minHintEl) {
+                minHintEl.textContent = completionSliderMin + '%';
+            }
+            // Re-clamp current value if it is now below the floor.
+            var hidden = document.getElementById('addUpdateCompletionPercentage');
+            if (hidden) {
+                var current = parseInt(hidden.value, 10);
+                if (!isNaN(current) && current < completionSliderMin) {
+                    setUpdateCompletionPercentage(completionSliderMin);
+                }
+            }
+        }
 
         function setCompletionSliderEditable(editable) {
             completionSliderLocked = !editable;
@@ -6894,7 +6919,8 @@ if ($is_completed_projects_view || $is_system_admin) {
         }
 
         function setUpdateCompletionPercentage(pct) {
-            pct = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+            var floor = completionSliderLocked ? 0 : completionSliderMin;
+            pct = Math.max(floor, Math.min(100, Math.round(Number(pct) || 0)));
             var slider = document.getElementById('addUpdateCompletionSlider');
             var hidden = document.getElementById('addUpdateCompletionPercentage');
             var valueEl = document.getElementById('addUpdateCompletionValue');
@@ -6909,6 +6935,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             fillEl.style.width = pct + '%';
             valueEl.textContent = pct + '%';
             trackEl.setAttribute('aria-valuenow', String(pct));
+            trackEl.setAttribute('aria-valuemin', String(completionSliderLocked ? 0 : completionSliderMin));
             if (hintEl) {
                 hintEl.style.display = pct >= 100 ? '' : 'none';
             }
@@ -6962,9 +6989,10 @@ if ($is_completed_projects_view || $is_system_admin) {
 
         function completionPctFromPointer(trackEl, clientX) {
             var rect = trackEl.getBoundingClientRect();
-            if (!rect.width) return 0;
+            if (!rect.width) return completionSliderMin;
             var ratio = (clientX - rect.left) / rect.width;
-            return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+            var floor = completionSliderLocked ? 0 : completionSliderMin;
+            return Math.max(floor, Math.min(100, Math.round(ratio * 100)));
         }
 
         function bindUpdateCompletionSlider() {
@@ -7030,7 +7058,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                     setUpdateCompletionPercentage(current - step);
                 } else if (e.key === 'Home') {
                     e.preventDefault();
-                    setUpdateCompletionPercentage(0);
+                    setUpdateCompletionPercentage(completionSliderMin);
                 } else if (e.key === 'End') {
                     e.preventDefault();
                     setUpdateCompletionPercentage(100);
@@ -7058,7 +7086,7 @@ if ($is_completed_projects_view || $is_system_admin) {
          */
         function fetchLatestProjectCompletion(reportId, source, done) {
             if (!reportId) {
-                if (typeof done === 'function') done(0);
+                if (typeof done === 'function') done(0, 0);
                 return;
             }
             var url = '../api/progress_update_api.php?action=get_latest_completion'
@@ -7070,18 +7098,24 @@ if ($is_completed_projects_view || $is_system_admin) {
                     var pct = (data && data.success)
                         ? parseCompletionPercentage(data.latest_completion_percentage)
                         : 0;
+                    var minPct = (data && data.success && data.min_completion_percentage != null)
+                        ? parseCompletionPercentage(data.min_completion_percentage)
+                        : pct;
                     if (data && data.success && data.latest_update_id != null) {
                         currentLatestUpdateId = parseInt(data.latest_update_id, 10) || 0;
                     }
                     setMainProjectCompletionDisplay(pct);
-                    if (typeof done === 'function') done(pct);
+                    if (typeof currentProjectMinCompletionPercentage !== 'undefined') {
+                        currentProjectMinCompletionPercentage = minPct;
+                    }
+                    if (typeof done === 'function') done(pct, minPct);
                 })
                 .catch(function() {
                     var fallback = parseCompletionPercentage(
                         typeof currentProjectCompletionPercentage !== 'undefined' ? currentProjectCompletionPercentage : 0
                     );
                     setMainProjectCompletionDisplay(fallback);
-                    if (typeof done === 'function') done(fallback);
+                    if (typeof done === 'function') done(fallback, fallback);
                 });
         }
 
@@ -7104,21 +7138,32 @@ if ($is_completed_projects_view || $is_system_admin) {
             updateSelectedFiles = [];
             updatePreviewCounter = 0;
 
-            // New update: slider is editable and starts at latest saved %.
+            // New update: slider is editable and cannot go below highest prior %.
             setCompletionSliderEditable(true);
 
-            // Start from last known DB value (updated again after fetch).
+            // Start from last known DB value / floor (updated again after fetch).
             var initialPct = parseCompletionPercentage(
                 typeof currentProjectCompletionPercentage !== 'undefined' ? currentProjectCompletionPercentage : 0
             );
-            setUpdateCompletionPercentage(initialPct);
+            var initialMin = parseCompletionPercentage(
+                typeof currentProjectMinCompletionPercentage !== 'undefined'
+                    ? currentProjectMinCompletionPercentage
+                    : initialPct
+            );
+            setCompletionSliderMin(initialMin);
+            setUpdateCompletionPercentage(Math.max(initialPct, initialMin));
             closeModal('updatesModal');
             openModal('addUpdateModal');
 
-            fetchLatestProjectCompletion(reportId, source, function(pct) {
+            fetchLatestProjectCompletion(reportId, source, function(pct, minPct) {
                 if ((document.getElementById('addUpdateAction') || {}).value !== 'create_update') return;
                 if (String(document.getElementById('addUpdateReportId').value) !== String(reportId)) return;
-                setUpdateCompletionPercentage(pct);
+                var floor = minPct != null ? minPct : pct;
+                if (typeof currentProjectMinCompletionPercentage !== 'undefined') {
+                    currentProjectMinCompletionPercentage = floor;
+                }
+                setCompletionSliderMin(floor);
+                setUpdateCompletionPercentage(Math.max(pct, floor));
             });
         }
 
@@ -7155,18 +7200,28 @@ if ($is_completed_projects_view || $is_system_admin) {
                 var savedPct = parseCompletionPercentage(updateData.completion_percentage);
                 var isLatest = !!(updateData.is_latest_completion
                     || (currentLatestUpdateId && String(updateData.id) === String(currentLatestUpdateId)));
+                var editFloor = parseCompletionPercentage(updateData.min_completion_percentage);
                 setCompletionSliderEditable(isLatest);
+                setCompletionSliderMin(isLatest ? editFloor : savedPct);
                 setUpdateCompletionPercentage(savedPct);
             } else {
                 setCompletionSliderEditable(true);
                 var createPct = parseCompletionPercentage(
                     typeof currentProjectCompletionPercentage !== 'undefined' ? currentProjectCompletionPercentage : 0
                 );
-                setUpdateCompletionPercentage(createPct);
-                fetchLatestProjectCompletion(reportId, currentUpdatesReportSource || '', function(pct) {
+                var createMin = parseCompletionPercentage(
+                    typeof currentProjectMinCompletionPercentage !== 'undefined'
+                        ? currentProjectMinCompletionPercentage
+                        : createPct
+                );
+                setCompletionSliderMin(createMin);
+                setUpdateCompletionPercentage(Math.max(createPct, createMin));
+                fetchLatestProjectCompletion(reportId, currentUpdatesReportSource || '', function(pct, minPct) {
                     if ((document.getElementById('addUpdateAction') || {}).value !== 'create_update') return;
                     if (String(document.getElementById('addUpdateReportId').value) !== String(reportId)) return;
-                    setUpdateCompletionPercentage(pct);
+                    var floor = minPct != null ? minPct : pct;
+                    setCompletionSliderMin(floor);
+                    setUpdateCompletionPercentage(Math.max(pct, floor));
                 });
             }
 
@@ -7218,12 +7273,23 @@ if ($is_completed_projects_view || $is_system_admin) {
         // Override handleUpdateFormSubmit from progress-updates.js for modal flow
         function handleUpdateFormSubmit(e) {
             e.preventDefault();
+            var form = document.getElementById('addUpdateForm');
+            var submitPct = parseCompletionPercentage(
+                (document.getElementById('addUpdateCompletionPercentage') || {}).value
+            );
+            if (!completionSliderLocked && submitPct < completionSliderMin) {
+                setUpdateCompletionPercentage(completionSliderMin);
+                showNotification(
+                    'Completion percentage cannot be lower than the previous update (' + completionSliderMin + '%).',
+                    'error'
+                );
+                return;
+            }
+
             const btn = document.getElementById('addUpdateSubmitBtn');
             const orig = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-
-            var form = document.getElementById('addUpdateForm');
 
             var removedIds = form._removedMediaIds || [];
             document.querySelectorAll('#addUpdateForm input[name="remove_media[]"]').forEach(function(el) { el.remove(); });
@@ -7241,6 +7307,11 @@ if ($is_completed_projects_view || $is_system_admin) {
             if (fileInput) fileInput.files = dt.files;
 
             const fd = new FormData(form);
+            // Always send the clamped slider value (never a stale hidden field).
+            fd.set('completion_percentage', String(Math.max(
+                completionSliderLocked ? 0 : completionSliderMin,
+                submitPct
+            )));
             fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: fd
@@ -7256,12 +7327,19 @@ if ($is_completed_projects_view || $is_system_admin) {
                     var wasCreate = (document.getElementById('addUpdateAction') || {}).value === 'create_update';
                     if (wasCreate) {
                         setMainProjectCompletionDisplay(savedPct);
+                        if (typeof currentProjectCompletionPercentage !== 'undefined') {
+                            currentProjectCompletionPercentage = savedPct;
+                        }
+                        if (typeof currentProjectMinCompletionPercentage !== 'undefined') {
+                            currentProjectMinCompletionPercentage = savedPct;
+                        }
                         if (data.update_id) {
                             currentLatestUpdateId = parseInt(data.update_id, 10) || currentLatestUpdateId;
                         }
                     }
                     // Keep add-modal banner + slider on the saved value until reload refreshes from DB.
                     setCompletionSliderEditable(true);
+                    setCompletionSliderMin(savedPct);
                     setUpdateCompletionPercentage(savedPct);
                     showNotification(data.message, 'success');
                     closeModal('addUpdateModal');
@@ -7273,6 +7351,11 @@ if ($is_completed_projects_view || $is_system_admin) {
                         clearNoUpdateFlagOnRow(currentUpdatesReportId);
                     }
                 } else {
+                    if (data.min_completion_percentage != null) {
+                        var floorPct = parseCompletionPercentage(data.min_completion_percentage);
+                        setCompletionSliderMin(floorPct);
+                        setUpdateCompletionPercentage(Math.max(submitPct, floorPct));
+                    }
                     showNotification(data.message || 'Failed to save update', 'error');
                 }
             })
@@ -10065,7 +10148,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                                 </div>
                             </div>
                             <div class="completion-slider-hints">
-                                <span>0%</span>
+                                <span id="addUpdateCompletionMinHint">0%</span>
                                 <span id="addUpdateCompletionFullHint" class="completion-slider-full-hint" style="display:none;">Project fully completed</span>
                                 <span>100%</span>
                             </div>

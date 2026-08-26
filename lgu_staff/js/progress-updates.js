@@ -7,6 +7,8 @@ var currentUpdatesReportStatus = null;
 var currentUpdatesReportDetails = null;
 /** Latest DB-saved completion % for the open project (not session-only). */
 var currentProjectCompletionPercentage = 0;
+/** Minimum allowed % for the next progress update (highest prior %). */
+var currentProjectMinCompletionPercentage = 0;
 /** ID of the most recent progress update for the open project. */
 var currentLatestUpdateId = 0;
 
@@ -24,6 +26,10 @@ function loadUpdates(reportId, reportType) {
             if (data.success) {
                 var latest = parseInt(data.latest_completion_percentage, 10);
                 currentProjectCompletionPercentage = isNaN(latest) ? 0 : Math.max(0, Math.min(100, latest));
+                var minPct = parseInt(data.min_completion_percentage, 10);
+                currentProjectMinCompletionPercentage = isNaN(minPct)
+                    ? currentProjectCompletionPercentage
+                    : Math.max(0, Math.min(100, minPct));
                 currentLatestUpdateId = parseInt(data.latest_update_id, 10) || 0;
                 if (typeof setMainProjectCompletionDisplay === 'function') {
                     setMainProjectCompletionDisplay(currentProjectCompletionPercentage);

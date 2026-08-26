@@ -65,8 +65,9 @@ function rgmap_normalize_completion_percentage($raw): int {
 }
 
 /**
- * Latest saved completion % for a project/report (most recent progress update).
- * Returns 0 when no updates exist yet.
+ * Latest saved completion % for a project/report (most recent non-null update).
+ * Skips NULL so an empty % does not wipe the displayed project completion.
+ * Returns 0 when no updates with a percentage exist yet.
  */
 function rgmap_get_latest_completion_percentage($conn, int $report_id): int {
     if ($report_id <= 0) {
@@ -77,6 +78,7 @@ function rgmap_get_latest_completion_percentage($conn, int $report_id): int {
             "SELECT completion_percentage
              FROM report_updates
              WHERE report_id = ?
+               AND completion_percentage IS NOT NULL
              ORDER BY created_at DESC, id DESC
              LIMIT 1"
         );
@@ -89,6 +91,46 @@ function rgmap_get_latest_completion_percentage($conn, int $report_id): int {
         return rgmap_normalize_completion_percentage($row['completion_percentage'] ?? 0);
     } catch (Exception $e) {
         error_log('rgmap_get_latest_completion_percentage: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Minimum allowed completion % for a new/edited progress update.
+ * Floor is the highest prior non-null % so progress can never go backwards
+ * (e.g. after 20%, the next update must start at ≥ 20%).
+ * When editing the latest update, that row is excluded from the max.
+ */
+function rgmap_get_completion_percentage_floor($conn, int $report_id, int $exclude_update_id = 0): int {
+    if ($report_id <= 0) {
+        return 0;
+    }
+    try {
+        if ($exclude_update_id > 0) {
+            $stmt = $conn->prepare(
+                "SELECT MAX(completion_percentage) AS floor_pct
+                 FROM report_updates
+                 WHERE report_id = ? AND id != ?
+                   AND completion_percentage IS NOT NULL"
+            );
+            $stmt->bind_param('ii', $report_id, $exclude_update_id);
+        } else {
+            $stmt = $conn->prepare(
+                "SELECT MAX(completion_percentage) AS floor_pct
+                 FROM report_updates
+                 WHERE report_id = ?
+                   AND completion_percentage IS NOT NULL"
+            );
+            $stmt->bind_param('i', $report_id);
+        }
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        if (!$row || $row['floor_pct'] === null) {
+            return 0;
+        }
+        return rgmap_normalize_completion_percentage($row['floor_pct']);
+    } catch (Exception $e) {
+        error_log('rgmap_get_completion_percentage_floor: ' . $e->getMessage());
         return 0;
     }
 }
@@ -407,14 +449,30 @@ if ($method === 'GET') {
             }
             $latest_update_id = rgmap_get_latest_update_id($conn, $report_id);
             $latest_pct = rgmap_get_latest_completion_percentage($conn, $report_id);
+            $completion_floor = rgmap_get_completion_percentage_floor($conn, $report_id, 0);
+            $prev_max_pct = 0;
             foreach ($updates as &$u_row) {
-                $u_row['is_latest_completion'] = ((int) ($u_row['id'] ?? 0) === $latest_update_id);
+                $is_latest = ((int) ($u_row['id'] ?? 0) === $latest_update_id);
+                $u_row['is_latest_completion'] = $is_latest;
+                // Floor for editing the latest = max of earlier non-null %.
+                // Older (locked) rows keep their own saved %.
+                $u_row['min_completion_percentage'] = $is_latest
+                    ? $prev_max_pct
+                    : rgmap_normalize_completion_percentage($u_row['completion_percentage'] ?? 0);
+                $raw_pct = $u_row['completion_percentage'] ?? null;
+                if ($raw_pct !== null && $raw_pct !== '') {
+                    $prev_max_pct = max(
+                        $prev_max_pct,
+                        rgmap_normalize_completion_percentage($raw_pct)
+                    );
+                }
             }
             unset($u_row);
             json_response([
                 'success' => true,
                 'updates' => $updates,
                 'latest_completion_percentage' => $latest_pct,
+                'min_completion_percentage' => $completion_floor,
                 'latest_update_id' => $latest_update_id,
             ]);
         } elseif ($action === 'get_latest_completion') {
@@ -427,9 +485,13 @@ if ($method === 'GET') {
             if (!$report) {
                 json_response(['success' => false, 'message' => 'Report not found']);
             }
+            $latest_pct = rgmap_get_latest_completion_percentage($conn, $report_id);
+            $completion_floor = rgmap_get_completion_percentage_floor($conn, $report_id, 0);
             json_response([
                 'success' => true,
-                'latest_completion_percentage' => rgmap_get_latest_completion_percentage($conn, $report_id),
+                'latest_completion_percentage' => $latest_pct,
+                // New updates must start at / stay at or above the highest prior %.
+                'min_completion_percentage' => $completion_floor,
                 'latest_update_id' => rgmap_get_latest_update_id($conn, $report_id),
             ]);
         } elseif ($action === 'get_update') {
@@ -450,9 +512,13 @@ if ($method === 'GET') {
             $m_res = $m_stmt->get_result();
             while ($m = $m_res->fetch_assoc()) $media[] = $m;
             $update['media'] = $media;
-            $latest_update_id = rgmap_get_latest_update_id($conn, (int) $update['report_id']);
+            $report_id_for_update = (int) $update['report_id'];
+            $latest_update_id = rgmap_get_latest_update_id($conn, $report_id_for_update);
             $update['is_latest_completion'] = ((int) $update['id'] === $latest_update_id);
             $update['latest_update_id'] = $latest_update_id;
+            $update['min_completion_percentage'] = $update['is_latest_completion']
+                ? rgmap_get_completion_percentage_floor($conn, $report_id_for_update, (int) $update['id'])
+                : rgmap_normalize_completion_percentage($update['completion_percentage'] ?? 0);
             json_response(['success' => true, 'update' => $update]);
         }
     } else {
@@ -471,6 +537,18 @@ if ($method === 'GET') {
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
+
+        // New updates cannot go below the last saved completion %.
+        $completion_floor = rgmap_get_completion_percentage_floor($conn, $report_id, 0);
+        if ($completion_percentage < $completion_floor) {
+            json_response([
+                'success' => false,
+                'message' => "Completion percentage cannot be lower than the previous update ({$completion_floor}%).",
+                'min_completion_percentage' => $completion_floor,
+            ]);
+        }
+        $completion_percentage = max($completion_floor, $completion_percentage);
+
         rgmap_progress_require_supervisor_ownership($conn, $report_id, $source);
 
         $report = null;
@@ -580,6 +658,15 @@ if ($method === 'GET') {
             // Older updates keep their originally saved percentage.
             if ($is_latest) {
                 $completion_percentage = rgmap_normalize_completion_percentage($_POST['completion_percentage'] ?? 0);
+                $completion_floor = rgmap_get_completion_percentage_floor($conn, $report_id_for_update, $update_id);
+                if ($completion_percentage < $completion_floor) {
+                    json_response([
+                        'success' => false,
+                        'message' => "Completion percentage cannot be lower than the previous update ({$completion_floor}%).",
+                        'min_completion_percentage' => $completion_floor,
+                    ]);
+                }
+                $completion_percentage = max($completion_floor, $completion_percentage);
             } else {
                 $completion_percentage = rgmap_normalize_completion_percentage($update_row['completion_percentage'] ?? 0);
             }

@@ -1138,7 +1138,7 @@ function getLguReportsForManagement(
                    assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget,
                    {$est_col}, resolution_notes as notes, department, created_date, created_at,
                    updated_at, approved_at, attachments, image_path, report_type, report_category,
-                   report_source, created_by, restored_from_archive,
+                   report_source, created_by, restored_from_archive, detected_district, cimm_district, district,
                    'lgu_reports' as source_system
             FROM road_transportation_reports
             WHERE {$where}
@@ -1171,7 +1171,7 @@ function rm_render_lgu_panel_tbody(
     ];
     $lgu_transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
     $lgu_road_types = ['debris', 'cracks', 'erosion', 'flooding', 'marking_fade'];
-    $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 9 : 7)
+    $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 10 : 8)
         + ($is_transport_supervisor ? 1 : 0)
         + ($user_role === 'system_admin' ? 1 : 0);
     // Assign is supervisor-only — system admin has no Assign/Edit action here.
@@ -1234,6 +1234,10 @@ function rm_render_lgu_panel_tbody(
                             ?></td>
                             <?php endif; ?>
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php
+                                $lgu_district = trim((string)($report['detected_district'] ?? $report['cimm_district'] ?? $report['district'] ?? ''));
+                                echo $lgu_district !== '' ? htmlspecialchars($lgu_district) : '—';
+                            ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($report['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? ''))); ?></span></td>
                             <?php if ($is_transport_supervisor): ?>
                             <td>
@@ -1341,7 +1345,7 @@ function getCitizenReportsForManagement(
                    assigned_to, engineer, budget_allocation, cimm_engineer_name, cimm_budget,
                    {$est_col}, resolution_notes as notes, department, created_date, created_at,
                    updated_at, approved_at, attachments, image_path, report_type, report_category,
-                   report_source, created_by, restored_from_archive,
+                   report_source, created_by, restored_from_archive, detected_district, cimm_district, district,
                    'transport' as source_system
             FROM road_transportation_reports
             WHERE {$where}
@@ -1372,7 +1376,7 @@ function rm_render_citizen_panel_tbody(
         'potholes' => 'Potholes',
         'road_damage' => 'Road Damage',
     ];
-    $colspan = 7 + ($is_transport_supervisor ? 1 : 0);
+    $colspan = 8 + ($is_transport_supervisor ? 1 : 0);
     // Assign is supervisor-only — system admin has no Assign/Edit action here.
     $can_assign_role = $is_road_supervisor || $is_transport_supervisor;
 
@@ -1418,6 +1422,10 @@ function rm_render_citizen_panel_tbody(
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst((string)($report['report_type'] ?? ''))); ?></td>
                             <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars($report['location']); ?>"><?php echo htmlspecialchars(strlen($report['location']) > 40 ? substr($report['location'], 0, 40) . '...' : $report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
+                            <td><?php
+                                $citizen_district = trim((string)($report['detected_district'] ?? $report['district'] ?? ''));
+                                echo $citizen_district !== '' ? htmlspecialchars($citizen_district) : '—';
+                            ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($report['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? ''))); ?></span></td>
                             <?php if ($is_transport_supervisor): ?>
                             <td>
@@ -1587,6 +1595,10 @@ function rm_render_cimm_panel_tbody(array $reports): string {
                             <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($row['title'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($row['location'] ?? '—'); ?></td>
+                            <td><?php
+                                $cimm_district = trim((string)($row['district'] ?? $row['detected_district'] ?? $row['cimm_district'] ?? ''));
+                                echo $cimm_district !== '' ? htmlspecialchars($cimm_district) : '—';
+                            ?></td>
                             <td><?php echo htmlspecialchars(strlen($row['description'] ?? '') > 40 ? substr($row['description'], 0, 40) . '...' : ($row['description'] ?? '')); ?></td>
                             <td><?php echo htmlspecialchars($row['assigned_to'] ?? '—'); ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($row['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($row['priority'] ?? ''))); ?></span></td>
@@ -1599,7 +1611,7 @@ function rm_render_cimm_panel_tbody(array $reports): string {
     else:
         ?>
                         <tr>
-                            <td colspan="9">
+                            <td colspan="10">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
                                         <i class="fas fa-building t-text-cimm"></i>
@@ -6207,6 +6219,7 @@ if ($focus_id > 0) {
                             <th>Category</th>
                             <?php endif; ?>
                             <th>Location</th>
+                            <th>District</th>
                             <th>Priority</th>
                             <?php if ($is_transport_supervisor): ?>
                             <th>Assignment</th>
@@ -6265,6 +6278,7 @@ if ($focus_id > 0) {
                             <th>Report #</th>
                             <th>Type</th>
                             <th>Location</th>
+                            <th>District</th>
                             <th>Priority</th>
                             <?php if ($is_transport_supervisor): ?>
                             <th>Assignment</th>
@@ -6320,6 +6334,7 @@ if ($focus_id > 0) {
                             <th>Rep #</th>
                             <th>Infrastructure</th>
                             <th>Location</th>
+                            <th>District</th>
                             <th>Issue / Notes</th>
                             <th>Engineer</th>
                             <th>Priority</th>
@@ -6375,6 +6390,7 @@ if ($focus_id > 0) {
                             <th>Title</th>
                             <th>Type</th>
                             <th>Location</th>
+                            <th>District</th>
                             <th>Department</th>
                             <th>Engineer</th>
                             <th>Budget</th>
@@ -6439,6 +6455,10 @@ if ($focus_id > 0) {
                                 echo htmlspecialchars($type_labels[$rtype] ?? (ucfirst(str_replace(['_', '-'], ' ', (string)$rtype)) ?: 'Infrastructure Project'));
                             ?></td>
                             <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php
+                                $infra_district = trim((string)($report['district'] ?? ''));
+                                echo $infra_district !== '' ? htmlspecialchars($infra_district) : '—';
+                            ?></td>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? 'Engineering')); ?></td>
                             <td><?php echo htmlspecialchars(trim((string)($report['engineer'] ?? '')) ?: '—'); ?></td>
                             <td><?php echo (!empty($report['budget']) && (float)$report['budget'] > 0) ? '₱' . number_format((float)$report['budget'], 2) : '—'; ?></td>
@@ -6455,7 +6475,7 @@ if ($focus_id > 0) {
 
                         <?php if (!$hasInfra): ?>
                         <tr>
-                            <td colspan="11">
+                            <td colspan="12">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
                                         <i class="fas fa-hard-hat t-text-cimm"></i>
