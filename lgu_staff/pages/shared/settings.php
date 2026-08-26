@@ -85,9 +85,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'request_change') {
+        // Staff cannot change or request a change to their email address.
+        // Ignore any posted email (including frontend manipulation).
         $data = [
             'full_name' => sanitize_input($_POST['full_name'] ?? ''),
-            'email' => sanitize_input($_POST['email'] ?? ''),
             'address' => sanitize_input($_POST['address'] ?? ''),
             'birthday' => sanitize_input($_POST['birthday'] ?? ''),
             'civil_status' => sanitize_input($_POST['civil_status'] ?? ''),
@@ -1048,7 +1049,8 @@ try {
                                     </div>
                                     <div class="form-group">
                                         <label for="staffEmail">Email</label>
-                                        <input type="email" name="email" id="staffEmail" class="form-control" autocomplete="email" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>">
+                                        <input type="email" id="staffEmail" class="form-control" autocomplete="email" value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" disabled readonly title="Email cannot be changed">
+                                        <small style="color:#888;font-size:12px;">Email cannot be changed. Contact an administrator if you need an email update.</small>
                                     </div>
                                     <div class="form-group">
                                         <label for="roleStaff">Role</label>
