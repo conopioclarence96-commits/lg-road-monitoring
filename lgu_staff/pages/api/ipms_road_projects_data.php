@@ -434,6 +434,9 @@ function rgmap_infra_panel_rows(?PDO $pdo = null, string|array $workflowStatus =
                 : trim((string)($proj['road_name'] ?? '')),
             'start_address'    => trim((string)($proj['start_address'] ?? '')) ?: null,
             'end_address'      => trim((string)($proj['end_address'] ?? '')) ?: null,
+            'district'         => (is_array($proj['districts_covered'] ?? null) && count($proj['districts_covered']))
+                ? implode(', ', array_filter(array_map('trim', array_map('strval', $proj['districts_covered'])), static fn($d) => $d !== ''))
+                : null,
             'description'      => trim((string)($proj['road_status'] ?? '')),
             'created_date'     => null,
             'created_at'       => $proj['created_at'] ?? null,

@@ -420,6 +420,10 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
             ?></td>
             <?php endif; ?>
             <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars((string)$report['location']); ?>"><?php echo htmlspecialchars(strlen((string)$report['location']) > 40 ? substr((string)$report['location'], 0, 40) . '...' : (string)$report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
+            <td><?php
+                $lgu_district = trim((string)($report['detected_district'] ?? $report['cimm_district'] ?? ''));
+                echo $lgu_district !== '' ? htmlspecialchars($lgu_district) : '—';
+            ?></td>
             <td><span class="lgu-status-badge <?php echo htmlspecialchars((string)($report['priority'] ?? 'medium')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? 'medium'))); ?></span></td>
             <td>
                 <?php
@@ -458,7 +462,7 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
     if (!$hasRows):
         ?>
         <tr>
-            <td colspan="<?php echo $is_system_admin ? 8 : 7; ?>">
+            <td colspan="<?php echo $is_system_admin ? 9 : 8; ?>">
                 <div class="lgu-empty-state">
                     <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
                     <h4>No LGU reports yet</h4>
@@ -505,8 +509,15 @@ function vm_render_citizen_panel_tbody(array $reports): string {
                 </div>
             </td>
             <td><?php echo htmlspecialchars((string)($crow['report_id'] ?? '')); ?></td>
-            <td><?php echo htmlspecialchars(strlen($crow['title'] ?? '') > 35 ? substr($crow['title'], 0, 35) . '...' : ($crow['title'] ?? '')); ?></td>
-            <td><?php echo htmlspecialchars((string)($crow['location'] ?? '—')); ?></td>
+            <td><?php
+                $c_title = str_ireplace(' at pinned location', '', (string)($crow['title'] ?? ''));
+                echo htmlspecialchars(strlen($c_title) > 35 ? substr($c_title, 0, 35) . '...' : $c_title);
+            ?></td>
+            <td><?php if (($crow['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars((string)$crow['location']); ?>"><?php echo htmlspecialchars(strlen((string)$crow['location']) > 40 ? substr((string)$crow['location'], 0, 40) . '...' : (string)$crow['location']); ?></span><?php else: ?>—<?php endif; ?></td>
+            <td><?php
+                $citizen_district = trim((string)($crow['detected_district'] ?? ''));
+                echo $citizen_district !== '' ? htmlspecialchars($citizen_district) : '—';
+            ?></td>
             <td><span class="citizen-status-badge <?php echo htmlspecialchars((string)($crow['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($crow['priority'] ?? ''))); ?></span></td>
             <td><span class="citizen-status-badge <?php echo $c_status_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', (string)($crow['status'] ?? '')))); ?></span></td>
             <td><?php echo !empty($crow['created_at']) ? date('M d, Y', strtotime((string)$crow['created_at'])) : '—'; ?></td>
@@ -516,7 +527,7 @@ function vm_render_citizen_panel_tbody(array $reports): string {
     else:
         ?>
         <tr>
-            <td colspan="7">
+            <td colspan="8">
                 <div class="citizen-empty-state">
                     <div class="citizen-empty-icon"><i class="fas fa-users"></i></div>
                     <h4>No citizen reports yet</h4>
@@ -558,6 +569,10 @@ function vm_render_cimm_panel_tbody(array $cimm_reports, $sql_reports = null, bo
             <td><?php echo htmlspecialchars((string)($row['rep_number'] ?? '')); ?></td>
             <td><?php echo htmlspecialchars((string)($row['infrastructure'] ?? '')); ?></td>
             <td><?php echo htmlspecialchars((string)($row['location'] ?? '')); ?></td>
+            <td><?php
+                $cimm_district = trim((string)($row['district'] ?? ''));
+                echo $cimm_district !== '' ? htmlspecialchars($cimm_district) : '—';
+            ?></td>
             <td><?php echo htmlspecialchars(strlen($row['issue_notes'] ?? '') > 40 ? substr($row['issue_notes'], 0, 40) . '...' : ($row['issue_notes'] ?? '')); ?></td>
             <td><span class="dept-status-badge <?php echo htmlspecialchars((string)($row['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($row['priority'] ?? ''))); ?></span></td>
             <td><span class="dept-status-badge <?php echo htmlspecialchars((string)($row['status'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', (string)($row['status'] ?? '')))); ?></span></td>
@@ -587,6 +602,7 @@ function vm_render_cimm_panel_tbody(array $cimm_reports, $sql_reports = null, bo
             <td>REP-<?php echo (int)$row['rep_id']; ?></td>
             <td><?php echo htmlspecialchars((string)$row['res_id']); ?></td>
             <td>—</td>
+            <td>—</td>
             <td><?php echo htmlspecialchars(strlen($row['decline_reason'] ?? '') > 40 ? substr($row['decline_reason'], 0, 40) . '...' : ($row['decline_reason'] ?? '—')); ?></td>
             <td><span class="dept-status-badge <?php echo strtolower(htmlspecialchars((string)$row['priority_lvl'])); ?>"><?php echo ucfirst(htmlspecialchars((string)$row['priority_lvl'])); ?></span></td>
             <td><span class="dept-status-badge <?php echo $status; ?>"><?php echo ucfirst(htmlspecialchars($status)); ?></span></td>
@@ -598,7 +614,7 @@ function vm_render_cimm_panel_tbody(array $cimm_reports, $sql_reports = null, bo
     if (!$hasAnyReports):
         ?>
         <tr>
-            <td colspan="7">
+            <td colspan="8">
                 <div class="dept-empty-state">
                     <div class="dept-empty-icon"><i class="fas fa-building"></i></div>
                     <h4>No CIMM reports yet</h4>

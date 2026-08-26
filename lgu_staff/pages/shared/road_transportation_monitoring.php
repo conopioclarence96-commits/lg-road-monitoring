@@ -6038,6 +6038,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                             locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
                         }
                         locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+                        locationGrid += rmInfoItem('map-pin', 'District', r.detected_district);
                     }
                     document.getElementById('rm-location-grid').innerHTML = locationGrid;
 

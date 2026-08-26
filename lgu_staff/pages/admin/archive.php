@@ -3054,6 +3054,7 @@ if (isset($_SESSION['archive_message'])) {
                     locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + row.latitude + '&mlon=' + row.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map (' + row.latitude + ', ' + row.longitude + ')</a>';
                 }
                 locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+                locationGrid += rmInfoItem('map-pin', 'District', row.detected_district || row.cimm_district || row.district);
             }
             document.getElementById('rm-location-grid').innerHTML = locationGrid;
 

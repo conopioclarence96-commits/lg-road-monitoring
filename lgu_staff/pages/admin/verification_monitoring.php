@@ -6604,6 +6604,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Category</th>
                             <?php endif; ?>
                             <th>Location</th>
+                            <th>District</th>
                             <th>Priority</th>
                             <th>Status</th>
                             <th>Date</th>
@@ -6817,6 +6818,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                 ?></td>
                                 <?php endif; ?>
                                 <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars((string)$report['location']); ?>"><?php echo htmlspecialchars(strlen((string)$report['location']) > 40 ? substr((string)$report['location'], 0, 40) . '...' : (string)$report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
+                                <td><?php
+                                    $lgu_district = trim((string)($report['detected_district'] ?? $report['cimm_district'] ?? ''));
+                                    echo $lgu_district !== '' ? htmlspecialchars($lgu_district) : '—';
+                                ?></td>
                                 <td><span class="lgu-status-badge <?php echo htmlspecialchars($report['priority'] ?? 'medium'); ?>"><?php echo ucfirst(htmlspecialchars($report['priority'] ?? 'medium')); ?></span></td>
                                 <td>
                                     <?php
@@ -6870,7 +6875,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="<?php echo $is_system_admin ? 8 : 7; ?>">
+                                <td colspan="<?php echo $is_system_admin ? 9 : 8; ?>">
                                     <div class="lgu-empty-state">
                                         <div class="lgu-empty-icon"><i class="fas fa-clipboard-list"></i></div>
                                         <p>No reports at this time.</p>
@@ -6922,6 +6927,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Report #</th>
                             <th>Title</th>
                             <th>Location</th>
+                            <th>District</th>
                             <th>Priority</th>
                             <th>Status</th>
                             <th>Date</th>
@@ -6974,6 +6980,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Rep #</th>
                             <th>Infrastructure</th>
                             <th>Location</th>
+                            <th>District</th>
                             <th>Issue / Notes</th>
                             <th>Priority</th>
                             <th>Status</th>
@@ -7029,6 +7036,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <th>Rep #</th>
                             <th>Infrastructure</th>
                             <th>Location</th>
+                            <th>District</th>
                             <th>Issue / Notes</th>
                             <th>Status</th>
                         </tr>
@@ -7077,6 +7085,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <td><?php echo htmlspecialchars($irow['report_id']); ?></td>
                             <td><?php echo htmlspecialchars($irow['infrastructure'] ?: '—'); ?></td>
                             <td><?php if (($irow['start_address'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars($irow['start_address']); ?>"><?php echo htmlspecialchars(strlen($irow['start_address']) > 40 ? substr($irow['start_address'], 0, 40) . '...' : $irow['start_address']); ?></span><?php else: ?>—<?php endif; ?></td>
+                            <td><?php
+                                $infra_district = trim((string)($irow['district'] ?? ''));
+                                echo $infra_district !== '' ? htmlspecialchars($infra_district) : '—';
+                            ?></td>
                             <td><?php echo htmlspecialchars(strlen($irow['issue_notes'] ?? '') > 40 ? substr($irow['issue_notes'], 0, 40) . '...' : ($irow['issue_notes'] ?? '—')); ?></td>
                             <td><span class="infra-status-badge <?php echo $istatus_class; ?>"><?php echo ucfirst(htmlspecialchars(str_replace(['-', '_'], ' ', $irow['status']))); ?></span></td>
                         </tr>
@@ -7087,7 +7099,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                         <?php if (!$hasInfraReports): ?>
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="infra-empty-state">
                                     <div class="infra-empty-icon">
                                         <i class="fas fa-hard-hat"></i>
@@ -8011,6 +8023,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     location: <?php echo json_encode($ir['location']); ?>,
                     start_address: <?php echo json_encode($ir['start_address'] ?? null); ?>,
                     end_address: <?php echo json_encode($ir['end_address'] ?? null); ?>,
+                    district: <?php echo json_encode($ir['district'] ?? null); ?>,
                     description: <?php echo json_encode($ir['description']); ?>,
                     created_date: <?php echo json_encode($ir['created_date']); ?>,
                     created_at: <?php echo json_encode($ir['created_at']); ?>,
@@ -8185,7 +8198,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
             if (!reports.length) {
                 tbody.innerHTML =
-                    '<tr><td colspan="6"><div class="infra-empty-state">' +
+                    '<tr><td colspan="7"><div class="infra-empty-state">' +
                     '<div class="infra-empty-icon"><i class="fas fa-hard-hat"></i></div>' +
                     '<h4>No infrastructure projects yet</h4>' +
                     '<p>Synced IPMS projects will appear here for verification.</p>' +
@@ -8206,6 +8219,8 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 var locCell = locRaw
                     ? '<span title="' + escapeInfraHtml(locRaw) + '">' + escapeInfraHtml(truncateInfraText(locRaw, 40)) + '</span>'
                     : '—';
+                var districtRaw = String(row.district || '').trim();
+                var districtCell = districtRaw ? escapeInfraHtml(districtRaw) : '—';
 
                 infraDataMap[id + '_' + source] = {
                     id: id,
@@ -8218,6 +8233,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                     location: row.location,
                     start_address: row.start_address || null,
                     end_address: row.end_address || null,
+                    district: row.district || null,
                     description: row.description,
                     created_date: row.created_date,
                     created_at: row.created_at,
@@ -8252,6 +8268,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 html += '<td>' + escapeInfraHtml(row.report_id || '—') + '</td>';
                 html += '<td>' + escapeInfraHtml(row.infrastructure || '—') + '</td>';
                 html += '<td>' + locCell + '</td>';
+                html += '<td>' + districtCell + '</td>';
                 html += '<td>' + escapeInfraHtml(notes) + '</td>';
                 html += '<td><span class="infra-status-badge ' + escapeInfraHtml(infraStatusClass(status)) + '">' + escapeInfraHtml(statusLabel) + '</span></td>';
                 html += '</tr>';
@@ -8529,7 +8546,8 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
 
             // Header
             document.getElementById('cm-report-id').textContent = 'Report #' + (r.report_id || '—');
-            document.getElementById('cm-title').textContent = r.title || '—';
+            var cmTitle = (r.title || '—').replace(/\s+at\s+pinned\s+location/gi, '');
+            document.getElementById('cm-title').textContent = cmTitle || '—';
 
             var st = (r.status || 'pending').toLowerCase();
             var ss = statusStyles[st] || {bg:'rgba(107,114,128,0.15)', color:'#6b7280'};
