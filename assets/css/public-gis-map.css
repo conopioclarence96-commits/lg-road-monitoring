@@ -1,13 +1,4 @@
-/* Public homepage GIS map FAB + fullscreen overlay */
-
-.public-gis-fab {
-    position: fixed;
-    /* Above accessibility FAB (bottom-right, 60px + gap) */
-    bottom: 102px;
-    right: 30px;
-    left: auto;
-    z-index: 1000;
-}
+/* Public GIS map FAB (stacked in #a11yFab) + fullscreen overlay */
 
 .public-gis-fab-btn {
     width: 60px;
@@ -23,11 +14,13 @@
     justify-content: center;
     font-size: 1.45rem;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    flex-shrink: 0;
 }
 
 .public-gis-fab-btn:hover {
     transform: scale(1.1);
     box-shadow: 0 6px 28px rgba(30, 60, 114, 0.55);
+    color: #fff;
 }
 
 .public-gis-fab-btn:focus-visible {
@@ -655,8 +648,7 @@ html.dark-mode .public-gis-overlay .sync-layers-modal-header h3 { color: #f3f4f6
 html.dark-mode .public-gis-overlay .sync-layers-modal-header p { color: #9ca3af; }
 
 @media (max-width: 768px) {
-    .public-gis-fab { bottom: 82px; right: 20px; left: auto; }
-    .public-gis-fab-btn { width: 54px; height: 54px; font-size: 1.25rem; }
+    .public-gis-fab-btn { width: 50px; height: 50px; font-size: 1.25rem; }
     .public-gis-search-box input { width: 120px; }
     .public-gis-overlay { padding: 8px; }
     .public-gis-dialog {

@@ -52,7 +52,14 @@
     <button type="button" class="csf-fab-btn" id="csfFabBtn" aria-label="Rate our service" title="Rate our service">
         <i class="fas fa-star"></i>
     </button>
+    <button type="button" class="public-gis-fab-btn" id="publicGisFab"
+        aria-label="Open live road map"
+        title="Live Road Map — Quezon City">
+        <i class="fas fa-map-marked-alt" aria-hidden="true"></i>
+    </button>
 </div>
+
+<?php include __DIR__ . '/public_gis_html.php'; ?>
 
 <div class="modal fade" id="csfFeedbackModal" tabindex="-1" aria-labelledby="csfFeedbackModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

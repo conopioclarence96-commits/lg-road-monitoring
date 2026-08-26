@@ -160,8 +160,10 @@
     html.dark-mode ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
     html.dark-mode ::-webkit-scrollbar-thumb:hover { background: #777; }
 
-    @media (max-width: 768px) { .a11y-fab { bottom: 20px; right: 20px; } .a11y-fab-btn { width: 50px; height: 50px; font-size: 1.3rem; } .a11y-panel { width: 260px; bottom: 130px; } }
-    .a11y-panel { bottom: 150px; }
+    @media (max-width: 768px) { .a11y-fab { bottom: 20px; right: 20px; } .a11y-fab-btn { width: 50px; height: 50px; font-size: 1.3rem; } .a11y-panel { width: 260px; bottom: 190px; } }
+    .a11y-panel { bottom: 220px; }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
+<link rel="stylesheet" href="assets/css/public-gis-map.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../assets/css/public-gis-map.css') ?: time()); ?>">
 <link rel="stylesheet" href="assets/css/citizen-service-feedback.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../assets/css/citizen-service-feedback.css') ?: time()); ?>">
 <?php endif; ?>

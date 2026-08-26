@@ -109,3 +109,23 @@
 </script>
 <script>window.CSF_FEEDBACK_API = 'lgu_staff/pages/api/citizen_service_feedback_api.php';</script>
 <script src="assets/js/citizen-service-feedback.js?v=<?php echo (int)(@filemtime(__DIR__ . '/../assets/js/citizen-service-feedback.js') ?: time()); ?>"></script>
+<?php if (empty($GLOBALS['public_gis_js_loaded'])): $GLOBALS['public_gis_js_loaded'] = true;
+    if (!defined('TOMTOM_API_KEY')) {
+        $__gis_config = __DIR__ . '/../lgu_staff/includes/config.php';
+        if (is_file($__gis_config)) {
+            require_once $__gis_config;
+        }
+    }
+    $__gis_asset_v = defined('APP_VERSION') ? APP_VERSION : (string)time();
+?>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<script>
+window.TOMTOM_API_PROXY = window.TOMTOM_API_PROXY || 'lgu_staff/pages/api/tomtom/proxy.php';
+window.LG_ASSET_CONFIG = Object.assign({}, window.LG_ASSET_CONFIG || {}, {
+    TOMTOM_API_KEY: (window.LG_ASSET_CONFIG && window.LG_ASSET_CONFIG.TOMTOM_API_KEY) || <?php echo json_encode(defined('TOMTOM_API_KEY') ? TOMTOM_API_KEY : ''); ?>
+});
+</script>
+<script src="lgu_staff/js/tomtom-services.js?v=<?php echo htmlspecialchars((string)$__gis_asset_v, ENT_QUOTES, 'UTF-8'); ?>"></script>
+<script src="assets/js/qc-boundary.js?v=<?php echo (int)(@filemtime(__DIR__ . '/../assets/js/qc-boundary.js') ?: time()); ?>"></script>
+<script src="assets/js/public-gis-map.js?v=<?php echo (int)(@filemtime(__DIR__ . '/../assets/js/public-gis-map.js') ?: time()); ?>"></script>
+<?php endif; ?>
