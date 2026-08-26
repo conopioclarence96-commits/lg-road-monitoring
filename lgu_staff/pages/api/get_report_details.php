@@ -183,6 +183,7 @@ try {
                     location, coord_lat AS latitude, coord_lng AS longitude, priority,
                     verification_status AS status, approval_status, reporter_name,
                     verification_status AS cimm_status,
+                    district, district AS detected_district, district AS cimm_district,
                     COALESCE(submitted_at, verified_at, synced_at) AS created_at, verified_at,
                     engineer, budget_allocation, 'cimm' AS source, 'road' AS report_category
                     FROM cimm_verification_reports WHERE id = ?";

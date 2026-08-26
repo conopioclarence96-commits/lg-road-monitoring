@@ -380,7 +380,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                             COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
                             resolved_at AS completed_at,
                             issue AS description, coord_lat AS latitude, coord_lng AS longitude,
-                            location, reporter_name, NULL AS attachments, NULL AS image_path,
+                            location, district, district AS detected_district, reporter_name, NULL AS attachments, NULL AS image_path,
                             verification_status AS cimm_status,
                             'verified' AS cimm_sync_status, verified_at AS cimm_verified_at,
                             NULL AS cimm_verified_by, approval_status,
@@ -1057,7 +1057,7 @@ function resolve_recent_focus_row(int $id, string $source_hint = ''): ?array {
                 require_once __DIR__ . '/../api/cimm_verification_data.php';
                 $pdo = rgmap_verification_pdo();
                 rgmap_ensure_cimm_verification_table($pdo);
-                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, 'road' AS report_category, " . cimm_status_case_sql() . " AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, resolved_at AS completed_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
+                $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'infrastructure_issue' AS report_type, 'road' AS report_category, " . cimm_status_case_sql() . " AS status, priority, NULL AS severity, COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at, resolved_at AS completed_at, issue AS description, coord_lat AS latitude, coord_lng AS longitude, location, district, district AS detected_district, reporter_name, NULL AS attachments, NULL AS image_path, 'verified' AS cimm_sync_status, verified_at AS cimm_verified_at, NULL AS cimm_verified_by FROM cimm_verification_reports WHERE id = ?");
                 $stmt->execute([$id]);
                 $r = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($r) {
@@ -6038,7 +6038,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                             locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
                         }
                         locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
-                        locationGrid += rmInfoItem('map-pin', 'District', r.detected_district);
+                        locationGrid += rmInfoItem('map-pin', 'District', r.detected_district || r.district || r.cimm_district);
                     }
                     document.getElementById('rm-location-grid').innerHTML = locationGrid;
 

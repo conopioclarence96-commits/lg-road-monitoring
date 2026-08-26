@@ -1062,6 +1062,8 @@ function mapCimmToReportManagement(array $row): array {
         'title'         => $row['infrastructure'] ?? 'CIMM Report',
         'description'   => $row['issue'] ?? '',
         'location'      => $row['location'] ?? '',
+        'district'      => $row['district'] ?? null,
+        'detected_district' => $row['district'] ?? null,
         'start_date'    => $row['starting_date'] ?? null,
         'end_date'      => $row['estimated_end_date'] ?? null,
         'latitude'      => $row['coord_lat'] ?? null,
@@ -1074,6 +1076,7 @@ function mapCimmToReportManagement(array $row): array {
         'budget_allocation'=> $row['budget_allocation'] ?? null,
         'notes'         => $row['issue'] ?? '',
         'department'    => 'cimm',
+        'reporter_name' => $row['reporter_name'] ?? null,
         'created_date'  => $row['starting_date'] ?? date('Y-m-d'),
         'created_at'    => $row['submitted_at'] ?? $row['created_at'] ?? date('Y-m-d H:i:s'),
         'restored_from_archive' => (int)($row['restored_from_archive'] ?? 0),
@@ -7597,7 +7600,7 @@ if ($focus_id > 0) {
                             locVal += '<br><a href="https://www.openstreetmap.org/?mlat=' + r.latitude + '&mlon=' + r.longitude + '&zoom=15" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
                         }
                         locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
-                        locationGrid += rmInfoItem('map-pin', 'District', r.detected_district);
+                        locationGrid += rmInfoItem('map-pin', 'District', r.detected_district || r.district || r.cimm_district);
                         document.getElementById('rm-location-grid').innerHTML = locationGrid;
 
                         // View Map button: only shown when the report has a saved
@@ -9361,6 +9364,7 @@ if ($focus_id > 0) {
                 locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" style="color:#3762c8;font-size:12px;text-decoration:none;"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
             locationGrid += '<div class="rm-info-item rm-info-value-full"><div class="rm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="rm-info-label">Location</div><div class="rm-info-value">' + locVal + '</div></div></div>';
+            locationGrid += rmInfoItem('map-pin', 'District', r.district || r.detected_district || r.cimm_district);
             document.getElementById('rm-location-grid').innerHTML = locationGrid;
 
             // View Map button: only shown when the report has a saved

@@ -7885,6 +7885,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             // Location
             var locationGrid = '';
             locationGrid += '<div class="cimm-info-item cimm-info-value-full"><div class="cimm-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="cimm-info-label">Location</div><div class="cimm-info-value">' + (r.location || '—') + '</div></div></div>';
+            locationGrid += cimmInfoItem('map-pin', 'District', r.district || r.detected_district || r.cimm_district);
             document.getElementById('cimm-location-grid').innerHTML = locationGrid;
 
             // View Map button: only shown when the report has a saved

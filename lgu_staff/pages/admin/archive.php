@@ -2994,9 +2994,6 @@ if (isset($_SESSION['archive_message'])) {
                 }
                 sourceGrid += rmInfoItem('user', 'Reported By', row.reporter_name);
                 sourceGrid += rmInfoItem('hard-hat', 'Engineer', row.cimm_engineer_name || row.engineer);
-                if (row.cimm_district || row.district) {
-                    sourceGrid += rmInfoItem('map-pin', 'District', row.cimm_district || row.district);
-                }
                 if (row.cimm_status) {
                     sourceGrid += rmInfoItem('clipboard-check', 'Verification', row.cimm_status);
                 }
