@@ -106,6 +106,10 @@ function rgmap_ensure_ipms_road_projects_table(PDO $pdo): void {
     if (empty($existingPriority)) {
         $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN priority VARCHAR(20) NULL DEFAULT NULL AFTER status");
     }
+    $existingRfa = $pdo->query("SHOW COLUMNS FROM ipms_road_projects LIKE 'restored_from_archive'")->fetchAll();
+    if (empty($existingRfa)) {
+        $pdo->exec("ALTER TABLE ipms_road_projects ADD COLUMN restored_from_archive TINYINT(1) NOT NULL DEFAULT 0 AFTER status");
+    }
 }
 
 function rgmap_ensure_ipms_skip_tables(PDO $pdo): void {
@@ -354,6 +358,38 @@ function rgmap_fetch_ipms_road_projects(PDO $pdo, array $opts = []): array {
         $params[] = $opts['bucket'];
     }
 
+    // Local workflow status filter (approved / cancelled / in-progress / …).
+    // When cancelled is included, only restored-from-archive cancelled rows
+    // match — same gate as CIMM/LGU report_management panels.
+    if (!empty($opts['workflow_statuses']) && is_array($opts['workflow_statuses'])) {
+        $statuses = array_values(array_filter(array_map(static function ($s) {
+            return strtolower(trim((string)$s));
+        }, $opts['workflow_statuses']), static fn($s) => $s !== ''));
+        if (!empty($statuses)) {
+            $hasCancelled = in_array('cancelled', $statuses, true);
+            $nonCancelled = array_values(array_filter($statuses, static fn($s) => $s !== 'cancelled'));
+            if ($hasCancelled && !empty($nonCancelled)) {
+                $ph = implode(',', array_fill(0, count($nonCancelled), '?'));
+                $sql .= " AND (LOWER(COALESCE(status,'')) IN ($ph)"
+                    . " OR (LOWER(COALESCE(status,'')) = 'cancelled' AND COALESCE(restored_from_archive, 0) = 1))";
+                foreach ($nonCancelled as $s) {
+                    $params[] = $s;
+                }
+            } elseif ($hasCancelled) {
+                $sql .= " AND LOWER(COALESCE(status,'')) = 'cancelled' AND COALESCE(restored_from_archive, 0) = 1";
+            } else {
+                $ph = implode(',', array_fill(0, count($statuses), '?'));
+                $sql .= " AND LOWER(COALESCE(status,'')) IN ($ph)";
+                foreach ($statuses as $s) {
+                    $params[] = $s;
+                }
+            }
+            // Workflow panels must not bury restored cancelled rows behind the
+            // default LIMIT 200 (cancelled sorts last by status_bucket).
+            $limit = max($limit, 5000);
+        }
+    }
+
     // Ongoing/new work surfaces first (most relevant to citizens right now);
     // completed/cancelled sort to the bottom since they're historical.
     $sql .= " ORDER BY FIELD(status_bucket,'ongoing','new','completed','cancelled'),
@@ -392,7 +428,6 @@ function rgmap_fetch_ipms_road_projects(PDO $pdo, array $opts = []): array {
  */
 function rgmap_infra_panel_rows(?PDO $pdo = null, string|array $workflowStatus = 'pending'): array {
     $pdo = $pdo ?? rgmap_ipms_pdo();
-    $raw = rgmap_fetch_ipms_road_projects($pdo);
     $rows = [];
     $allowed = is_array($workflowStatus) ? $workflowStatus : [$workflowStatus];
     $allowed = array_values(array_filter(array_map(static function ($s) {
@@ -401,6 +436,13 @@ function rgmap_infra_panel_rows(?PDO $pdo = null, string|array $workflowStatus =
     if (empty($allowed)) {
         $allowed = ['pending'];
     }
+
+    // Filter in SQL so restored cancelled / completed rows are not dropped by
+    // the default LIMIT 200 fetch (cancelled sorts last by status_bucket).
+    $raw = rgmap_fetch_ipms_road_projects($pdo, [
+        'workflow_statuses' => $allowed,
+        'limit' => 5000,
+    ]);
 
     foreach ($raw as $proj) {
         $st = strtolower(trim((string)($proj['status'] ?? '')));

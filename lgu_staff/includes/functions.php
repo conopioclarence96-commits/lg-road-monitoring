@@ -1439,7 +1439,13 @@ function rgmap_archive_row_assignment_key(array $row): array {
         return [$source_pk > 0 ? $source_pk : $id, 'cimm_verification_reports'];
     }
     if ($archive_table === 'ipms_road_projects_archive' || $archived_from === 'ipms_road_projects') {
-        return [$source_pk > 0 ? $source_pk : $id, 'ipms_road_projects'];
+        // Native IPMS archive rows use project_id as the stable assignment key
+        // (report_assignments.report_id). Never fall back to archive.id — that
+        // PK collides with unrelated road_transportation_reports ids and falsely
+        // blocks Restore for the real owning supervisor.
+        $project_id = (int)($row['project_id'] ?? 0);
+        $rid = $project_id > 0 ? $project_id : ($source_pk > 0 ? $source_pk : $id);
+        return [$rid, 'ipms_road_projects'];
     }
     if ($archived_from === 'road_maintenance_reports') {
         return [$source_pk > 0 ? $source_pk : $id, 'road_maintenance_reports'];

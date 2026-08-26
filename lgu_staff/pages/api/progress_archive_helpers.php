@@ -1406,9 +1406,20 @@ function rgmap_restore_cimm_from_native_archive($conn, array $row, $archive_id) 
     return true;
 }
 
+/**
+ * Restore an IPMS infrastructure project from ipms_road_projects_archive.
+ * Mirrors rgmap_restore_cimm_from_native_archive():
+ * - restore archived status as-is (cancelled → restored_from_archive = 1)
+ * - completed → completed_projects; cancelled → report_management
+ * - if live project_id exists, UPDATE all live columns from the archive row
+ * - otherwise INSERT the full archived row
+ * - preserve report_assignments / assigned supervisor (no new ownership)
+ * - remove the archive row
+ */
 function rgmap_restore_ipms_from_native_archive($conn, array $row, $archive_id) {
     require_once __DIR__ . '/ipms_road_projects_data.php';
     $pdo = rgmap_ipms_pdo();
+    rgmap_ensure_ipms_road_projects_table($pdo);
     $project_id = (int)($row['project_id'] ?? 0);
     if ($project_id <= 0) {
         return false;
@@ -1421,34 +1432,20 @@ function rgmap_restore_ipms_from_native_archive($conn, array $row, $archive_id) 
     if ($restore_status === '' && !empty($row['previous_status'])) {
         $restore_status = (string)$row['previous_status'];
     }
-    $rfa = (strtolower($restore_status) === 'cancelled') ? 1 : 0;
+    $restore_status = strtolower(trim($restore_status));
+    if ($restore_status === '') {
+        return false;
+    }
+    $restore_status = rgmap_archive_normalize_status($restore_status, $restore_status);
+    // Cancelled restored projects are visible on report_management; completed
+    // on completed_projects. Only cancelled carries the RFA marker.
+    $rfa = ($restore_status === 'cancelled') ? 1 : 0;
 
     rgmap_ensure_restored_from_archive_column();
 
-    $chk = $pdo->prepare("SELECT project_id FROM ipms_road_projects WHERE project_id = ? LIMIT 1");
-    $chk->execute([$project_id]);
-    if ($chk->fetch()) {
-        if ($restore_status !== '') {
-            $upd = $pdo->prepare("UPDATE ipms_road_projects SET status = ?, restored_from_archive = ? WHERE project_id = ?");
-            $upd->execute([$restore_status, $rfa, $project_id]);
-        } else {
-            $upd = $pdo->prepare("UPDATE ipms_road_projects SET restored_from_archive = ? WHERE project_id = ?");
-            $upd->execute([$rfa, $project_id]);
-        }
-        // Reopen in place — do not recreate assignments or change assigned_by.
-        rgmap_preserve_ownership_after_restore($conn, $project_id, $project_id, 'ipms_road_projects');
-        $del = $conn->prepare("DELETE FROM ipms_road_projects_archive WHERE id = ?");
-        $del->bind_param('i', $archive_id);
-        $del->execute();
-        $del->close();
-        return true;
-    }
-
     $live = $row;
     unset($live['id'], $live['previous_status'], $live['archived_at'], $live['archive_status']);
-    if ($restore_status !== '') {
-        $live['status'] = $restore_status;
-    }
+    $live['status'] = $restore_status;
     $live['restored_from_archive'] = $rfa;
 
     $dest_cols = [];
@@ -1456,24 +1453,45 @@ function rgmap_restore_ipms_from_native_archive($conn, array $row, $archive_id) 
     foreach ($col_res as $c) {
         $dest_cols[$c['Field']] = true;
     }
-    $fields = [];
-    $values = [];
-    foreach ($live as $field => $value) {
-        if (!isset($dest_cols[$field]) || $field === 'id') {
-            continue;
-        }
-        $fields[] = $field;
-        $values[] = $value;
-    }
-    if (empty($fields)) {
-        return false;
-    }
-    $field_list = '`' . implode('`, `', $fields) . '`';
-    $placeholders = implode(', ', array_fill(0, count($fields), '?'));
-    $ins = $pdo->prepare("INSERT INTO ipms_road_projects ($field_list) VALUES ($placeholders)");
-    $ins->execute($values);
 
-    // IPMS project_id is stable; leave report_assignments / assigned_by untouched.
+    $chk = $pdo->prepare("SELECT project_id FROM ipms_road_projects WHERE project_id = ? LIMIT 1");
+    $chk->execute([$project_id]);
+    if ($chk->fetch()) {
+        $sets = [];
+        $values = [];
+        foreach ($live as $field => $value) {
+            if (!isset($dest_cols[$field]) || $field === 'id' || $field === 'project_id') {
+                continue;
+            }
+            $sets[] = "`$field` = ?";
+            $values[] = $value;
+        }
+        if (empty($sets)) {
+            return false;
+        }
+        $values[] = $project_id;
+        $upd = $pdo->prepare("UPDATE ipms_road_projects SET " . implode(', ', $sets) . " WHERE project_id = ?");
+        $upd->execute($values);
+    } else {
+        $fields = [];
+        $values = [];
+        foreach ($live as $field => $value) {
+            if (!isset($dest_cols[$field]) || $field === 'id') {
+                continue;
+            }
+            $fields[] = $field;
+            $values[] = $value;
+        }
+        if (empty($fields)) {
+            return false;
+        }
+        $field_list = '`' . implode('`, `', $fields) . '`';
+        $placeholders = implode(', ', array_fill(0, count($fields), '?'));
+        $ins = $pdo->prepare("INSERT INTO ipms_road_projects ($field_list) VALUES ($placeholders)");
+        $ins->execute($values);
+    }
+
+    // project_id is stable; leave report_assignments / assigned_by untouched.
     rgmap_preserve_ownership_after_restore($conn, $project_id, $project_id, 'ipms_road_projects');
 
     $delete = $conn->prepare("DELETE FROM ipms_road_projects_archive WHERE id = ?");

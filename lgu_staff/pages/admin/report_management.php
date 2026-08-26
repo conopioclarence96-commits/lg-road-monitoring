@@ -223,14 +223,13 @@ function handle_update_report() {
     $report_id = intval($_POST['report_id'] ?? 0);
     $report_type = sanitize_input($_POST['report_type'] ?? '');
     $report_type_from_db = sanitize_input($_POST['report_type_from_db'] ?? '');
-    $status = sanitize_input($_POST['status'] ?? '');
     $priority = sanitize_input($_POST['priority'] ?? '');
     $notes = sanitize_input($_POST['notes'] ?? '');
     $title = sanitize_input($_POST['title'] ?? '');
     $description = sanitize_input($_POST['description'] ?? '');
     $location = sanitize_input($_POST['location'] ?? '');
     
-    if ($report_id <= 0 || empty($report_type) || empty($status)) {
+    if ($report_id <= 0 || empty($report_type) || empty($priority)) {
         set_flash_message('error', 'Invalid report data');
         return;
     }
@@ -265,7 +264,8 @@ function handle_update_report() {
     $params = [];
     $types = '';
     
-    $update_fields[] = "status = ?"; $params[] = $status; $types .= "s";
+    // Status is display-only in the Edit Modal — cancelled (and all other
+    // statuses) cannot be changed or reopened here.
     $update_fields[] = "priority = ?"; $params[] = $priority; $types .= "s";
     $update_fields[] = "updated_at = NOW()";
     
@@ -329,61 +329,16 @@ function handle_update_report() {
     $stmt->bind_param($types, ...$params);
     
     if ($stmt->execute()) {
-        $change_log = "Report ID: {$report_id}, New Status: {$status}";
+        $change_log = "Report ID: {$report_id}";
         if (!empty($uploaded_photos)) $change_log .= ", Photos added: " . count($uploaded_photos);
         
         log_audit_action($user_id, "Updated {$report_type_from_db} report", $change_log);
-
-        // Duration tracking & analytics recording on completion
-        $analytics_data = null;
-        if ($status === 'completed') {
-            try {
-                $report_row = fetch_one("SELECT created_at, approved_at, priority, department FROM {$table} WHERE id = ?", [$report_id], "i");
-                $start_time = !empty($report_row['approved_at']) ? $report_row['approved_at'] : ($report_row['created_at'] ?? null);
-                $completed_at = date('Y-m-d H:i:s');
-                
-                if (!empty($start_time)) {
-                    $start_ts = strtotime($start_time);
-                    $end_ts = strtotime($completed_at);
-                    if ($end_ts > $start_ts) {
-                        $duration_seconds = $end_ts - $start_ts;
-                        $duration_days = round($duration_seconds / 86400, 2);
-                        
-                        $upd_comp_stmt = $conn->prepare("UPDATE {$table} SET completed_at = ? WHERE id = ?");
-                        $upd_comp_stmt->bind_param("si", $completed_at, $report_id);
-                        $upd_comp_stmt->execute();
-                        
-                        $ins = $conn->prepare("INSERT INTO project_analytics (report_id, report_table, user_id, started_at, completed_at, duration_seconds, duration_days, priority, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $ins->bind_param("isissidss",
-                            $report_id, $table, $user_id, $start_time, $completed_at,
-                            $duration_seconds, $duration_days, $report_row['priority'], $report_row['department']
-                        );
-                        $ins->execute();
-                        
-                        $hours = floor($duration_seconds / 3600);
-                        $mins = floor(($duration_seconds % 3600) / 60);
-                        $analytics_data = [
-                            'duration_days' => $duration_days,
-                            'duration_hours' => $hours,
-                            'duration_minutes' => $mins,
-                            'completed_at' => $completed_at
-                        ];
-                    }
-                }
-            } catch (Exception $e) {
-                error_log("Duration tracking failed for report {$report_id}: " . $e->getMessage());
-            }
-        }
 
         // Create a progress update entry so photos and changes appear in the Updates timeline
         $update_title = 'Report Updated';
         $update_desc_parts = [];
         if (!empty($notes)) $update_desc_parts[] = $notes;
-        $update_desc_parts[] = "Status: " . ucfirst(str_replace('-', ' ', $status));
         $update_desc_parts[] = "Priority: " . ucfirst($priority);
-        if (!empty($analytics_data)) {
-            $update_desc_parts[] = "Completed in {$analytics_data['duration_days']} days ({$analytics_data['duration_hours']}h {$analytics_data['duration_minutes']}m)";
-        }
         $update_desc = implode('. ', $update_desc_parts);
 
         try {
@@ -412,7 +367,7 @@ function handle_update_report() {
                 'success' => true,
                 'message' => 'Report updated successfully',
                 'photos_added' => count($uploaded_photos),
-                'analytics' => $analytics_data
+                'analytics' => null
             ]);
             exit;
         }
@@ -684,7 +639,6 @@ function handle_update_cimm_report() {
     global $conn, $user_id;
 
     $report_id = intval($_POST['report_id'] ?? 0);
-    $status = sanitize_input($_POST['status'] ?? '');
     $priority = sanitize_input($_POST['priority'] ?? '');
     $notes = sanitize_input($_POST['notes'] ?? '');
     $assigned_to = sanitize_input($_POST['assigned_to'] ?? '');
@@ -709,18 +663,11 @@ function handle_update_cimm_report() {
         return;
     }
 
-    $statusMap = [
-        'pending'     => 'Pending',
-        'approved'    => 'Approved',
-        'in-progress' => 'In Progress',
-        'completed'   => 'Completed',
-        'cancelled'   => 'Cancelled',
-    ];
-    $verification_status = $statusMap[$status] ?? 'Pending';
-
-    $update_fields = "verification_status = ?, verification_note = ?, verified_by = ?";
-    $params = [$verification_status, $notes, $user_id];
-    $types = "ssi";
+    // Status is display-only in the Edit Modal — cancelled (and all other
+    // statuses) cannot be changed or reopened here.
+    $update_fields = "verification_note = ?, verified_by = ?";
+    $params = [$notes, $user_id];
+    $types = "si";
 
     if (!empty($assigned_to)) {
         $update_fields .= ", cprf_facility_name = ?, engineer = ?";
@@ -748,7 +695,7 @@ function handle_update_cimm_report() {
     $stmt->bind_param($types, ...$params);
 
     if ($stmt->execute()) {
-        log_audit_action($user_id, "Updated CIMM report", "Report ID: {$report_id}, Status: {$verification_status}");
+        log_audit_action($user_id, "Updated CIMM report", "Report ID: {$report_id}");
 
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
             header('Content-Type: application/json');
@@ -858,14 +805,9 @@ function handle_update_ipms_project() {
         $road_status = sanitize_input($_POST['road_status'] ?? '');
         if ($road_status !== '') { $update_fields[] = "road_status = ?"; $params[] = $road_status; }
 
-        $status = sanitize_input($_POST['status'] ?? '');
-        $allowed_statuses = ['approved', 'in-progress'];
-        if ($status !== '' && in_array($status, $allowed_statuses, true)) {
-            $update_fields[] = "status = ?"; $params[] = $status;
-            // Reopened from archive — clear the restored-cancelled marker once
-            // the supervisor moves the project back to active workflow.
-            $update_fields[] = "restored_from_archive = 0";
-        }
+        // Status is display-only in the Edit Modal — cancelled (and all other
+        // statuses) cannot be changed or reopened here. Restoration / workflow
+        // status changes stay outside this form.
 
         $priority = sanitize_input($_POST['priority'] ?? '');
         $allowed_priorities = ['low', 'medium', 'high'];
@@ -1232,7 +1174,8 @@ function rm_render_lgu_panel_tbody(
     $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 9 : 7)
         + ($is_transport_supervisor ? 1 : 0)
         + ($user_role === 'system_admin' ? 1 : 0);
-    $can_edit_role = $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
+    // Assign is supervisor-only — system admin has no Assign/Edit action here.
+    $can_assign_role = $is_road_supervisor || $is_transport_supervisor;
     $show_engineer = $is_road_supervisor || $user_role === 'system_admin';
     $show_category = ($user_role === 'system_admin');
 
@@ -1245,7 +1188,10 @@ function rm_render_lgu_panel_tbody(
             $row_can_manage = $user_role === 'system_admin'
                 || (!$is_road_supervisor && !$is_transport_supervisor)
                 || !empty($report['can_manage_as_supervisor']);
-            $can_edit = $can_edit_role && $row_can_manage;
+            $st_lc = strtolower(trim((string)($report['status'] ?? '')));
+            $is_restored_cancelled = ($st_lc === 'cancelled' || $st_lc === 'canceled')
+                && (int)($report['restored_from_archive'] ?? 0) === 1;
+            $can_assign = $can_assign_role && $row_can_manage && !$is_restored_cancelled;
             ?>
                         <tr data-id="<?php echo (int)$report['id']; ?>" data-source="lgu_reports">
                             <td>
@@ -1253,9 +1199,13 @@ function rm_render_lgu_panel_tbody(
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'road_transportation_reports')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($can_edit): ?>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'road_transportation_reports')">
-                                        <i class="fas fa-pencil"></i>
+                                    <?php if ($is_restored_cancelled): ?>
+                                    <button type="button" class="rm-edit-btn" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'lgu', 'cancelled')" title="Progress Updates">
+                                        <i class="fas fa-timeline"></i>
+                                    </button>
+                                    <?php elseif ($can_assign): ?>
+                                    <button type="button" class="rm-edit-btn" onclick="assignReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'road_transportation_reports')" title="Assign">
+                                        <i class="fas fa-user-plus"></i>
                                     </button>
                                     <?php endif; ?>
                                     <?php if ($row_can_manage && ($report['status'] ?? '') === 'completed'): ?>
@@ -1423,7 +1373,8 @@ function rm_render_citizen_panel_tbody(
         'road_damage' => 'Road Damage',
     ];
     $colspan = 7 + ($is_transport_supervisor ? 1 : 0);
-    $can_edit_role = $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
+    // Assign is supervisor-only — system admin has no Assign/Edit action here.
+    $can_assign_role = $is_road_supervisor || $is_transport_supervisor;
 
     ob_start();
     if (!empty($reports)):
@@ -1433,7 +1384,10 @@ function rm_render_citizen_panel_tbody(
             $row_can_manage = $user_role === 'system_admin'
                 || (!$is_road_supervisor && !$is_transport_supervisor)
                 || !empty($report['can_manage_as_supervisor']);
-            $can_edit = $can_edit_role && $row_can_manage;
+            $st_lc = strtolower(trim((string)($report['status'] ?? '')));
+            $is_restored_cancelled = ($st_lc === 'cancelled' || $st_lc === 'canceled')
+                && (int)($report['restored_from_archive'] ?? 0) === 1;
+            $can_assign = $can_assign_role && $row_can_manage && !$is_restored_cancelled;
             ?>
                         <tr data-id="<?php echo (int)$report['id']; ?>" data-source="citizen">
                             <td>
@@ -1441,9 +1395,13 @@ function rm_render_citizen_panel_tbody(
                                     <button class="rm-action-btn" onclick="viewReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>')">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($can_edit): ?>
-                                    <button class="rm-edit-btn" onclick="editReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'road_transportation_reports')">
-                                        <i class="fas fa-pencil"></i>
+                                    <?php if ($is_restored_cancelled): ?>
+                                    <button type="button" class="rm-edit-btn" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'citizen', 'cancelled')" title="Progress Updates">
+                                        <i class="fas fa-timeline"></i>
+                                    </button>
+                                    <?php elseif ($can_assign): ?>
+                                    <button type="button" class="rm-edit-btn" onclick="assignReport(<?php echo (int)$report['id']; ?>, '<?php echo $rtype; ?>', 'road_transportation_reports')" title="Assign">
+                                        <i class="fas fa-user-plus"></i>
                                     </button>
                                     <?php endif; ?>
                                     <?php if ($row_can_manage && ($report['status'] ?? '') === 'completed'): ?>
@@ -1578,18 +1536,25 @@ function getCimmReportsForManagement(
  * Action handlers use 0-based indices within the current page (cimmData).
  */
 function rm_render_cimm_panel_tbody(array $reports): string {
-    global $user_role, $is_road_supervisor;
+    global $user_role, $is_road_supervisor, $is_transport_supervisor;
     $role = (string)($user_role ?? ($_SESSION['role'] ?? ''));
     $is_admin = ($role === 'system_admin');
     $is_road_sup = !empty($is_road_supervisor) || ($role === 'road_ops_supervisor');
+    $is_trans_sup = !empty($is_transport_supervisor) || ($role === 'trans_ops_supervisor');
+    $can_assign_role = $is_road_sup || $is_trans_sup;
 
     ob_start();
     if (!empty($reports)):
         $cimmIdx = 0;
         foreach ($reports as $row):
             $row_can_manage = $is_admin
-                || !$is_road_sup
+                || (!$is_road_sup && !$is_trans_sup)
                 || !empty($row['can_manage_as_supervisor']);
+            $st_lc = strtolower(trim((string)($row['status'] ?? '')));
+            $is_restored_cancelled = ($st_lc === 'cancelled' || $st_lc === 'canceled')
+                && (int)($row['restored_from_archive'] ?? 0) === 1;
+            $can_assign = $can_assign_role && $row_can_manage && !$is_restored_cancelled;
+            $cimm_rtype = htmlspecialchars((string)($row['report_type'] ?? 'infrastructure_issue'), ENT_QUOTES);
             ?>
                         <tr data-id="<?php echo (int)$row['id']; ?>" data-source="cimm">
                             <td>
@@ -1597,10 +1562,16 @@ function rm_render_cimm_panel_tbody(array $reports): string {
                                     <button class="rm-action-btn" onclick="viewCimmReport(<?php echo $cimmIdx; ?>)">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <?php if ($row_can_manage): ?>
-                                    <button class="rm-edit-btn" onclick="editCimmReport(<?php echo $cimmIdx; ?>)">
-                                        <i class="fas fa-pencil"></i>
+                                    <?php if ($is_restored_cancelled): ?>
+                                    <button type="button" class="rm-edit-btn" onclick="viewReportUpdates(<?php echo (int)$row['id']; ?>, '<?php echo $cimm_rtype; ?>', 'cimm', 'cancelled')" title="Progress Updates">
+                                        <i class="fas fa-timeline"></i>
                                     </button>
+                                    <?php elseif ($can_assign): ?>
+                                    <button type="button" class="rm-edit-btn" onclick="assignCimmReport(<?php echo $cimmIdx; ?>)" title="Assign">
+                                        <i class="fas fa-user-plus"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                    <?php if ($row_can_manage): ?>
                                     <?php if (($row['status'] ?? '') === 'completed'): ?>
                                     <button class="rm-archive-btn" onclick="archiveReport(<?php echo (int)$row['id']; ?>, 'cimm')" title="Archive">
                                         <i class="fas fa-archive"></i>
@@ -6429,11 +6400,24 @@ if ($focus_id > 0) {
                                     $infra_can_manage = ($user_role === 'system_admin')
                                         || (!$is_road_supervisor && !$is_transport_supervisor)
                                         || !empty($report['can_manage_as_supervisor']);
+                                    $infra_st = strtolower(trim((string)($report['status'] ?? '')));
+                                    $infra_restored_cancelled = ($infra_st === 'cancelled' || $infra_st === 'canceled')
+                                        && (int)($report['restored_from_archive'] ?? 0) === 1;
+                                    $infra_can_assign = ($is_road_supervisor || $is_transport_supervisor)
+                                        && $infra_can_manage
+                                        && !$infra_restored_cancelled;
+                                    $infra_rtype = htmlspecialchars((string)($report['report_type'] ?? 'infrastructure_issue'), ENT_QUOTES);
                                     ?>
-                                    <?php if (!empty($report['from_ipms']) && $infra_can_manage): ?>
-                                    <button type="button" class="rm-edit-btn" onclick="editIpmsProject(<?php echo (int)$report['id']; ?>)" title="Edit">
-                                        <i class="fas fa-pencil"></i>
+                                    <?php if (!empty($report['from_ipms']) && $infra_restored_cancelled): ?>
+                                    <button type="button" class="rm-edit-btn" onclick="viewReportUpdates(<?php echo (int)$report['id']; ?>, '<?php echo $infra_rtype; ?>', 'ipms', 'cancelled')" title="Progress Updates">
+                                        <i class="fas fa-timeline"></i>
                                     </button>
+                                    <?php elseif (!empty($report['from_ipms']) && $infra_can_assign): ?>
+                                    <button type="button" class="rm-edit-btn" onclick="assignIpmsProject(<?php echo (int)$report['id']; ?>)" title="Assign">
+                                        <i class="fas fa-user-plus"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                    <?php if (!empty($report['from_ipms']) && $infra_can_manage): ?>
                                     <button class="rm-delete-btn" onclick="deleteIpmsProject(<?php echo (int)$report['id']; ?>)" title="Delete">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -6566,11 +6550,13 @@ if ($focus_id > 0) {
                         <h6><i class="fas fa-sliders"></i> Status &amp; Priority</h6>
                         <div class="urm-field-row">
                             <div class="form-group">
-                                <label for="editStatus" class="form-label">Status *</label>
+                                <label for="editStatus" class="form-label">Status</label>
                                 <div class="urm-select-wrap">
-                                    <select class="form-control urm-select" name="status" id="editStatus" required>
+                                    <select class="form-control urm-select t-bg-input-readonly" id="editStatus" disabled>
                                         <option value="approved">Approved</option>
                                         <option value="in-progress">In Progress</option>
+                                        <option value="cancelled">Cancelled</option>
+                                        <option value="completed">Completed</option>
                                     </select>
                                 </div>
                             </div>
@@ -6681,17 +6667,13 @@ if ($focus_id > 0) {
                         <h6><i class="fas fa-tasks"></i> Editable Fields</h6>
                         <div style="display: flex; gap: 15px;">
                             <div class="form-group" style="flex: 1;">
-                                <label class="form-label">Status *</label>
-                                <select class="form-control" name="status" id="editCimmStatus" required>
-                                    <?php if (!$is_road_supervisor && !$is_system_admin): ?>
+                                <label class="form-label">Status</label>
+                                <select class="form-control t-bg-input-readonly" id="editCimmStatus" disabled>
                                     <option value="pending">Pending</option>
-                                    <?php endif; ?>
                                     <option value="approved">Approved</option>
                                     <option value="in-progress">In Progress</option>
-                                    <?php if (!$is_road_supervisor && !$is_system_admin): ?>
                                     <option value="completed">Completed</option>
                                     <option value="cancelled">Cancelled</option>
-                                    <?php endif; ?>
                                 </select>
                             </div>
                             <div class="form-group" style="flex: 1;">
@@ -6799,10 +6781,12 @@ if ($focus_id > 0) {
                         <h6><i class="fas fa-tasks"></i> Editable Fields</h6>
                         <div style="display: flex; gap: 15px;">
                             <div class="form-group" style="flex: 1;">
-                                <label class="form-label">Status *</label>
-                                <select class="form-control" name="status" id="editIpmsStatus" required>
+                                <label class="form-label">Status</label>
+                                <select class="form-control t-bg-input-readonly" id="editIpmsStatus" disabled>
                                     <option value="approved">Approved</option>
                                     <option value="in-progress">In Progress</option>
+                                    <option value="cancelled">Cancelled</option>
+                                    <option value="completed">Completed</option>
                                 </select>
                             </div>
                             <div class="form-group" style="flex: 1;">
@@ -6997,7 +6981,7 @@ if ($focus_id > 0) {
                     <p class="urm-kicker">Staff Assignment</p>
                     <h5 class="modal-title"><i class="fas fa-user-plus"></i> Assign To</h5>
                 </div>
-                <button type="button" class="close urm-close" onclick="closeModal('assignUserModal')" aria-label="Close">&times;</button>
+                <button type="button" class="close urm-close" onclick="closeAssignUserModal()" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body urm-body">
                 <div class="asm-selected-bar" id="assignSelectedBar" hidden>
@@ -7025,7 +7009,7 @@ if ($focus_id > 0) {
             </div>
             <div class="modal-footer urm-footer">
                 <div class="urm-footer-actions urm-footer-actions-end">
-                    <button type="button" class="btn-secondary-custom urm-btn-cancel" onclick="closeModal('assignUserModal')">Cancel</button>
+                    <button type="button" class="btn-secondary-custom urm-btn-cancel" onclick="closeAssignUserModal()">Cancel</button>
                     <button type="button" class="btn-primary-custom urm-btn-save" onclick="assignUserToProject()">
                         <i class="fas fa-check"></i> Assign Staff
                     </button>
@@ -7053,6 +7037,7 @@ if ($focus_id > 0) {
         let updatePreviewCounter = 0;
         let selectedUserForAssignment = null;
         let originalModalBeforeAssign = null;
+        let assignContextKind = null; // 'regular' | 'cimm' | 'ipms'
 
         // Modal functions
         function openModal(modalId) {
@@ -7061,8 +7046,20 @@ if ($focus_id > 0) {
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
+            var el = document.getElementById(modalId);
+            if (!el) return;
+            el.style.display = 'none';
             document.body.style.overflow = 'auto';
+        }
+
+        function closeAssignUserModal() {
+            closeModal('assignUserModal');
+            assignContextKind = null;
+            originalModalBeforeAssign = null;
+            selectedUserForAssignment = null;
+            var notes = document.getElementById('assignmentNotes');
+            if (notes) notes.value = '';
+            if (typeof updateAssignSelectedBar === 'function') updateAssignSelectedBar('', '');
         }
 
         // The delete-confirm modal markup is rendered AFTER this script block,
@@ -7886,54 +7883,117 @@ if ($focus_id > 0) {
             });
         }
 
-        function openAssignUserModal() {
-            // Store which modal is currently open
-            const ipmsModal = document.getElementById('editIpmsModal');
-            const cimmModal = document.getElementById('editCimmModal');
-            const regularModal = document.getElementById('editReportModal');
-            
-            if (ipmsModal && ipmsModal.style.display === 'block') {
-                originalModalBeforeAssign = 'ipms';
-            } else if (cimmModal && cimmModal.style.display === 'block') {
-                originalModalBeforeAssign = 'cimm';
-            } else if (regularModal && regularModal.style.display === 'block') {
-                originalModalBeforeAssign = 'regular';
-            } else {
-                originalModalBeforeAssign = null;
+        function getAssignContextIds() {
+            if (assignContextKind === 'ipms'
+                || (document.getElementById('editIpmsModal') && document.getElementById('editIpmsModal').style.display === 'block')) {
+                return {
+                    reportId: document.getElementById('editIpmsReportId') ? document.getElementById('editIpmsReportId').value : '',
+                    reportType: document.getElementById('editIpmsReportTable') ? document.getElementById('editIpmsReportTable').value : ''
+                };
             }
-            
-            let reportId, reportType;
-            
-            if (originalModalBeforeAssign === 'ipms') {
-                // Infrastructure (IPMS) modal
-                reportId = document.getElementById('editIpmsReportId').value;
-                reportType = document.getElementById('editIpmsReportTable').value;
-            } else if (originalModalBeforeAssign === 'cimm') {
-                // CIMM modal
-                reportId = document.getElementById('editCimmReportId').value;
-                reportType = document.getElementById('editCimmReportTable').value;
-            } else {
-                // Regular edit modal
-                reportId = document.getElementById('editReportId').value;
-                reportType = document.getElementById('editReportTable').value;
+            if (assignContextKind === 'cimm'
+                || (document.getElementById('editCimmModal') && document.getElementById('editCimmModal').style.display === 'block')) {
+                return {
+                    reportId: document.getElementById('editCimmReportId') ? document.getElementById('editCimmReportId').value : '',
+                    reportType: document.getElementById('editCimmReportTable') ? document.getElementById('editCimmReportTable').value : ''
+                };
             }
-            
-            console.log('openAssignUserModal called with reportId:', reportId, 'reportType:', reportType, 'originalModal:', originalModalBeforeAssign);
-            
-            if (!reportId || !reportType) {
-                showNotification('Please save the report first before assigning users', 'error');
+            return {
+                reportId: document.getElementById('editReportId') ? document.getElementById('editReportId').value : '',
+                reportType: document.getElementById('editReportTable') ? document.getElementById('editReportTable').value : ''
+            };
+        }
+
+        function beginAssignReport(reportId, reportType, kind) {
+            assignContextKind = kind || 'regular';
+            originalModalBeforeAssign = null;
+            reportId = String(reportId || '');
+            reportType = String(reportType || '');
+            if (assignContextKind === 'ipms') {
+                var ipmsId = document.getElementById('editIpmsReportId');
+                var ipmsTable = document.getElementById('editIpmsReportTable');
+                if (ipmsId) ipmsId.value = reportId;
+                if (ipmsTable) ipmsTable.value = reportType || 'ipms_road_projects';
+            } else if (assignContextKind === 'cimm') {
+                var cimmId = document.getElementById('editCimmReportId');
+                var cimmTable = document.getElementById('editCimmReportTable');
+                if (cimmId) cimmId.value = reportId;
+                if (cimmTable) cimmTable.value = 'cimm_verification_reports';
+            } else {
+                var regId = document.getElementById('editReportId');
+                var regTable = document.getElementById('editReportTable');
+                if (regId) regId.value = reportId;
+                if (regTable) regTable.value = reportType || 'road_transportation_reports';
+            }
+            openAssignUserModal();
+        }
+
+        function assignReport(id, type, table) {
+            beginAssignReport(id, table || 'road_transportation_reports', 'regular');
+        }
+
+        function assignCimmReport(idx) {
+            var r = cimmData[idx];
+            if (!r) {
+                if (typeof showNotification === 'function') showNotification('Report data not found.', 'error');
                 return;
             }
-            
+            beginAssignReport(r.id, 'cimm_verification_reports', 'cimm');
+        }
+
+        function assignIpmsProject(id) {
+            var r = infraIpmsDataMap[id];
+            if (!r) {
+                if (typeof showNotification === 'function') showNotification('Project data not found.', 'error');
+                return;
+            }
+            beginAssignReport(r.id, 'ipms_road_projects', 'ipms');
+        }
+
+        function openAssignUserModal() {
+            // Prefer explicit assign context from the Assign action button; otherwise
+            // detect whichever edit modal is open (legacy path).
+            if (!assignContextKind) {
+                const ipmsModal = document.getElementById('editIpmsModal');
+                const cimmModal = document.getElementById('editCimmModal');
+                const regularModal = document.getElementById('editReportModal');
+
+                if (ipmsModal && ipmsModal.style.display === 'block') {
+                    originalModalBeforeAssign = 'ipms';
+                    assignContextKind = 'ipms';
+                } else if (cimmModal && cimmModal.style.display === 'block') {
+                    originalModalBeforeAssign = 'cimm';
+                    assignContextKind = 'cimm';
+                } else if (regularModal && regularModal.style.display === 'block') {
+                    originalModalBeforeAssign = 'regular';
+                    assignContextKind = 'regular';
+                } else {
+                    originalModalBeforeAssign = null;
+                }
+            }
+
+            const ctx = getAssignContextIds();
+            const reportId = ctx.reportId;
+            const reportType = ctx.reportType;
+
+            console.log('openAssignUserModal called with reportId:', reportId, 'reportType:', reportType, 'assignContext:', assignContextKind);
+
+            if (!reportId || !reportType) {
+                showNotification('Please select a report before assigning users', 'error');
+                return;
+            }
+
             closeModal('editReportModal');
+            closeModal('editCimmModal');
+            closeModal('editIpmsModal');
             openModal('assignUserModal');
-            
+
             // Load available users
             const usersList = document.getElementById('availableUsersList');
             selectedUserForAssignment = null;
             updateAssignSelectedBar('', '');
             usersList.innerHTML = '<div class="usr-muted asm-list-loading"><i class="fas fa-spinner fa-spin"></i> Loading staff...</div>';
-            
+
             fetch(`../api/get_assignable_users.php?report_id=${reportId}&report_type=${encodeURIComponent(reportType)}`)
                 .then(r => r.json())
                 .then(data => {
@@ -8010,37 +8070,24 @@ if ($focus_id > 0) {
                 showNotification('Please select a staff member to assign', 'error');
                 return;
             }
-            
-            // Check which modal is currently open
-            const ipmsModal = document.getElementById('editIpmsModal');
-            const cimmModal = document.getElementById('editCimmModal');
-            const isIpmsModal = ipmsModal && ipmsModal.style.display === 'block';
-            const isCimmModal = cimmModal && cimmModal.style.display === 'block';
-            
-            let reportId, reportType;
-            
-            if (isIpmsModal) {
-                // Infrastructure (IPMS) modal
-                reportId = document.getElementById('editIpmsReportId').value;
-                reportType = document.getElementById('editIpmsReportTable').value;
-            } else if (isCimmModal) {
-                // CIMM modal
-                reportId = document.getElementById('editCimmReportId').value;
-                reportType = document.getElementById('editCimmReportTable').value;
-            } else {
-                // Regular edit modal
-                reportId = document.getElementById('editReportId').value;
-                reportType = document.getElementById('editReportTable').value;
+
+            const ctx = getAssignContextIds();
+            const reportId = ctx.reportId;
+            const reportType = ctx.reportType;
+
+            if (!reportId || !reportType) {
+                showNotification('Missing report context for assignment', 'error');
+                return;
             }
-            
+
             const notes = document.getElementById('assignmentNotes').value;
-            
+
             const formData = new FormData();
             formData.append('report_id', reportId);
             formData.append('report_type', reportType);
             formData.append('user_id', selectedUserForAssignment.id);
             formData.append('notes', notes);
-            
+
             fetch('../api/assign_user_to_project.php', {
                 method: 'POST',
                 body: formData
@@ -8053,17 +8100,9 @@ if ($focus_id > 0) {
                     document.getElementById('assignmentNotes').value = '';
                     selectedUserForAssignment = null;
                     updateAssignSelectedBar('', '');
-                    
-                    // Reopen the original modal
-                    if (originalModalBeforeAssign === 'ipms') {
-                        openModal('editIpmsModal');
-                    } else if (originalModalBeforeAssign === 'cimm') {
-                        openModal('editCimmModal');
-                    } else {
-                        openModal('editReportModal');
-                    }
-                    
-                    loadAssignedUsers();
+                    assignContextKind = null;
+                    originalModalBeforeAssign = null;
+                    // Assignment-only flow: do not reopen edit modals.
                 } else {
                     showNotification(data.message || 'Failed to assign user', 'error');
                 }
@@ -8105,15 +8144,19 @@ if ($focus_id > 0) {
             var completeBtn = document.getElementById('completeBtn');
             var cancelBtn = document.getElementById('cancelBtn');
             var addUpdateBtn = document.getElementById('addUpdateBtn');
-            if (actionButtons) actionButtons.style.display = 'flex';
-            if (exportWordBtn) exportWordBtn.style.display = 'inline-flex';
-            if (exportButtons) exportButtons.style.display = 'none';
+            // Cancelled / completed (incl. restored-cancelled): history only —
+            // Export + Close. No Complete, Cancel, or Add Update.
             if (isTerminalUpdatesStatus()) {
+                if (actionButtons) actionButtons.style.display = 'none';
+                if (exportButtons) exportButtons.style.display = 'flex';
                 if (completeBtn) completeBtn.style.display = 'none';
                 if (cancelBtn) cancelBtn.style.display = 'none';
                 if (addUpdateBtn) addUpdateBtn.style.display = 'none';
                 return true;
             }
+            if (actionButtons) actionButtons.style.display = 'flex';
+            if (exportWordBtn) exportWordBtn.style.display = 'inline-flex';
+            if (exportButtons) exportButtons.style.display = 'none';
             if (completeBtn) completeBtn.style.display = 'inline-flex';
             if (cancelBtn) cancelBtn.style.display = 'inline-flex';
             if (addUpdateBtn) addUpdateBtn.style.display = 'inline-flex';
@@ -8620,7 +8663,22 @@ if ($focus_id > 0) {
                         document.getElementById('editReportType').value = type;
                         document.getElementById('editReportTypeFromDB').value = data.report.report_type;
                         document.getElementById('editReportTable').value = table || 'road_transportation_reports';
-                        document.getElementById('editStatus').value = data.report.status;
+                        var statusSelect = document.getElementById('editStatus');
+                        var currentStatus = (data.report.status && data.report.status !== '—')
+                            ? String(data.report.status).toLowerCase()
+                            : 'approved';
+                        while (statusSelect.querySelector('option[data-current="1"]')) {
+                            statusSelect.removeChild(statusSelect.querySelector('option[data-current="1"]'));
+                        }
+                        if (!statusSelect.querySelector('option[value="' + currentStatus.replace(/"/g, '') + '"]')) {
+                            var statusOpt = document.createElement('option');
+                            statusOpt.value = currentStatus;
+                            statusOpt.textContent = currentStatus.replace(/-/g, ' ').replace(/\b\w/g, function(m) { return m.toUpperCase(); });
+                            statusOpt.setAttribute('data-current', '1');
+                            statusSelect.appendChild(statusOpt);
+                        }
+                        statusSelect.value = currentStatus;
+                        statusSelect.disabled = true;
                         document.getElementById('editPriority').value = data.report.priority;
                         document.getElementById('editTitle').value = data.report.title || '';
                         document.getElementById('editDescription').value = data.report.description || '';
@@ -9407,28 +9465,24 @@ if ($focus_id > 0) {
             document.getElementById('editCimmInfrastructure').value = r.title || '';
             document.getElementById('editCimmLocation').value = r.location || '';
 
-            // Admin-only: the Status dropdown only offers Approved / In
-            // Progress. When the report's current status is outside that set
-            // (e.g. Completed or Cancelled), show it as a disabled, non-editable
-            // option so it is never silently coerced to "Approved". Other roles
-            // keep their existing dropdown options and behavior untouched.
+            // Status is display-only in the Edit Modal — cancelled (and all
+            // other statuses) cannot be changed or reopened here.
             var cimmStatusSelect = document.getElementById('editCimmStatus');
-            var currentCimmStatus = r.status || 'pending';
-            <?php if ($is_system_admin): ?>
+            var currentCimmStatus = (r.status && r.status !== '—')
+                ? String(r.status).toLowerCase()
+                : 'pending';
             while (cimmStatusSelect.querySelector('option[data-current="1"]')) {
                 cimmStatusSelect.removeChild(cimmStatusSelect.querySelector('option[data-current="1"]'));
             }
-            var allowedCimmStatuses = ['approved', 'in-progress'];
-            if (allowedCimmStatuses.indexOf(currentCimmStatus) === -1) {
+            if (!cimmStatusSelect.querySelector('option[value="' + currentCimmStatus.replace(/"/g, '') + '"]')) {
                 var curOpt = document.createElement('option');
                 curOpt.value = currentCimmStatus;
                 curOpt.textContent = currentCimmStatus.replace(/-/g, ' ').replace(/\b\w/g, function(m) { return m.toUpperCase(); });
-                curOpt.disabled = true;
                 curOpt.setAttribute('data-current', '1');
                 cimmStatusSelect.appendChild(curOpt);
             }
-            <?php endif; ?>
             cimmStatusSelect.value = currentCimmStatus;
+            cimmStatusSelect.disabled = true;
             document.getElementById('editCimmPriority').value = r.priority || 'medium';
             document.getElementById('editCimmEstimation').value = r.estimation || '';
             document.getElementById('editCimmNotes').value = r.notes || '';
@@ -9523,20 +9577,19 @@ if ($focus_id > 0) {
             document.getElementById('editIpmsStartAddress').value = r.start_address || '';
             document.getElementById('editIpmsEndAddress').value = r.end_address || '';
             var ipmsStatusSelect = document.getElementById('editIpmsStatus');
-            var currentIpmsStatus = (r.status && r.status !== '—') ? r.status : 'approved';
+            var currentIpmsStatus = (r.status && r.status !== '—') ? String(r.status).toLowerCase() : 'approved';
             while (ipmsStatusSelect.querySelector('option[data-current="1"]')) {
                 ipmsStatusSelect.removeChild(ipmsStatusSelect.querySelector('option[data-current="1"]'));
             }
-            var allowedIpmsStatuses = ['approved', 'in-progress'];
-            if (allowedIpmsStatuses.indexOf(currentIpmsStatus) === -1) {
+            if (!ipmsStatusSelect.querySelector('option[value="' + currentIpmsStatus.replace(/"/g, '') + '"]')) {
                 var curOpt = document.createElement('option');
                 curOpt.value = currentIpmsStatus;
                 curOpt.textContent = currentIpmsStatus.replace(/-/g, ' ').replace(/\b\w/g, function(m) { return m.toUpperCase(); });
-                curOpt.disabled = true;
                 curOpt.setAttribute('data-current', '1');
                 ipmsStatusSelect.appendChild(curOpt);
             }
             ipmsStatusSelect.value = currentIpmsStatus;
+            ipmsStatusSelect.disabled = true;
             document.getElementById('editIpmsPriority').value = (r.priority && r.priority !== '—') ? r.priority : 'medium';
             document.getElementById('editIpmsReportTable').value = 'ipms_road_projects';
             document.getElementById('ipmsEditIndicator').textContent = '';

@@ -50,9 +50,11 @@ function renderTimeline(updates) {
     }
     let html = '';
     updates.forEach((u, idx) => {
-        const isAdmin = typeof currentUpdatesReportId !== 'undefined';
         const mediaHtml = renderMedia(u.media || []);
-        const actionsHtml = isAdmin ? `
+        const canMutateUpdates = (typeof isTerminalUpdatesStatus === 'function')
+            ? !isTerminalUpdatesStatus()
+            : true;
+        const actionsHtml = canMutateUpdates ? `
             <div class="timeline-actions">
                 <button class="btn-edit-update" onclick="editUpdate(${u.id})"><i class="fas fa-pencil"></i> Edit</button>
                 <button class="btn-delete-update" onclick="deleteUpdate(${u.id})"><i class="fas fa-trash"></i> Delete</button>
