@@ -93,7 +93,7 @@ function transparency_fetch_road_report($conn, int $report_id, string $source): 
     $row = fetch_one(
         "SELECT id, report_id, report_type, title, description, location, status, report_category,
                 report_source, created_by, completed_at, cimm_engineer_name, cimm_budget,
-                estimation, assigned_to
+                estimation, assigned_to, reporter_name, reporter_email
          FROM road_transportation_reports
          WHERE id = ?",
         [$report_id],
@@ -255,6 +255,8 @@ function transparency_fetch_cimm_report($conn, int $report_id): ?array {
         'completed_at' => $row['resolved_at'] ?: ($row['verified_at'] ?? null),
         'engineer_name' => trim((string)($row['engineer'] ?? '')),
         'cost' => $cost,
+        'reporter_name' => trim((string)($row['reporter_name'] ?? '')),
+        'reporter_email' => trim((string)($row['email'] ?? '')),
         'report_source_key' => 'cimm',
         'fallback_title' => 'CIMM Road Project ' . $reference,
     ];
@@ -327,6 +329,8 @@ function transparency_fetch_ipms_report($conn, int $report_id): ?array {
         'completed_at' => $row['synced_at'] ?? ($row['created_at'] ?? null),
         'engineer_name' => implode(', ', $engineers),
         'cost' => ($row['budget'] !== null && $row['budget'] !== '') ? (float)$row['budget'] : 0.0,
+        'reporter_name' => '',
+        'reporter_email' => '',
         'report_source_key' => 'infrastructure',
         'fallback_title' => 'Infrastructure Project #' . $project_id,
     ];
@@ -495,6 +499,21 @@ function transparency_date_only(?string $datetime): ?string {
 }
 
 /**
+ * Reporter contact from the source report only (no photo copies).
+ *
+ * @return array{reporter_name:string,reporter_email:string,source_report_id:int,source_report_source:string}
+ */
+function transparency_reporter_contact_from_report($conn, int $report_id, string $source): array {
+    $report = transparency_fetch_request_report($conn, $report_id, $source);
+    return [
+        'reporter_name' => trim((string)($report['reporter_name'] ?? '')),
+        'reporter_email' => trim((string)($report['reporter_email'] ?? '')),
+        'source_report_id' => $report_id,
+        'source_report_source' => $source,
+    ];
+}
+
+/**
  * Build import payload scoped to one report. Throws on validation failure.
  *
  * @return array<string,mixed>
@@ -552,6 +571,8 @@ function transparency_build_import_data($conn, int $report_id, string $source): 
         'report_mgmt_source' => transparency_mgmt_source_for_report($report),
         'source_report_id' => $report_id,
         'source_report_source' => $source,
+        'reporter_name' => trim((string)($report['reporter_name'] ?? '')),
+        'reporter_email' => trim((string)($report['reporter_email'] ?? '')),
     ];
 }
 
@@ -562,11 +583,11 @@ function transparency_create_draft_from_report($conn, int $report_id, string $so
         "INSERT INTO published_completed_projects
             (title, description, location, completed_date, cost, completed_by,
              progress_conducted_by, photo, before_photo, is_published,
-             source_report_id, source_report_source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)"
+             source_report_id, source_report_source, reporter_name, reporter_email)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)"
     );
     $stmt->bind_param(
-        'ssssdssssis',
+        'ssssdssssisss',
         $data['title'],
         $data['description'],
         $data['location'],
@@ -577,7 +598,9 @@ function transparency_create_draft_from_report($conn, int $report_id, string $so
         $data['photo'],
         $data['before_photo'],
         $data['source_report_id'],
-        $data['source_report_source']
+        $data['source_report_source'],
+        $data['reporter_name'],
+        $data['reporter_email']
     );
     if (!$stmt->execute()) {
         throw new RuntimeException('Failed to create transparency draft: ' . $conn->error);

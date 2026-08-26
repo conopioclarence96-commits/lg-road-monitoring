@@ -2103,16 +2103,26 @@ if ($conn) {
     const TRANSPARENCY_REQUEST_API = '../api/transparency_request_api.php';
     const PREFILL_REQUEST_ID = <?php echo (int)$prefill_request_id; ?>;
 
-    function showImportReviewBanner(req) {
+    function showImportReviewBanner(req, data) {
         const banner = document.getElementById('importReviewBanner');
         if (!banner) return;
         const id = (req && req.id) ? req.id : PREFILL_REQUEST_ID;
         const who = (req && req.requested_by_name) ? req.requested_by_name : 'the Road Operations Supervisor';
         const project = (req && req.report_title) ? '"' + req.report_title + '"' : 'the approved project';
+        const reporter = (data && data.reporter_name) ? data.reporter_name : '';
+        const email = (data && data.reporter_email) ? data.reporter_email : '';
+        let extra = '';
+        if (reporter || email) {
+            extra = ' Linked reporter: '
+                + (reporter || 'citizen')
+                + (email ? ' (' + email + ')' : '')
+                + ' — they will be emailed when you publish.';
+        }
         document.getElementById('importReviewTitle').textContent = 'Imported from approved request #' + id;
         document.getElementById('importReviewText').textContent =
             'Progress update data for ' + project + ', requested by ' + who
-            + ', has been filled in below. Review every field, then save as draft or publish.';
+            + ', has been filled in below. Review every field, then save as draft or publish.'
+            + extra;
         banner.style.display = 'flex';
     }
 
@@ -2126,6 +2136,12 @@ if ($conn) {
         setImportedField('projectCost', data.cost ? Number(data.cost).toFixed(2) : '');
         setImportedField('projectCompletedBy', data.completed_by);
         setImportedField('projectConductedBy', data.progress_conducted_by);
+
+        // Link back to the source report so publish can email the citizen reporter.
+        setHiddenField('sourceReportId', data.source_report_id || '');
+        setHiddenField('sourceReportSource', data.source_report_source || '');
+        setHiddenField('reporterName', data.reporter_name || '');
+        setHiddenField('reporterEmail', data.reporter_email || '');
 
         // Photos were copied into the completed-projects folder server-side, so
         // the form only needs to point at them.
@@ -2144,7 +2160,7 @@ if ($conn) {
                     return;
                 }
                 applyPrefilledProject(resp.data);
-                showImportReviewBanner(resp.request);
+                showImportReviewBanner(resp.request, resp.data);
                 // Drop the parameter so the reload after saving does not re-import.
                 if (window.history && window.history.replaceState) {
                     window.history.replaceState({}, '', 'public_transparency.php');

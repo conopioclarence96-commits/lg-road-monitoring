@@ -171,6 +171,26 @@ switch ($action) {
             $save->bind_param('si', $payload_json, $request_id);
             $save->execute();
             $save->close();
+        } elseif (
+            !array_key_exists('reporter_name', $data)
+            || !array_key_exists('reporter_email', $data)
+            || !array_key_exists('source_report_id', $data)
+        ) {
+            // Older cached payloads predate reporter contact / source linkage.
+            $contact = transparency_reporter_contact_from_report(
+                $conn,
+                (int)$row['report_id'],
+                (string)$row['report_source']
+            );
+            $data['reporter_name'] = $contact['reporter_name'];
+            $data['reporter_email'] = $contact['reporter_email'];
+            $data['source_report_id'] = $contact['source_report_id'];
+            $data['source_report_source'] = $contact['source_report_source'];
+            $payload_json = json_encode($data);
+            $save = $conn->prepare("UPDATE transparency_upload_requests SET import_payload = ? WHERE id = ?");
+            $save->bind_param('si', $payload_json, $request_id);
+            $save->execute();
+            $save->close();
         }
 
         echo json_encode([
