@@ -724,6 +724,16 @@ if ($archives) {
         @media (max-width: 768px) {
             .main-content { margin-left: 0; padding: 20px 14px 40px; }
             .arch-shell { max-width: 100%; }
+            .archive-header {
+                flex-wrap: wrap;
+                align-items: flex-start;
+            }
+            .archive-header-left {
+                width: 100%;
+            }
+            .archive-header-text h1 { font-size: 17px; }
+            .archive-header-text p { font-size: 11px; margin-bottom: 10px; }
+            .dt-chip { width: 100%; justify-content: flex-start; }
             .filter-group > div { flex: 1 1 100%; }
             .filter-group > div.filter-actions { flex: 1 1 100%; }
             .btn-secondary-custom { width: 100%; }

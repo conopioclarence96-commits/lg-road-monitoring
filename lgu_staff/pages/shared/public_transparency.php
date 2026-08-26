@@ -26,6 +26,9 @@ $is_admin = ($_SESSION['role'] === 'system_admin');
 // Transport Operations Supervisor flag: scopes the mobile-fit CSS below to this portal only.
 $is_trans_ops_supervisor = ($_SESSION['role'] ?? '') === 'trans_ops_supervisor';
 
+// Road Monitoring Officer flag: scopes the mobile-fit CSS below to this portal only.
+$is_road_monitoring_officer = ($_SESSION['role'] ?? '') === 'road_monitoring_officer';
+
 // Set when the admin arrives here after approving a transparency upload request;
 // that project's data is then imported into the form for review.
 $prefill_request_id = ($is_admin && isset($_GET['transparency_request']))
@@ -143,6 +146,23 @@ if ($conn) {
             color: var(--text-primary) !important;
         }
         body.system-admin-view.dark-mode .header-actions .header-datetime #dtTime {
+            color: var(--text-secondary) !important;
+        }
+
+        /* Road Monitoring Officer: header-datetime dark-mode */
+        body.rmo-view.dark-mode .header-actions .header-datetime {
+            background: rgba(255,255,255,0.05) !important;
+            border-color: var(--border-default) !important;
+            color: var(--text-primary) !important;
+        }
+        body.rmo-view.dark-mode .header-actions .header-datetime i {
+            background: rgba(96,165,250,0.15) !important;
+            color: #93b3fd !important;
+        }
+        body.rmo-view.dark-mode .header-actions .header-datetime #dtDate {
+            color: var(--text-primary) !important;
+        }
+        body.rmo-view.dark-mode .header-actions .header-datetime #dtTime {
             color: var(--text-secondary) !important;
         }
 
@@ -967,8 +987,44 @@ if ($conn) {
         }
     </style>
     <?php endif; ?>
+    <?php if ($is_road_monitoring_officer): ?>
+    <style>
+        @media (max-width: 768px) {
+            body.rmo-view .projects-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+            body.rmo-view .project-item {
+                border-radius: 10px;
+            }
+            body.rmo-view .project-item .project-thumb {
+                height: 100px;
+            }
+            body.rmo-view .project-item .project-info {
+                padding: 10px 12px;
+            }
+            body.rmo-view .project-item .project-info h4 {
+                font-size: 12px;
+                margin-bottom: 3px;
+            }
+            body.rmo-view .project-item .project-info .project-meta {
+                font-size: 10px;
+            }
+            body.rmo-view .project-item .project-info .project-cost {
+                font-size: 11px;
+                padding: 3px 8px;
+            }
+        }
+        @media (max-width: 480px) {
+            body.rmo-view .projects-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+        }
+    </style>
+    <?php endif; ?>
 </head>
-<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_admin ? ' system-admin-view' : ''; ?>">
+<body class="<?php echo !empty($_SESSION['darkmode']) ? 'dark-mode' : ''; ?><?php echo $is_trans_ops_supervisor ? ' trans-supervisor-view' : ''; ?><?php echo $is_admin ? ' system-admin-view' : ''; ?><?php echo $is_road_monitoring_officer ? ' rmo-view' : ''; ?>">
     <!-- SIDEBAR -->
     <?php include '../../includes/sidebar_nav.php'; ?>
 
