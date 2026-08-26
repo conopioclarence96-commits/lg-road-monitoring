@@ -8400,6 +8400,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             var locationGrid = '';
             locationGrid += infraInfoItem('map-marker-alt', 'Start Address', r.start_address || '—');
             locationGrid += infraInfoItem('map-marker', 'End Address', r.end_address || '—');
+            locationGrid += infraInfoItem('map-pin', 'District', r.district);
             document.getElementById('infra-location-grid').innerHTML = locationGrid;
 
             // View Map button: only shown when the project has a saved road

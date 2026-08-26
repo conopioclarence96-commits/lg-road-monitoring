@@ -1185,7 +1185,8 @@ function rgmap_archive_union_sql($include_cimm, $include_ipms) {
             reporter_phone,
             assigned_to,
             NULL AS assigned_engineers_json,
-            NULL AS polyline_json
+            NULL AS polyline_json,
+            NULL AS districts_json
         FROM road_transportation_reports_archive
     ";
 
@@ -1241,7 +1242,8 @@ function rgmap_archive_union_sql($include_cimm, $include_ipms) {
                 contact_number AS reporter_phone,
                 NULL AS assigned_to,
                 NULL AS assigned_engineers_json,
-                NULL AS polyline_json
+                NULL AS polyline_json,
+                NULL AS districts_json
             FROM cimm_verification_reports_archive
         ";
     }
@@ -1296,7 +1298,8 @@ function rgmap_archive_union_sql($include_cimm, $include_ipms) {
                 NULL AS reporter_phone,
                 NULL AS assigned_to,
                 assigned_engineers_json,
-                polyline_json
+                polyline_json,
+                districts_json
             FROM ipms_road_projects_archive
         ";
     }

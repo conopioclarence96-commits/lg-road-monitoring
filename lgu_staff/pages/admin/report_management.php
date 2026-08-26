@@ -7267,6 +7267,7 @@ if ($focus_id > 0) {
             'location' => $ir['location'] ?? '',
             'start_address' => $ir['start_address'] ?? null,
             'end_address' => $ir['end_address'] ?? null,
+            'district' => $ir['district'] ?? null,
             'description' => $ir['description'] ?? '',
             'created_date' => $ir['created_date'] ?? null,
             'created_at' => $ir['created_at'] ?? null,
@@ -7358,6 +7359,7 @@ if ($focus_id > 0) {
             var locationGrid = '';
             locationGrid += rmInfoItem('map-marker-alt', 'Start Address', r.start_address || '—');
             locationGrid += rmInfoItem('map-marker', 'End Address', r.end_address || '—');
+            locationGrid += rmInfoItem('map-pin', 'District', r.district);
             if (r.location) {
                 locationGrid += rmInfoItem('map-pin', 'Location', r.location);
             }

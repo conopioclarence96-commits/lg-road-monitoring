@@ -82,7 +82,8 @@ try {
                     end_address,
                     end_lat,
                     end_lng,
-                    polyline_json
+                    polyline_json,
+                    districts_json
              FROM ipms_road_projects
              WHERE project_id = ?"
         );
@@ -106,6 +107,14 @@ try {
         $report['update_media'] = [];
         $report['start_address'] = trim((string)($report['start_address'] ?? '')) ?: null;
         $report['end_address'] = trim((string)($report['end_address'] ?? '')) ?: null;
+        $districts = json_decode((string)($report['districts_json'] ?? '[]'), true);
+        $report['district'] = (is_array($districts) && count($districts))
+            ? implode(', ', array_filter(array_map('trim', array_map('strval', $districts)), static fn($d) => $d !== ''))
+            : null;
+        if ($report['district'] === '') {
+            $report['district'] = null;
+        }
+        unset($report['districts_json']);
         $polyline = json_decode((string)($report['polyline_json'] ?? '[]'), true);
         $report['polyline'] = is_array($polyline) ? $polyline : [];
         unset($report['polyline_json']);

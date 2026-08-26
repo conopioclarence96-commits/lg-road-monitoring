@@ -2748,6 +2748,12 @@ if (isset($_SESSION['archive_message'])) {
                     if (is_array($eng) && empty($__ar['engineer'])) {
                         $__ar['engineer'] = implode(', ', array_filter(array_map('strval', $eng)));
                     }
+                    $districts = json_decode((string)($__ar['districts_json'] ?? '[]'), true);
+                    if (is_array($districts) && count($districts)) {
+                        $__ar['district'] = implode(', ', array_filter(array_map('trim', array_map('strval', $districts)), static function ($d) {
+                            return $d !== '';
+                        }));
+                    }
                 }
             }
             unset($__ar);
@@ -3042,6 +3048,7 @@ if (isset($_SESSION['archive_message'])) {
             if (isIpmsArchive) {
                 locationGrid += rmInfoItem('map-marker-alt', 'Start Address', row.start_address || '—');
                 locationGrid += rmInfoItem('map-marker', 'End Address', row.end_address || '—');
+                locationGrid += rmInfoItem('map-pin', 'District', row.district || row.detected_district);
             } else {
                 var locVal = row.location || '—';
                 if (row.latitude && row.longitude && row.latitude != 0 && row.longitude != 0) {

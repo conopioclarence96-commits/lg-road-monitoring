@@ -6032,6 +6032,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                     if (src === 'infrastructure' || src === 'maintenance') {
                         locationGrid += rmInfoItem('map-marker-alt', 'Start Address', r.start_address || '—');
                         locationGrid += rmInfoItem('map-marker', 'End Address', r.end_address || '—');
+                        locationGrid += rmInfoItem('map-pin', 'District', r.district || r.detected_district);
                     } else {
                         var locVal = r.location || '—';
                         if (r.latitude && r.longitude && r.latitude != 0 && r.longitude != 0) {
