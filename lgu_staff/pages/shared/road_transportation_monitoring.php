@@ -4339,6 +4339,9 @@ if ($is_completed_projects_view || $is_system_admin) {
          The base table CSS now handles scroll and column alignment for all
          users; this block only tweaks badge pill sizing on small screens. -->
     <style>
+        body.completed-projects-view.system-admin-view .mon-dash .table-header-right {
+            margin-left: auto;
+        }
         @media (max-width: 768px) {
             body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .badge,
             body.completed-projects-view.system-admin-view .mon-dash .reports-table-section .db-badge,
