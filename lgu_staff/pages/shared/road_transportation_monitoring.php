@@ -1738,15 +1738,53 @@ if ($is_completed_projects_view || $is_system_admin) {
         .stat-card .stat-label { font-size: 13px; color: #6b7280; font-weight: 500; margin-top: 2px; }
 
         .map-toolbar {
-            display: flex; justify-content: space-between; align-items: center;
-            flex-wrap: wrap; gap: 10px; margin-bottom: 12px;
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 12px;
         }
-        .map-toolbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .map-toolbar-right { display: flex; gap: 8px; }
+        .map-toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            flex: 1 1 320px;
+            min-width: 0;
+        }
+        .map-toolbar-left .map-search-box {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1 1 180px;
+            min-width: 160px;
+            max-width: 320px;
+        }
+        .map-toolbar-left .map-search-box input {
+            flex: 1 1 auto;
+            width: 100%;
+            min-width: 0;
+            padding: 5px 10px;
+            border: 1px solid rgba(55,98,200,0.3);
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .map-toolbar-right {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            flex: 0 0 auto;
+        }
         .map-legend {
             display: flex; align-items: center; gap: 14px;
             font-size: 12px; color: #555; padding: 6px 12px;
             background: rgba(255,255,255,0.7); border-radius: 8px;
+            flex: 1 1 auto;
+            flex-wrap: wrap;
         }
         .map-legend-item { display: flex; align-items: center; gap: 5px; }
         .map-legend-dot {
@@ -1754,11 +1792,169 @@ if ($is_completed_projects_view || $is_system_admin) {
             border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
         .map-fullscreen-btn {
-            padding: 6px 14px; background: rgba(55,98,200,0.1); color: #3762c8;
-            border: 1px solid rgba(55,98,200,0.3); border-radius: 6px;
-            font-size: 12px; cursor: pointer; transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 34px;
+            padding: 6px 12px;
+            background: rgba(55,98,200,0.1);
+            color: #3762c8;
+            border: 1px solid rgba(55,98,200,0.3);
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.2;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
+            white-space: nowrap;
+            box-sizing: border-box;
         }
         .map-fullscreen-btn:hover { background: #3762c8; color: #fff; }
+
+        /* Map Tools dropdown */
+        .map-tools {
+            position: relative;
+            display: inline-block;
+        }
+        .map-tools-toggle {
+            min-width: 96px;
+        }
+        .map-tools-toggle-count {
+            display: none;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #3762c8;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 18px;
+            text-align: center;
+        }
+        .map-tools-toggle.has-active .map-tools-toggle-count { display: inline-block; }
+        .map-tools-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            z-index: 1300;
+            width: min(300px, calc(100vw - 32px));
+            padding: 8px;
+            border-radius: 12px;
+            background: #fff;
+            border: 1px solid rgba(55,98,200,0.14);
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+        }
+        .map-tools-menu.is-open { display: block; }
+        .map-tools-heading {
+            padding: 6px 10px 4px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #9ca3af;
+        }
+        .map-tools-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            width: 100%;
+            padding: 10px 12px;
+            margin: 2px 0;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            background: transparent;
+            color: #374151;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .map-tools-item:hover {
+            background: rgba(55,98,200,0.06);
+            color: #1e3c72;
+        }
+        .map-tools-item-main {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .map-tools-item-main i {
+            width: 18px;
+            text-align: center;
+            color: #3762c8;
+        }
+        .map-tools-item-state {
+            flex: 0 0 auto;
+            min-width: 36px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            text-align: center;
+            background: rgba(107,114,128,0.14);
+            color: #6b7280;
+        }
+        .map-tools-item.is-on {
+            background: rgba(55,98,200,0.08);
+            border-color: rgba(55,98,200,0.18);
+            color: #1e3c72;
+        }
+        .map-tools-item.is-on .map-tools-item-state {
+            background: rgba(16,185,129,0.16);
+            color: #047857;
+        }
+        .map-tools-item.is-off .map-tools-item-state {
+            background: rgba(107,114,128,0.14);
+            color: #6b7280;
+        }
+        .map-tools-divider {
+            height: 1px;
+            margin: 8px 4px;
+            background: rgba(15, 23, 42, 0.08);
+        }
+        .map-tools-item.map-tools-action {
+            justify-content: center;
+            margin-top: 2px;
+            background: #3762c8;
+            color: #fff;
+            border-color: #3762c8;
+            font-weight: 600;
+        }
+        .map-tools-item.map-tools-action:hover {
+            background: #2f55b0;
+            color: #fff;
+        }
+        .map-tools-item.map-tools-action i { color: #fff; }
+        .map-tools-item.map-tools-action .map-tools-item-state { display: none; }
+        .map-tools-item.is-loading {
+            opacity: 0.75;
+            pointer-events: none;
+        }
+        body.dark-mode .map-tools-menu {
+            background: #1e2229;
+            border-color: rgba(255,255,255,0.08);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+        }
+        body.dark-mode .map-tools-item { color: #e4e6ea; }
+        body.dark-mode .map-tools-item:hover {
+            background: rgba(55,98,200,0.16);
+            color: #fff;
+        }
+        body.dark-mode .map-tools-item.is-on {
+            background: rgba(55,98,200,0.2);
+            border-color: rgba(96,165,250,0.25);
+            color: #93c5fd;
+        }
+        body.dark-mode .map-tools-item-main i { color: #93c5fd; }
+        body.dark-mode .map-tools-divider { background: rgba(255,255,255,0.08); }
         .incident-map-pin {
             color: #fff;
             border-radius: 50%;
@@ -2634,16 +2830,6 @@ if ($is_completed_projects_view || $is_system_admin) {
         body.dark-mode .stat-card .stat-label { color: #9ca3af; }
         body.dark-mode .map-legend { background: rgba(30,34,41,0.85); color: #9ca3af; }
 
-        .tools-dropdown-item {
-            display:block;width:100%;padding:10px 16px;border:none;background:none;
-            text-align:left;font-size:13px;color:#333;cursor:pointer;transition:background 0.2s;
-            font-family:'Poppins',sans-serif;
-        }
-        .tools-dropdown-item:hover { background:rgba(55,98,200,0.08); color:#3762c8; }
-        .tools-dropdown-item i { width:20px; color:#3762c8; }
-        body.dark-mode .tools-dropdown-item { color:#e4e6ea; }
-        body.dark-mode .tools-dropdown-item:hover { background:rgba(55,98,200,0.15); }
-
         #gis-location-info .gis-field-tag {
             display:inline-block;background:rgba(55,98,200,0.1);color:#1e3c72;
             padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;
@@ -3264,9 +3450,14 @@ if ($is_completed_projects_view || $is_system_admin) {
             border-color: transparent;
             border-radius: 8px;
             font-weight: 600;
-            transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+            transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
         }
         .mon-dash .map-fullscreen-btn:hover { transform: translateY(-1px); background: var(--color-primary); color: #fff; }
+        .mon-dash .map-tools-menu {
+            background: var(--bg-card, #fff);
+            border-color: var(--border-light, rgba(55,98,200,0.14));
+        }
+        .mon-dash .map-tools-item { color: var(--text-primary, #374151); }
         .mon-dash .map-search-box input {
             background: var(--bg-input);
             color: var(--text-primary);
@@ -3992,15 +4183,17 @@ if ($is_completed_projects_view || $is_system_admin) {
             /* Toolbar button row is ~600px unwrapped — let it wrap instead of
                pushing past the screen edge */
             .road-supervisor-view .map-toolbar,
-            .road-supervisor-view .map-toolbar-left,
-            .road-supervisor-view .map-toolbar-right {
+            .road-supervisor-view .map-toolbar-left {
                 flex-wrap: wrap;
             }
             .road-supervisor-view .map-toolbar-right {
-                justify-content: flex-start;
+                width: auto;
+            }
+            .road-supervisor-view .map-search-box {
+                max-width: none;
             }
             .road-supervisor-view .map-search-box input {
-                width: 120px;
+                width: 100%;
             }
 
             /* Filter buttons and legend chips are single non-wrapping flex rows,
@@ -4096,15 +4289,17 @@ if ($is_completed_projects_view || $is_system_admin) {
             /* Toolbar button row is ~600px unwrapped — let it wrap instead of
                pushing past the screen edge */
             .system-admin-view .map-toolbar,
-            .system-admin-view .map-toolbar-left,
-            .system-admin-view .map-toolbar-right {
+            .system-admin-view .map-toolbar-left {
                 flex-wrap: wrap;
             }
             .system-admin-view .map-toolbar-right {
-                justify-content: flex-start;
+                width: auto;
+            }
+            .system-admin-view .map-search-box {
+                max-width: none;
             }
             .system-admin-view .map-search-box input {
-                width: 120px;
+                width: 100%;
             }
 
             /* Filter buttons and legend chips are single non-wrapping flex rows,
@@ -4180,15 +4375,17 @@ if ($is_completed_projects_view || $is_system_admin) {
             /* Toolbar button row is ~600px unwrapped — let it wrap instead of
                pushing past the screen edge */
             .trans-supervisor-view .map-toolbar,
-            .trans-supervisor-view .map-toolbar-left,
-            .trans-supervisor-view .map-toolbar-right {
+            .trans-supervisor-view .map-toolbar-left {
                 flex-wrap: wrap;
             }
             .trans-supervisor-view .map-toolbar-right {
-                justify-content: flex-start;
+                width: auto;
+            }
+            .trans-supervisor-view .map-search-box {
+                max-width: none;
             }
             .trans-supervisor-view .map-search-box input {
-                width: 120px;
+                width: 100%;
             }
 
             /* Filter buttons and legend chips are single non-wrapping flex rows,
@@ -4340,15 +4537,17 @@ if ($is_completed_projects_view || $is_system_admin) {
             /* Toolbar button row is ~600px unwrapped - let it wrap instead of
                pushing past the screen edge */
             body.rmo-view .map-toolbar,
-            body.rmo-view .map-toolbar-left,
-            body.rmo-view .map-toolbar-right {
+            body.rmo-view .map-toolbar-left {
                 flex-wrap: wrap;
             }
             body.rmo-view .map-toolbar-right {
-                justify-content: flex-start;
+                width: auto;
+            }
+            body.rmo-view .map-search-box {
+                max-width: none;
             }
             body.rmo-view .map-search-box input {
-                width: 120px;
+                width: 100%;
             }
 
             /* Filter buttons and legend chips are single non-wrapping flex rows,
@@ -4500,44 +4699,61 @@ if ($is_completed_projects_view || $is_system_admin) {
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#475569;"></span> Rail</span>
                             <span class="map-legend-item"><span class="map-legend-dot" style="background:#dc2626;"></span> PT route</span>
                         </div>
-                        <div class="map-search-box" style="display:flex;align-items:center;gap:6px;margin-left:8px;">
-                            <input type="text" id="mapSearchInput" placeholder="Search places..." style="padding:5px 10px;border:1px solid rgba(55,98,200,0.3);border-radius:6px;font-size:12px;width:160px;">
-                            <button class="map-fullscreen-btn" onclick="doMapSearch()" title="Search"><i class="fas fa-search"></i></button>
-                        </div>
-                        <div class="dropdown" style="position:relative;display:inline-block;">
-                            <button class="map-fullscreen-btn" onclick="toggleToolsDropdown()" id="toolsDropdownBtn">
-                                <i class="fas fa-tools"></i> Tools
-                            </button>
-                            <div id="toolsDropdownMenu" class="t-card" style="display:none;position:absolute;top:100%;right:0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:1200;min-width:200px;padding:8px 0;margin-top:4px;">
-                                <button class="tools-dropdown-item" onclick="showRoutePlanner()"><i class="fas fa-route"></i> Route Planner</button>
-                                <button class="tools-dropdown-item" onclick="showCommutePlanner()"><i class="fas fa-bus"></i> Commute Planner</button>
-                                <button class="tools-dropdown-item" onclick="toggleSatelliteLayer()"><i class="fas fa-satellite"></i> Satellite View</button>
-                                <button class="tools-dropdown-item" onclick="toggleTrafficIncidentsLayer()" id="toggleIncidentsBtn"><i class="fas fa-exclamation-triangle"></i> Traffic Incidents</button>
-                                <button class="tools-dropdown-item" onclick="showEVCharging()"><i class="fas fa-charging-station"></i> EV Stations</button>
-                                <button class="tools-dropdown-item" onclick="showReachableRange()"><i class="fas fa-circle"></i> Reachable Range</button>
-                                <button class="tools-dropdown-item" onclick="showGeofencingTool()"><i class="fas fa-draw-polygon"></i> Geofence Check</button>
-                            </div>
+                        <div class="map-search-box">
+                            <input type="text" id="mapSearchInput" placeholder="Search places...">
+                            <button class="map-fullscreen-btn" onclick="doMapSearch()" title="Search" style="width:auto;min-width:38px;flex:0 0 auto;"><i class="fas fa-search"></i></button>
                         </div>
                     </div>
                     <div class="map-toolbar-right">
-                        <button class="map-fullscreen-btn" id="toggleAccidentsBtn" onclick="toggleAccidentPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
-                            <i class="fas fa-exclamation-triangle"></i> Incidents
-                        </button>
-                        <button class="map-fullscreen-btn" id="toggleBusStopsBtn" onclick="toggleBusStopPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
-                            <i class="fas fa-bus"></i> Bus
-                        </button>
-                        <button class="map-fullscreen-btn" id="toggleRailStationsBtn" onclick="toggleRailStationPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
-                            <i class="fas fa-train"></i> Rail
-                        </button>
-                        <button class="map-fullscreen-btn" id="togglePtRoutesBtn" onclick="showPtRoutesPanel()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
-                            <i class="fas fa-route"></i> PT Routes
-                        </button>
-                        <button class="map-fullscreen-btn" id="syncMapLayersBtn" onclick="syncMapLayers()" title="Re-download Incidents, Bus, Rail, and PT Routes" style="background:#3762c8;color:#fff;border-color:#3762c8;">
-                            <i class="fas fa-sync-alt"></i> Sync Layers
-                        </button>
-                        <button class="map-fullscreen-btn" id="toggleTrafficBtn" onclick="toggleTrafficLayer()">
-                            <i class="fas fa-car"></i> Traffic
-                        </button>
+                        <div class="map-tools" id="mapTools">
+                            <button type="button" class="map-fullscreen-btn map-tools-toggle has-active" id="toolsDropdownBtn" onclick="toggleToolsDropdown()" aria-haspopup="true" aria-expanded="false">
+                                <i class="fas fa-tools"></i> Tools
+                                <span class="map-tools-toggle-count" id="toolsActiveCount">1</span>
+                            </button>
+                            <div class="map-tools-menu" id="toolsDropdownMenu" role="menu" aria-label="Map tools">
+                                <div class="map-tools-heading">Layers</div>
+                                <button type="button" class="map-tools-item is-on" id="toggleTrafficBtn" onclick="toggleTrafficLayer()" role="menuitemcheckbox" aria-checked="true">
+                                    <span class="map-tools-item-main"><i class="fas fa-car"></i> Traffic</span>
+                                    <span class="map-tools-item-state">On</span>
+                                </button>
+                                <button type="button" class="map-tools-item is-off" id="toggleAccidentsBtn" onclick="toggleAccidentPins()" role="menuitemcheckbox" aria-checked="false">
+                                    <span class="map-tools-item-main"><i class="fas fa-exclamation-triangle"></i> Incidents</span>
+                                    <span class="map-tools-item-state">Off</span>
+                                </button>
+                                <button type="button" class="map-tools-item is-off" id="toggleBusStopsBtn" onclick="toggleBusStopPins()" role="menuitemcheckbox" aria-checked="false">
+                                    <span class="map-tools-item-main"><i class="fas fa-bus"></i> Bus</span>
+                                    <span class="map-tools-item-state">Off</span>
+                                </button>
+                                <button type="button" class="map-tools-item is-off" id="toggleRailStationsBtn" onclick="toggleRailStationPins()" role="menuitemcheckbox" aria-checked="false">
+                                    <span class="map-tools-item-main"><i class="fas fa-train"></i> Rail</span>
+                                    <span class="map-tools-item-state">Off</span>
+                                </button>
+                                <button type="button" class="map-tools-item is-off" id="togglePtRoutesBtn" onclick="showPtRoutesPanel()" role="menuitemcheckbox" aria-checked="false">
+                                    <span class="map-tools-item-main"><i class="fas fa-route"></i> PT Routes</span>
+                                    <span class="map-tools-item-state">Off</span>
+                                </button>
+
+                                <div class="map-tools-divider"></div>
+                                <div class="map-tools-heading">Planners</div>
+                                <button type="button" class="map-tools-item is-off" id="btnRoutePlanner" onclick="showRoutePlanner()" role="menuitemcheckbox" aria-checked="false">
+                                    <span class="map-tools-item-main"><i class="fas fa-route"></i> Route Planner</span>
+                                    <span class="map-tools-item-state">Off</span>
+                                </button>
+                                <button type="button" class="map-tools-item is-off" id="btnCommutePlanner" onclick="showCommutePlanner()" role="menuitemcheckbox" aria-checked="false">
+                                    <span class="map-tools-item-main"><i class="fas fa-bus"></i> Commute Planner</span>
+                                    <span class="map-tools-item-state">Off</span>
+                                </button>
+                                <button type="button" class="map-tools-item is-off" id="btnEVCharging" onclick="showEVCharging()" role="menuitemcheckbox" aria-checked="false">
+                                    <span class="map-tools-item-main"><i class="fas fa-charging-station"></i> EV Stations</span>
+                                    <span class="map-tools-item-state">Off</span>
+                                </button>
+
+                                <div class="map-tools-divider"></div>
+                                <button type="button" class="map-tools-item map-tools-action" id="syncMapLayersBtn" onclick="syncMapLayers()" title="Re-download Incidents, Bus, Rail, and PT Routes" role="menuitem">
+                                    <span class="map-tools-item-main"><i class="fas fa-sync-alt"></i> Sync Layers</span>
+                                </button>
+                            </div>
+                        </div>
                         <button class="map-fullscreen-btn" onclick="toggleMapFullscreen()" id="fullscreenMapBtn">
                             <i class="fas fa-expand"></i> Fullscreen
                         </button>
@@ -4689,34 +4905,6 @@ if ($is_completed_projects_view || $is_system_admin) {
                         <button class="btn-action btn-sm btn-secondary" onclick="closePanel('routePlannerPanel')">Close</button>
                     </div>
                     <div id="routeInfo" class="route-info-box" style="display:none;"></div>
-                </div>
-
-                <!-- Reachable Range Panel -->
-                <div id="reachableRangePanel" class="tomtom-panel">
-                    <h5><i class="fas fa-circle"></i> Reachable Range</h5>
-                    <p class="t-text-secondary" style="font-size:12px;">Click on the map to set the center point, then calculate.</p>
-                    <label for="rangeTimeBudget">Time Budget (minutes)</label>
-                    <input type="number" id="rangeTimeBudget" value="30" min="1" max="120">
-                    <div style="display:flex;gap:8px;">
-                        <button class="btn-action btn-sm" onclick="calcReachableRange()"><i class="fas fa-calculator"></i> Calculate</button>
-                        <button class="btn-action btn-sm btn-secondary" onclick="closePanel('reachableRangePanel')">Close</button>
-                    </div>
-                    <div id="rangeInfo" class="route-info-box" style="display:none;"></div>
-                </div>
-
-                <!-- Geofencing Panel -->
-                <div id="geofencingPanel" class="tomtom-panel">
-                    <h5><i class="fas fa-draw-polygon"></i> Geofence Check</h5>
-                    <p class="t-text-secondary" style="font-size:12px;">Enter coordinates to check if a location is within any geofence.</p>
-                    <label for="geofenceLat">Latitude</label>
-                    <input type="number" id="geofenceLat" step="any" placeholder="e.g., 14.65">
-                    <label for="geofenceLng">Longitude</label>
-                    <input type="number" id="geofenceLng" step="any" placeholder="e.g., 121.05">
-                    <div style="display:flex;gap:8px;">
-                        <button class="btn-action btn-sm" onclick="checkGeofence()"><i class="fas fa-check"></i> Check</button>
-                        <button class="btn-action btn-sm btn-secondary" onclick="closePanel('geofencingPanel')">Close</button>
-                    </div>
-                    <div id="geofenceInfo" class="route-info-box" style="display:none;"></div>
                 </div>
 
                 <!-- EV Charging Panel -->
@@ -5481,17 +5669,23 @@ if ($is_completed_projects_view || $is_system_admin) {
         let trafficVisible = true;
         function toggleTrafficLayer() {
             trafficVisible = !trafficVisible;
-            const btn = document.getElementById('toggleTrafficBtn');
             if (trafficVisible) {
                 trafficLayer.addTo(map);
-                btn.style.background = 'rgba(55,98,200,0.1)';
-                btn.style.color = '#3762c8';
             } else {
                 map.removeLayer(trafficLayer);
-                btn.style.background = '#6c757d';
-                btn.style.color = '#fff';
+            }
+            if (typeof setMapToolBtnStyle === 'function') {
+                setMapToolBtnStyle('toggleTrafficBtn', trafficVisible);
+            } else {
+                const btn = document.getElementById('toggleTrafficBtn');
+                if (!btn) return;
+                btn.classList.toggle('is-on', trafficVisible);
+                btn.classList.toggle('is-off', !trafficVisible);
+                const state = btn.querySelector('.map-tools-item-state');
+                if (state) state.textContent = trafficVisible ? 'On' : 'Off';
             }
         }
+        window.toggleTrafficLayer = toggleTrafficLayer;
 
         // Toggle map fullscreen
         function toggleMapFullscreen() {
@@ -8012,7 +8206,7 @@ if ($is_completed_projects_view || $is_system_admin) {
     // ===== TOMTOM API FEATURES =====
 
     let routeFromPoint = null, routeToPoint = null;
-    let routeLayer = null, satelliteLayer = null, incidentsLayer = null;
+    let routeLayer = null;
     let accidentsLayer = null;
     let accidentsVisible = false;
     let busStopsLayer = null;
@@ -8021,33 +8215,91 @@ if ($is_completed_projects_view || $is_system_admin) {
     let railStationsVisible = false;
     let busRoutesLayer = null;
     let selectedOsmRouteId = null;
-    let evMarkersLayer = null, rangeLayer = null;
-    let toolsDropdownOpen = false;
+    let evMarkersLayer = null;
     let mapClickHandler = null;
     let commuteFrom = null, commuteTo = null;
     let commuteMarkersLayer = null;
 
-    // Tools dropdown
+    const MAP_PANEL_TOOL_BTNS = {
+        routePlannerPanel: 'btnRoutePlanner',
+        commutePlannerPanel: 'btnCommutePlanner',
+        evChargingPanel: 'btnEVCharging'
+    };
+
+    function mapToolsItemLabelHtml(iconClass, label) {
+        return '<span class="map-tools-item-main"><i class="fas fa-' + iconClass + '"></i> ' + label + '</span>'
+            + '<span class="map-tools-item-state">Off</span>';
+    }
+
+    function updateToolsActiveBadge() {
+        const menu = document.getElementById('toolsDropdownMenu');
+        const toggle = document.getElementById('toolsDropdownBtn');
+        const countEl = document.getElementById('toolsActiveCount');
+        if (!menu || !toggle || !countEl) return;
+        const count = menu.querySelectorAll('.map-tools-item.is-on:not(.map-tools-action)').length;
+        countEl.textContent = String(count);
+        toggle.classList.toggle('has-active', count > 0);
+    }
+
+    function setMapToolBtnStyle(btnId, active) {
+        const btn = document.getElementById(btnId);
+        if (!btn || btn.classList.contains('is-loading')) return;
+        btn.classList.toggle('is-on', !!active);
+        btn.classList.toggle('is-off', !active);
+        btn.setAttribute('aria-checked', active ? 'true' : 'false');
+        const state = btn.querySelector('.map-tools-item-state');
+        if (state) state.textContent = active ? 'On' : 'Off';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+        updateToolsActiveBadge();
+    }
+
+    function setAllMapPanelToolBtnsOff() {
+        Object.keys(MAP_PANEL_TOOL_BTNS).forEach(function(panelId) {
+            setMapToolBtnStyle(MAP_PANEL_TOOL_BTNS[panelId], false);
+        });
+    }
+
+    let toolsDropdownOpen = false;
     function toggleToolsDropdown() {
         const menu = document.getElementById('toolsDropdownMenu');
+        const btn = document.getElementById('toolsDropdownBtn');
+        if (!menu || !btn) return;
         toolsDropdownOpen = !toolsDropdownOpen;
-        menu.style.display = toolsDropdownOpen ? 'block' : 'none';
+        menu.classList.toggle('is-open', toolsDropdownOpen);
+        btn.setAttribute('aria-expanded', toolsDropdownOpen ? 'true' : 'false');
     }
+    function closeToolsDropdown() {
+        const menu = document.getElementById('toolsDropdownMenu');
+        const btn = document.getElementById('toolsDropdownBtn');
+        if (!menu || !btn) return;
+        toolsDropdownOpen = false;
+        menu.classList.remove('is-open');
+        btn.setAttribute('aria-expanded', 'false');
+    }
+    window.toggleToolsDropdown = toggleToolsDropdown;
+    window.closeToolsDropdown = closeToolsDropdown;
     document.addEventListener('click', function(e) {
-        if (!e.target.closest('.dropdown')) {
-            document.getElementById('toolsDropdownMenu').style.display = 'none';
-            toolsDropdownOpen = false;
-        }
+        if (!e.target.closest('#mapTools')) closeToolsDropdown();
     });
 
     function closePanel(panelId) {
         document.getElementById(panelId).style.display = 'none';
         if (panelId === 'ptRoutesPanel') setPtRoutesBtnStyle(false);
         if (panelId === 'commutePlannerPanel') clearCommutePlannerState(false);
+        if (panelId === 'evChargingPanel') clearEVCharging(false);
+        if (panelId === 'routePlannerPanel') clearRoute();
+        if (MAP_PANEL_TOOL_BTNS[panelId]) setMapToolBtnStyle(MAP_PANEL_TOOL_BTNS[panelId], false);
         if (mapClickHandler) {
             map.off('click', mapClickHandler);
             mapClickHandler = null;
         }
+    }
+
+    function isMapToolOn(btnId) {
+        const btn = document.getElementById(btnId);
+        return !!(btn && btn.classList.contains('is-on'));
     }
 
     // ===== SEARCH / GEOCODING =====
@@ -8115,8 +8367,14 @@ if ($is_completed_projects_view || $is_system_admin) {
 
     // ===== ROUTE PLANNER =====
     function showRoutePlanner() {
+        if (isMapToolOn('btnRoutePlanner')) {
+            closePanel('routePlannerPanel');
+            return;
+        }
         closeAllPanels();
+        closeToolsDropdown();
         document.getElementById('routePlannerPanel').style.display = 'block';
+        setMapToolBtnStyle('btnRoutePlanner', true);
         showNotification('Click on the map to set start point, then destination', 'info');
         routeFromPoint = null;
         routeToPoint = null;
@@ -8254,21 +8512,6 @@ if ($is_completed_projects_view || $is_system_admin) {
         routeToPoint = null;
     }
 
-    // ===== SATELLITE VIEW =====
-    function toggleSatelliteLayer() {
-        if (satelliteLayer) {
-            map.removeLayer(satelliteLayer);
-            satelliteLayer = null;
-            showNotification('Satellite view disabled', 'info');
-            return;
-        }
-        satelliteLayer = L.tileLayer('https://api.tomtom.com/map/1/tile/satellite/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-            attribution: '© TomTom',
-            maxZoom: 18
-        }).addTo(map);
-        showNotification('Satellite view enabled', 'success');
-    }
-
     // ===== TOMTOM INCIDENT HELPERS =====
     const INCIDENT_CATEGORY_LABELS = {
         0: 'Unknown', 1: 'Accident', 2: 'Fog', 3: 'Dangerous Conditions',
@@ -8370,11 +8613,11 @@ if ($is_completed_projects_view || $is_system_admin) {
         osmRoutes: { fetchedAt: 0, items: null, loading: false }
     };
     const TOGGLE_BTN_LABELS = {
-        toggleAccidentsBtn: '<i class="fas fa-exclamation-triangle"></i> Incidents',
-        toggleBusStopsBtn: '<i class="fas fa-bus"></i> Bus',
-        toggleRailStationsBtn: '<i class="fas fa-train"></i> Rail',
-        togglePtRoutesBtn: '<i class="fas fa-route"></i> PT Routes',
-        syncMapLayersBtn: '<i class="fas fa-sync-alt"></i> Sync Layers'
+        toggleAccidentsBtn: mapToolsItemLabelHtml('exclamation-triangle', 'Incidents'),
+        toggleBusStopsBtn: mapToolsItemLabelHtml('bus', 'Bus'),
+        toggleRailStationsBtn: mapToolsItemLabelHtml('train', 'Rail'),
+        togglePtRoutesBtn: mapToolsItemLabelHtml('route', 'PT Routes'),
+        syncMapLayersBtn: '<span class="map-tools-item-main"><i class="fas fa-sync-alt"></i> Sync Layers</span>'
     };
     // Cancel mid-flight chunked paints when the user toggles a layer off
     let accidentRenderGen = 0;
@@ -8548,7 +8791,12 @@ if ($is_completed_projects_view || $is_system_admin) {
         btn.classList.toggle('is-loading', !!loading);
         btn.disabled = !!loading;
         if (loading) {
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading';
+            if (btn.classList.contains('map-tools-action')) {
+                btn.innerHTML = '<span class="map-tools-item-main"><i class="fas fa-spinner fa-spin"></i> Loading</span>';
+            } else {
+                btn.innerHTML = '<span class="map-tools-item-main"><i class="fas fa-spinner fa-spin"></i> Loading</span>'
+                    + '<span class="map-tools-item-state">…</span>';
+            }
             return;
         }
         btn.innerHTML = TOGGLE_BTN_LABELS[btnId] || btn.innerHTML;
@@ -8663,17 +8911,7 @@ if ($is_completed_projects_view || $is_system_admin) {
     window.loadAccidentPins = loadAccidentPins;
 
     function setAccidentToggleStyle(on) {
-        const btn = document.getElementById('toggleAccidentsBtn');
-        if (!btn || btn.classList.contains('is-loading')) return;
-        if (on) {
-            btn.style.background = 'rgba(220,38,38,0.1)';
-            btn.style.color = '#dc2626';
-            btn.style.borderColor = 'rgba(220,38,38,0.3)';
-        } else {
-            btn.style.background = '#6c757d';
-            btn.style.color = '#fff';
-            btn.style.borderColor = '#6c757d';
-        }
+        setMapToolBtnStyle('toggleAccidentsBtn', on);
     }
 
     function toggleAccidentPins() {
@@ -8694,14 +8932,14 @@ if ($is_completed_projects_view || $is_system_admin) {
     // ===== BUS / RAIL TRANSIT POIs (TomTom categorySet) =====
     const TOMTOM_BUS_CATEGORY = '9942002';
     const TOMTOM_RAIL_CATEGORY = '7380';
+    // Kept in sync with map_layers/cache.php (server is source of truth on Sync).
     const TRANSIT_POI_CENTERS = [
-        [14.651417, 121.04917],
-        [14.705, 121.05],
-        [14.60, 121.05],
-        [14.65, 121.015],
-        [14.65, 121.09],
-        [14.68, 121.075],
-        [14.62, 121.03]
+        [14.590, 121.020], [14.590, 121.055], [14.590, 121.090],
+        [14.625, 121.015], [14.625, 121.050], [14.625, 121.085], [14.625, 121.115],
+        [14.660, 121.015], [14.660, 121.050], [14.660, 121.085], [14.660, 121.115],
+        [14.700, 121.020], [14.700, 121.055], [14.700, 121.090], [14.700, 121.120],
+        [14.740, 121.030], [14.740, 121.065], [14.740, 121.100],
+        [14.770, 121.050], [14.770, 121.085]
     ];
 
     function transitPoiPosition(poi) {
@@ -8780,31 +9018,11 @@ if ($is_completed_projects_view || $is_system_admin) {
     const railRenderToken = { value: 0 };
 
     function setBusToggleStyle(on) {
-        const btn = document.getElementById('toggleBusStopsBtn');
-        if (!btn || btn.classList.contains('is-loading')) return;
-        if (on) {
-            btn.style.background = 'rgba(2,132,199,0.1)';
-            btn.style.color = '#0284c7';
-            btn.style.borderColor = 'rgba(2,132,199,0.35)';
-        } else {
-            btn.style.background = '#6c757d';
-            btn.style.color = '#fff';
-            btn.style.borderColor = '#6c757d';
-        }
+        setMapToolBtnStyle('toggleBusStopsBtn', on);
     }
 
     function setRailToggleStyle(on) {
-        const btn = document.getElementById('toggleRailStationsBtn');
-        if (!btn || btn.classList.contains('is-loading')) return;
-        if (on) {
-            btn.style.background = 'rgba(71,85,105,0.12)';
-            btn.style.color = '#475569';
-            btn.style.borderColor = 'rgba(71,85,105,0.35)';
-        } else {
-            btn.style.background = '#6c757d';
-            btn.style.color = '#fff';
-            btn.style.borderColor = '#6c757d';
-        }
+        setMapToolBtnStyle('toggleRailStationsBtn', on);
     }
 
     function loadBusStopPins(silent) {
@@ -9129,9 +9347,9 @@ if ($is_completed_projects_view || $is_system_admin) {
                 setToggleLoading('syncMapLayersBtn', false, function() {
                     const syncBtn = document.getElementById('syncMapLayersBtn');
                     if (!syncBtn) return;
-                    syncBtn.style.background = '#3762c8';
-                    syncBtn.style.color = '#fff';
-                    syncBtn.style.borderColor = '#3762c8';
+                    syncBtn.style.background = '';
+                    syncBtn.style.color = '';
+                    syncBtn.style.borderColor = '';
                 });
             });
     }
@@ -9154,17 +9372,7 @@ if ($is_completed_projects_view || $is_system_admin) {
     }
 
     function setPtRoutesBtnStyle(active) {
-        const btn = document.getElementById('togglePtRoutesBtn');
-        if (!btn || btn.classList.contains('is-loading')) return;
-        if (active) {
-            btn.style.background = 'rgba(220,38,38,0.12)';
-            btn.style.color = '#dc2626';
-            btn.style.borderColor = 'rgba(220,38,38,0.35)';
-        } else {
-            btn.style.background = '#6c757d';
-            btn.style.color = '#fff';
-            btn.style.borderColor = '#6c757d';
-        }
+        setMapToolBtnStyle('togglePtRoutesBtn', active);
     }
 
     function setOsmRoutesLoading(loading) {
@@ -9354,7 +9562,12 @@ if ($is_completed_projects_view || $is_system_admin) {
     window.selectOsmRoute = selectOsmRoute;
 
     function showPtRoutesPanel() {
+        if (isMapToolOn('togglePtRoutesBtn')) {
+            closePanel('ptRoutesPanel');
+            return;
+        }
         closeAllPanels();
+        closeToolsDropdown();
         document.getElementById('ptRoutesPanel').style.display = 'block';
         setPtRoutesBtnStyle(true);
         ensureOsmRoutesLoaded(true).then(function() {
@@ -9366,52 +9579,30 @@ if ($is_completed_projects_view || $is_system_admin) {
     // Prefetch after IndexedDB hydrate (no network if client 1h cache is fresh)
     ensureOsmRoutesLoaded(true);
 
-    // ===== TRAFFIC INCIDENTS =====
-    function toggleTrafficIncidentsLayer() {
-        const btn = document.getElementById('toggleIncidentsBtn');
-        if (incidentsLayer) {
-            map.removeLayer(incidentsLayer);
-            incidentsLayer = null;
-            btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Traffic Incidents';
-            showNotification('Traffic incidents layer disabled', 'info');
-            return;
-        }
-
-        const center = map.getCenter();
-        TomTomServices.trafficIncidents(center.lat, center.lng, 15).then(data => {
-            const incidents = collectTomTomIncidents(data.success ? (data.data || data) : null);
-            if (data.success && incidents.length) {
-                incidentsLayer = L.layerGroup().addTo(map);
-                let count = 0;
-                incidents.forEach(inc => {
-                    const pos = incidentLatLng(inc);
-                    if (!pos) return;
-                    const icon = L.divIcon({
-                        html: '<div style="background:#ef4444;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"><i class="fas fa-exclamation"></i></div>',
-                        className: '', iconSize: [24, 24], iconAnchor: [12, 12]
-                    });
-                    L.marker(pos, { icon })
-                        .bindPopup(incidentPopupHtml(inc))
-                        .addTo(incidentsLayer);
-                    count++;
-                });
-                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Hide Incidents';
-                showNotification(count ? (count + ' traffic incidents found') : 'No traffic incidents in this area', count ? 'info' : 'info');
-            } else {
-                incidentsLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/incidents/absolute/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-                    attribution: '© TomTom Incidents', opacity: 0.7
-                }).addTo(map);
-                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Hide Incidents';
-                showNotification('Traffic incidents overlay enabled', 'success');
-            }
-        });
-    }
-
     // ===== EV CHARGING STATIONS =====
     let evMarkerObjects = [];
+    function clearEVCharging(notify) {
+        if (evMarkersLayer) {
+            map.removeLayer(evMarkersLayer);
+            evMarkersLayer = null;
+        }
+        const resultsDiv = document.getElementById('evResults');
+        if (resultsDiv) {
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+        }
+        if (notify) showNotification('EV stations hidden', 'info');
+    }
+
     function showEVCharging() {
+        if (isMapToolOn('btnEVCharging')) {
+            closePanel('evChargingPanel');
+            return;
+        }
         closeAllPanels();
+        closeToolsDropdown();
         document.getElementById('evChargingPanel').style.display = 'block';
+        setMapToolBtnStyle('btnEVCharging', true);
         findEVStations();
     }
 
@@ -9447,93 +9638,16 @@ if ($is_completed_projects_view || $is_system_admin) {
         });
     }
 
-    // ===== REACHABLE RANGE =====
-    let rangeCenterPoint = null;
-    function showReachableRange() {
-        closeAllPanels();
-        document.getElementById('reachableRangePanel').style.display = 'block';
-        rangeCenterPoint = null;
-        showNotification('Click on the map to set center point', 'info');
-        if (mapClickHandler) map.off('click', mapClickHandler);
-        mapClickHandler = function(e) {
-            rangeCenterPoint = e.latlng;
-            L.circleMarker(e.latlng, { color: '#3762c8', radius: 6, fillOpacity: 0.8 }).addTo(map).bindPopup('Center').openPopup();
-            map.off('click', mapClickHandler);
-            mapClickHandler = null;
-            calcReachableRange();
-        };
-        map.on('click', mapClickHandler);
-    }
-
-    function calcReachableRange() {
-        const center = rangeCenterPoint || map.getCenter();
-        const timeMin = parseInt(document.getElementById('rangeTimeBudget').value) || 30;
-        const timeSec = timeMin * 60;
-
-        TomTomServices.reachableRange(center.lat, center.lng, { timeBudget: timeSec }).then(data => {
-            const infoDiv = document.getElementById('rangeInfo');
-            if (!data.success || !data.data) {
-                infoDiv.style.display = 'block';
-                infoDiv.innerHTML = 'Could not calculate reachable range.';
-                return;
-            }
-            infoDiv.style.display = 'block';
-            const range = data.data;
-            infoDiv.innerHTML = `<strong>Reachable Range</strong><br>Time: ${timeMin} minutes`;
-
-            // Draw reachable area polygon
-            if (rangeLayer) map.removeLayer(rangeLayer);
-            if (range.reachableRange && range.reachableRange.boundary) {
-                const coords = range.reachableRange.boundary.map(p => [p.latitude, p.longitude]);
-                if (coords.length > 0) {
-                    rangeLayer = L.polygon(coords, {
-                        color: '#10b981', weight: 2, fillOpacity: 0.15, fillColor: '#10b981'
-                    }).addTo(map);
-                    map.fitBounds(rangeLayer.getBounds().pad(0.1));
-                    infoDiv.innerHTML += `<br>Area polygon drawn on map.`;
-                }
-            }
-        });
-    }
-
-    // ===== GEOFENCING =====
-    function showGeofencingTool() {
-        closeAllPanels();
-        document.getElementById('geofencingPanel').style.display = 'block';
-        const center = map.getCenter();
-        document.getElementById('geofenceLat').value = center.lat.toFixed(5);
-        document.getElementById('geofenceLng').value = center.lng.toFixed(5);
-    }
-
-    function checkGeofence() {
-        const lat = parseFloat(document.getElementById('geofenceLat').value);
-        const lng = parseFloat(document.getElementById('geofenceLng').value);
-        if (!lat || !lng) { showNotification('Enter valid coordinates', 'error'); return; }
-
-        TomTomServices.geofenceCheck(lat, lng).then(data => {
-            const infoDiv = document.getElementById('geofenceInfo');
-            infoDiv.style.display = 'block';
-            if (data.success && data.data) {
-                const fences = data.data.fences || [];
-                infoDiv.innerHTML = `<strong>Geofence Check</strong><br>
-                    Location: ${lat}, ${lng}<br>
-                    Fences: ${fences.length > 0 ? fences.map(f => f.name).join(', ') : 'None found'}`;
-            } else {
-                infoDiv.innerHTML = `<strong>Geofence Check</strong><br>
-                    Location: ${lat}, ${lng}<br>
-                    Status: ${data.data?.status || 'No geofences configured'}`;
-            }
-        });
-    }
-
     // ===== UTILITY =====
     function closeAllPanels() {
-        ['routePlannerPanel', 'reachableRangePanel', 'geofencingPanel', 'evChargingPanel', 'ptRoutesPanel', 'commutePlannerPanel'].forEach(id => {
+        ['routePlannerPanel', 'evChargingPanel', 'ptRoutesPanel', 'commutePlannerPanel'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = 'none';
         });
         setPtRoutesBtnStyle(false);
+        setAllMapPanelToolBtnsOff();
         clearCommutePlannerState(false);
+        clearEVCharging(false);
         if (mapClickHandler) { map.off('click', mapClickHandler); mapClickHandler = null; }
     }
 
@@ -9666,10 +9780,14 @@ if ($is_completed_projects_view || $is_system_admin) {
     }
 
     function showCommutePlanner() {
+        if (isMapToolOn('btnCommutePlanner')) {
+            closePanel('commutePlannerPanel');
+            return;
+        }
         closeAllPanels();
+        closeToolsDropdown();
         document.getElementById('commutePlannerPanel').style.display = 'block';
-        document.getElementById('toolsDropdownMenu').style.display = 'none';
-        toolsDropdownOpen = false;
+        setMapToolBtnStyle('btnCommutePlanner', true);
         clearCommutePlannerState(true);
         bindCommuteMapClicks();
         showNotification('Click the map to set the origin', 'info');

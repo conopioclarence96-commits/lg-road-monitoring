@@ -186,17 +186,7 @@
     }
 
     function setTrafficBtnStyle(on) {
-        var btn = document.getElementById('publicToggleTrafficBtn');
-        if (!btn) return;
-        if (on) {
-            btn.style.background = 'rgba(55,98,200,0.1)';
-            btn.style.color = '#3762c8';
-            btn.style.borderColor = 'rgba(55,98,200,0.3)';
-        } else {
-            btn.style.background = '#6c757d';
-            btn.style.color = '#fff';
-            btn.style.borderColor = '#6c757d';
-        }
+        setMapToolBtnStyle('publicToggleTrafficBtn', on);
     }
 
     function toggleTrafficLayer() {
@@ -204,11 +194,10 @@
         trafficVisible = !trafficVisible;
         if (trafficVisible) {
             trafficLayer.addTo(map);
-            setTrafficBtnStyle(true);
         } else {
             map.removeLayer(trafficLayer);
-            setTrafficBtnStyle(false);
         }
+        setTrafficBtnStyle(trafficVisible);
     }
 
     function resetMapView() {
@@ -266,7 +255,7 @@
     // ===== TOMTOM API FEATURES =====
 
     let routeFromPoint = null, routeToPoint = null;
-    let routeLayer = null, satelliteLayer = null, incidentsLayer = null;
+    let routeLayer = null;
     let accidentsLayer = null;
     let accidentsVisible = false;
     let busStopsLayer = null;
@@ -275,25 +264,84 @@
     let railStationsVisible = false;
     let busRoutesLayer = null;
     let selectedOsmRouteId = null;
-    let evMarkersLayer = null, rangeLayer = null;
+    let evMarkersLayer = null;
     let toolsDropdownOpen = false;
     let mapClickHandler = null;
     let commuteFrom = null, commuteTo = null;
     let commuteMarkersLayer = null;
 
-    // Tools dropdown
-    function toggleToolsDropdown() {
-        const menu = document.getElementById('publicToolsDropdownMenu');
-        toolsDropdownOpen = !toolsDropdownOpen;
-        menu.style.display = toolsDropdownOpen ? 'block' : 'none';
+    var MAP_PANEL_TOOL_BTNS = {
+        publicRoutePlannerPanel: 'publicBtnRoutePlanner',
+        publicCommutePlannerPanel: 'publicBtnCommutePlanner',
+        publicEvChargingPanel: 'publicBtnEVCharging'
+    };
+
+    function mapToolsItemLabelHtml(iconClass, label) {
+        return '<span class="public-gis-tools-item-main"><i class="fas fa-' + iconClass + '"></i> ' + label + '</span>'
+            + '<span class="public-gis-tools-item-state">Off</span>';
     }
-    
+
+    function updateToolsActiveBadge() {
+        var menu = document.getElementById('publicToolsDropdownMenu');
+        var toggle = document.getElementById('publicToolsDropdownBtn');
+        var countEl = document.getElementById('publicToolsActiveCount');
+        if (!menu || !toggle || !countEl) return;
+        var count = menu.querySelectorAll('.public-gis-tools-item.is-on:not(.public-gis-tools-action)').length;
+        countEl.textContent = String(count);
+        toggle.classList.toggle('has-active', count > 0);
+    }
+
+    function setMapToolBtnStyle(btnId, active) {
+        var btn = document.getElementById(btnId);
+        if (!btn || btn.classList.contains('is-loading')) return;
+        btn.classList.toggle('is-on', !!active);
+        btn.classList.toggle('is-off', !active);
+        btn.setAttribute('aria-checked', active ? 'true' : 'false');
+        var state = btn.querySelector('.public-gis-tools-item-state');
+        if (state) state.textContent = active ? 'On' : 'Off';
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+        updateToolsActiveBadge();
+    }
+
+    function setAllMapPanelToolBtnsOff() {
+        Object.keys(MAP_PANEL_TOOL_BTNS).forEach(function (panelId) {
+            setMapToolBtnStyle(MAP_PANEL_TOOL_BTNS[panelId], false);
+        });
+    }
+
+    function isMapToolOn(btnId) {
+        var btn = document.getElementById(btnId);
+        return !!(btn && btn.classList.contains('is-on'));
+    }
+
+    function toggleToolsDropdown() {
+        var menu = document.getElementById('publicToolsDropdownMenu');
+        var btn = document.getElementById('publicToolsDropdownBtn');
+        if (!menu || !btn) return;
+        toolsDropdownOpen = !toolsDropdownOpen;
+        menu.classList.toggle('is-open', toolsDropdownOpen);
+        btn.setAttribute('aria-expanded', toolsDropdownOpen ? 'true' : 'false');
+    }
+
+    function closeToolsDropdown() {
+        var menu = document.getElementById('publicToolsDropdownMenu');
+        var btn = document.getElementById('publicToolsDropdownBtn');
+        if (!menu || !btn) return;
+        toolsDropdownOpen = false;
+        menu.classList.remove('is-open');
+        btn.setAttribute('aria-expanded', 'false');
+    }
 
     function closePanel(panelId) {
         var el = document.getElementById(panelId);
         if (el) el.style.display = 'none';
         if (panelId === 'publicPtRoutesPanel') setPtRoutesBtnStyle(false);
         if (panelId === 'publicCommutePlannerPanel') clearCommutePlannerState(false);
+        if (panelId === 'publicEvChargingPanel') clearEVCharging(false);
+        if (panelId === 'publicRoutePlannerPanel') clearRoute();
+        if (MAP_PANEL_TOOL_BTNS[panelId]) setMapToolBtnStyle(MAP_PANEL_TOOL_BTNS[panelId], false);
         if (mapClickHandler) {
             map.off('click', mapClickHandler);
             mapClickHandler = null;
@@ -344,8 +392,14 @@
 
     // ===== ROUTE PLANNER =====
     function showRoutePlanner() {
+        if (isMapToolOn('publicBtnRoutePlanner')) {
+            closePanel('publicRoutePlannerPanel');
+            return;
+        }
         closeAllPanels({ skipFence: true });
+        closeToolsDropdown();
         document.getElementById('publicRoutePlannerPanel').style.display = 'block';
+        setMapToolBtnStyle('publicBtnRoutePlanner', true);
         syncMapFenceFromPanels();
         showNotification('Click on the map to set start point, then destination', 'info');
         routeFromPoint = null;
@@ -585,11 +639,11 @@
         osmRoutes: { fetchedAt: 0, items: null, loading: false }
     };
     const TOGGLE_BTN_LABELS = {
-        publicToggleAccidentsBtn: '<i class="fas fa-exclamation-triangle"></i> Incidents',
-        publicToggleBusStopsBtn: '<i class="fas fa-bus"></i> Bus',
-        publicToggleRailStationsBtn: '<i class="fas fa-train"></i> Rail',
-        publicTogglePtRoutesBtn: '<i class="fas fa-route"></i> PT Routes',
-        publicSyncMapLayersBtn: '<i class="fas fa-sync-alt"></i> Sync Layers'
+        publicToggleAccidentsBtn: mapToolsItemLabelHtml('exclamation-triangle', 'Incidents'),
+        publicToggleBusStopsBtn: mapToolsItemLabelHtml('bus', 'Bus'),
+        publicToggleRailStationsBtn: mapToolsItemLabelHtml('train', 'Rail'),
+        publicTogglePtRoutesBtn: mapToolsItemLabelHtml('route', 'PT Routes'),
+        publicSyncMapLayersBtn: '<span class="public-gis-tools-item-main"><i class="fas fa-sync-alt"></i> Sync Layers</span>'
     };
     // Cancel mid-flight chunked paints when the user toggles a layer off
     let accidentRenderGen = 0;
@@ -763,7 +817,12 @@
         btn.classList.toggle('is-loading', !!loading);
         btn.disabled = !!loading;
         if (loading) {
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading';
+            if (btn.classList.contains('public-gis-tools-action')) {
+                btn.innerHTML = '<span class="public-gis-tools-item-main"><i class="fas fa-spinner fa-spin"></i> Loading</span>';
+            } else {
+                btn.innerHTML = '<span class="public-gis-tools-item-main"><i class="fas fa-spinner fa-spin"></i> Loading</span>'
+                    + '<span class="public-gis-tools-item-state">…</span>';
+            }
             return;
         }
         btn.innerHTML = TOGGLE_BTN_LABELS[btnId] || btn.innerHTML;
@@ -878,17 +937,7 @@
     window.loadAccidentPins = loadAccidentPins;
 
     function setAccidentToggleStyle(on) {
-        const btn = document.getElementById('publicToggleAccidentsBtn');
-        if (!btn || btn.classList.contains('is-loading')) return;
-        if (on) {
-            btn.style.background = 'rgba(220,38,38,0.1)';
-            btn.style.color = '#dc2626';
-            btn.style.borderColor = 'rgba(220,38,38,0.3)';
-        } else {
-            btn.style.background = '#6c757d';
-            btn.style.color = '#fff';
-            btn.style.borderColor = '#6c757d';
-        }
+        setMapToolBtnStyle('publicToggleAccidentsBtn', on);
     }
 
     function toggleAccidentPins() {
@@ -909,14 +958,14 @@
     // ===== BUS / RAIL TRANSIT POIs (TomTom categorySet) =====
     const TOMTOM_BUS_CATEGORY = '9942002';
     const TOMTOM_RAIL_CATEGORY = '7380';
+    // Kept in sync with map_layers/cache.php (server is source of truth on Sync).
     const TRANSIT_POI_CENTERS = [
-        [14.651417, 121.04917],
-        [14.705, 121.05],
-        [14.60, 121.05],
-        [14.65, 121.015],
-        [14.65, 121.09],
-        [14.68, 121.075],
-        [14.62, 121.03]
+        [14.590, 121.020], [14.590, 121.055], [14.590, 121.090],
+        [14.625, 121.015], [14.625, 121.050], [14.625, 121.085], [14.625, 121.115],
+        [14.660, 121.015], [14.660, 121.050], [14.660, 121.085], [14.660, 121.115],
+        [14.700, 121.020], [14.700, 121.055], [14.700, 121.090], [14.700, 121.120],
+        [14.740, 121.030], [14.740, 121.065], [14.740, 121.100],
+        [14.770, 121.050], [14.770, 121.085]
     ];
 
     function transitPoiPosition(poi) {
@@ -995,31 +1044,11 @@
     const railRenderToken = { value: 0 };
 
     function setBusToggleStyle(on) {
-        const btn = document.getElementById('publicToggleBusStopsBtn');
-        if (!btn || btn.classList.contains('is-loading')) return;
-        if (on) {
-            btn.style.background = 'rgba(2,132,199,0.1)';
-            btn.style.color = '#0284c7';
-            btn.style.borderColor = 'rgba(2,132,199,0.35)';
-        } else {
-            btn.style.background = '#6c757d';
-            btn.style.color = '#fff';
-            btn.style.borderColor = '#6c757d';
-        }
+        setMapToolBtnStyle('publicToggleBusStopsBtn', on);
     }
 
     function setRailToggleStyle(on) {
-        const btn = document.getElementById('publicToggleRailStationsBtn');
-        if (!btn || btn.classList.contains('is-loading')) return;
-        if (on) {
-            btn.style.background = 'rgba(71,85,105,0.12)';
-            btn.style.color = '#475569';
-            btn.style.borderColor = 'rgba(71,85,105,0.35)';
-        } else {
-            btn.style.background = '#6c757d';
-            btn.style.color = '#fff';
-            btn.style.borderColor = '#6c757d';
-        }
+        setMapToolBtnStyle('publicToggleRailStationsBtn', on);
     }
 
     function loadBusStopPins(silent) {
@@ -1344,9 +1373,9 @@
                 setToggleLoading('publicSyncMapLayersBtn', false, function() {
                     const syncBtn = document.getElementById('publicSyncMapLayersBtn');
                     if (!syncBtn) return;
-                    syncBtn.style.background = '#3762c8';
-                    syncBtn.style.color = '#fff';
-                    syncBtn.style.borderColor = '#3762c8';
+                    syncBtn.style.background = '';
+                    syncBtn.style.color = '';
+                    syncBtn.style.borderColor = '';
                 });
             });
     }
@@ -1369,17 +1398,7 @@
     }
 
     function setPtRoutesBtnStyle(active) {
-        const btn = document.getElementById('publicTogglePtRoutesBtn');
-        if (!btn || btn.classList.contains('is-loading')) return;
-        if (active) {
-            btn.style.background = 'rgba(220,38,38,0.12)';
-            btn.style.color = '#dc2626';
-            btn.style.borderColor = 'rgba(220,38,38,0.35)';
-        } else {
-            btn.style.background = '#6c757d';
-            btn.style.color = '#fff';
-            btn.style.borderColor = '#6c757d';
-        }
+        setMapToolBtnStyle('publicTogglePtRoutesBtn', active);
     }
 
     function setOsmRoutesLoading(loading) {
@@ -1569,7 +1588,12 @@
     window.selectOsmRoute = selectOsmRoute;
 
     function showPtRoutesPanel() {
+        if (isMapToolOn('publicTogglePtRoutesBtn')) {
+            closePanel('publicPtRoutesPanel');
+            return;
+        }
         closeAllPanels({ skipFence: true });
+        closeToolsDropdown();
         document.getElementById('publicPtRoutesPanel').style.display = 'block';
         setPtRoutesBtnStyle(true);
         syncMapFenceFromPanels();
@@ -1584,9 +1608,28 @@
 
     // ===== EV CHARGING STATIONS =====
     let evMarkerObjects = [];
+    function clearEVCharging(notify) {
+        if (evMarkersLayer) {
+            map.removeLayer(evMarkersLayer);
+            evMarkersLayer = null;
+        }
+        const resultsDiv = document.getElementById('publicEvResults');
+        if (resultsDiv) {
+            resultsDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+        }
+        if (notify) showNotification('EV stations hidden', 'info');
+    }
+
     function showEVCharging() {
+        if (isMapToolOn('publicBtnEVCharging')) {
+            closePanel('publicEvChargingPanel');
+            return;
+        }
         closeAllPanels({ skipFence: true });
+        closeToolsDropdown();
         document.getElementById('publicEvChargingPanel').style.display = 'block';
+        setMapToolBtnStyle('publicBtnEVCharging', true);
         syncMapFenceFromPanels();
         findEVStations();
     }
@@ -1631,7 +1674,9 @@
             if (el) el.style.display = 'none';
         });
         setPtRoutesBtnStyle(false);
+        setAllMapPanelToolBtnsOff();
         clearCommutePlannerState(false);
+        clearEVCharging(false);
         if (mapClickHandler) { map.off('click', mapClickHandler); mapClickHandler = null; }
         if (!opts.skipFence) syncMapFenceFromPanels();
     }
@@ -1691,11 +1736,7 @@
     window.resetCommutePlanner = resetCommutePlanner;
 
     function closeCommutePlanner() {
-        if (mapClickHandler) {
-            map.off('click', mapClickHandler);
-            mapClickHandler = null;
-        }
-        clearCommutePlannerState(false);
+        closePanel('publicCommutePlannerPanel');
     }
     window.closeCommutePlanner = closeCommutePlanner;
 
@@ -1765,10 +1806,14 @@
     }
 
     function showCommutePlanner() {
+        if (isMapToolOn('publicBtnCommutePlanner')) {
+            closePanel('publicCommutePlannerPanel');
+            return;
+        }
         closeAllPanels({ skipFence: true });
+        closeToolsDropdown();
         document.getElementById('publicCommutePlannerPanel').style.display = 'block';
-        document.getElementById('publicToolsDropdownMenu').style.display = 'none';
-        toolsDropdownOpen = false;
+        setMapToolBtnStyle('publicBtnCommutePlanner', true);
         clearCommutePlannerState(true);
         bindCommuteMapClicks();
         syncMapFenceFromPanels();
@@ -1822,15 +1867,14 @@
             if (e.key === 'Escape' && overlayOpen) closeOverlay();
         });
         document.addEventListener('click', function (e) {
-            if (!e.target.closest('.public-gis-tools-dropdown')) {
-                var menu = document.getElementById('publicToolsDropdownMenu');
-                if (menu) menu.style.display = 'none';
-                toolsDropdownOpen = false;
+            if (!e.target.closest('#publicMapTools')) {
+                closeToolsDropdown();
             }
             if (!e.target.closest('.public-gis-search-box')) {
                 var results = document.getElementById('publicMapSearchResults');
                 if (results) results.style.display = 'none';
             }
         });
+        updateToolsActiveBadge();
     });
 })();

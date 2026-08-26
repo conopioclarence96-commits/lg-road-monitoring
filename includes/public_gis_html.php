@@ -22,36 +22,57 @@
                         <button type="button" class="public-gis-btn" onclick="window.PublicGisMap.doMapSearch()" title="Search"><i class="fas fa-search"></i></button>
                         <div id="publicMapSearchResults" class="search-results-dropdown"></div>
                     </div>
-                    <div class="public-gis-tools-dropdown">
-                        <button type="button" class="public-gis-btn" onclick="window.PublicGisMap.toggleToolsDropdown()">
-                            <i class="fas fa-tools"></i> Tools
-                        </button>
-                        <div id="publicToolsDropdownMenu" class="public-gis-tools-menu">
-                            <button type="button" class="tools-dropdown-item" onclick="window.PublicGisMap.showRoutePlanner()"><i class="fas fa-route"></i> Route Planner</button>
-                            <button type="button" class="tools-dropdown-item" onclick="window.PublicGisMap.showCommutePlanner()"><i class="fas fa-bus"></i> Commute Planner</button>
-                            <button type="button" class="tools-dropdown-item" onclick="window.PublicGisMap.showEVCharging()"><i class="fas fa-charging-station"></i> EV Stations</button>
-                        </div>
-                    </div>
                 </div>
                 <div class="public-gis-toolbar-right">
-                    <button type="button" class="public-gis-btn" id="publicToggleAccidentsBtn" onclick="window.PublicGisMap.toggleAccidentPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
-                        <i class="fas fa-exclamation-triangle"></i> Incidents
-                    </button>
-                    <button type="button" class="public-gis-btn" id="publicToggleBusStopsBtn" onclick="window.PublicGisMap.toggleBusStopPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
-                        <i class="fas fa-bus"></i> Bus
-                    </button>
-                    <button type="button" class="public-gis-btn" id="publicToggleRailStationsBtn" onclick="window.PublicGisMap.toggleRailStationPins()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
-                        <i class="fas fa-train"></i> Rail
-                    </button>
-                    <button type="button" class="public-gis-btn" id="publicTogglePtRoutesBtn" onclick="window.PublicGisMap.showPtRoutesPanel()" style="background:#6c757d;color:#fff;border-color:#6c757d;">
-                        <i class="fas fa-route"></i> PT Routes
-                    </button>
-                    <button type="button" class="public-gis-btn" id="publicSyncMapLayersBtn" onclick="window.PublicGisMap.syncMapLayers()" style="background:#3762c8;color:#fff;border-color:#3762c8;">
-                        <i class="fas fa-sync-alt"></i> Sync Layers
-                    </button>
-                    <button type="button" class="public-gis-btn" id="publicToggleTrafficBtn" onclick="window.PublicGisMap.toggleTrafficLayer()">
-                        <i class="fas fa-car"></i> Traffic
-                    </button>
+                    <div class="public-gis-tools" id="publicMapTools">
+                        <button type="button" class="public-gis-btn public-gis-tools-toggle has-active" id="publicToolsDropdownBtn" onclick="window.PublicGisMap.toggleToolsDropdown()" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-tools"></i> Tools
+                            <span class="public-gis-tools-toggle-count" id="publicToolsActiveCount">1</span>
+                        </button>
+                        <div class="public-gis-tools-menu" id="publicToolsDropdownMenu" role="menu" aria-label="Map tools">
+                            <div class="public-gis-tools-heading">Layers</div>
+                            <button type="button" class="public-gis-tools-item is-on" id="publicToggleTrafficBtn" onclick="window.PublicGisMap.toggleTrafficLayer()" role="menuitemcheckbox" aria-checked="true">
+                                <span class="public-gis-tools-item-main"><i class="fas fa-car"></i> Traffic</span>
+                                <span class="public-gis-tools-item-state">On</span>
+                            </button>
+                            <button type="button" class="public-gis-tools-item is-off" id="publicToggleAccidentsBtn" onclick="window.PublicGisMap.toggleAccidentPins()" role="menuitemcheckbox" aria-checked="false">
+                                <span class="public-gis-tools-item-main"><i class="fas fa-exclamation-triangle"></i> Incidents</span>
+                                <span class="public-gis-tools-item-state">Off</span>
+                            </button>
+                            <button type="button" class="public-gis-tools-item is-off" id="publicToggleBusStopsBtn" onclick="window.PublicGisMap.toggleBusStopPins()" role="menuitemcheckbox" aria-checked="false">
+                                <span class="public-gis-tools-item-main"><i class="fas fa-bus"></i> Bus</span>
+                                <span class="public-gis-tools-item-state">Off</span>
+                            </button>
+                            <button type="button" class="public-gis-tools-item is-off" id="publicToggleRailStationsBtn" onclick="window.PublicGisMap.toggleRailStationPins()" role="menuitemcheckbox" aria-checked="false">
+                                <span class="public-gis-tools-item-main"><i class="fas fa-train"></i> Rail</span>
+                                <span class="public-gis-tools-item-state">Off</span>
+                            </button>
+                            <button type="button" class="public-gis-tools-item is-off" id="publicTogglePtRoutesBtn" onclick="window.PublicGisMap.showPtRoutesPanel()" role="menuitemcheckbox" aria-checked="false">
+                                <span class="public-gis-tools-item-main"><i class="fas fa-route"></i> PT Routes</span>
+                                <span class="public-gis-tools-item-state">Off</span>
+                            </button>
+
+                            <div class="public-gis-tools-divider"></div>
+                            <div class="public-gis-tools-heading">Planners</div>
+                            <button type="button" class="public-gis-tools-item is-off" id="publicBtnRoutePlanner" onclick="window.PublicGisMap.showRoutePlanner()" role="menuitemcheckbox" aria-checked="false">
+                                <span class="public-gis-tools-item-main"><i class="fas fa-route"></i> Route Planner</span>
+                                <span class="public-gis-tools-item-state">Off</span>
+                            </button>
+                            <button type="button" class="public-gis-tools-item is-off" id="publicBtnCommutePlanner" onclick="window.PublicGisMap.showCommutePlanner()" role="menuitemcheckbox" aria-checked="false">
+                                <span class="public-gis-tools-item-main"><i class="fas fa-bus"></i> Commute Planner</span>
+                                <span class="public-gis-tools-item-state">Off</span>
+                            </button>
+                            <button type="button" class="public-gis-tools-item is-off" id="publicBtnEVCharging" onclick="window.PublicGisMap.showEVCharging()" role="menuitemcheckbox" aria-checked="false">
+                                <span class="public-gis-tools-item-main"><i class="fas fa-charging-station"></i> EV Stations</span>
+                                <span class="public-gis-tools-item-state">Off</span>
+                            </button>
+
+                            <div class="public-gis-tools-divider"></div>
+                            <button type="button" class="public-gis-tools-item public-gis-tools-action" id="publicSyncMapLayersBtn" onclick="window.PublicGisMap.syncMapLayers()" title="Re-download Incidents, Bus, Rail, and PT Routes" role="menuitem">
+                                <span class="public-gis-tools-item-main"><i class="fas fa-sync-alt"></i> Sync Layers</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

@@ -24,14 +24,19 @@ if (!is_dir($cacheDir)) {
 }
 
 $QC_CENTER = [14.6760, 121.0437];
+// ~4 km grid across QC (Novaliches → Cubao, Project → Payatas). Radius 10 km per seed.
 $TRANSIT_POI_CENTERS = [
-    [14.651417, 121.04917],
-    [14.705, 121.05],
-    [14.60, 121.05],
-    [14.65, 121.015],
-    [14.65, 121.09],
-    [14.68, 121.075],
-    [14.62, 121.03],
+    // South
+    [14.590, 121.020], [14.590, 121.055], [14.590, 121.090],
+    // Mid-south (Cubao / Kamuning / New Manila)
+    [14.625, 121.015], [14.625, 121.050], [14.625, 121.085], [14.625, 121.115],
+    // Central (Diliman / Project / Eastwood)
+    [14.660, 121.015], [14.660, 121.050], [14.660, 121.085], [14.660, 121.115],
+    // Mid-north (Commonwealth / Batasan)
+    [14.700, 121.020], [14.700, 121.055], [14.700, 121.090], [14.700, 121.120],
+    // North (Fairview / Novaliches)
+    [14.740, 121.030], [14.740, 121.065], [14.740, 121.100],
+    [14.770, 121.050], [14.770, 121.085],
 ];
 
 function map_layers_cache_path(string $layer): string {
@@ -154,7 +159,7 @@ function map_layers_fetch_transit(string $layer, string $categorySet, bool $forc
         foreach ($TRANSIT_POI_CENTERS as $c) {
             $resp = $search->nearbySearch((float)$c[0], (float)$c[1], [
                 'categorySet' => $categorySet,
-                'radius' => 8000,
+                'radius' => 10000,
                 'limit' => 100,
             ]);
             if (empty($resp['success'])) {
