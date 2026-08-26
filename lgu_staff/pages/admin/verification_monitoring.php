@@ -7668,11 +7668,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (r.budget_allocation) {
                     sourceGrid += lguInfoItem('money-bill-wave', 'Budget', '₱ ' + Number(r.budget_allocation).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
                 }
-                <?php if (!$is_road_supervisor): ?>
-                if (r.detected_district) {
-                    sourceGrid += lguInfoItem('map-pin', 'District', r.detected_district);
-                }
-                <?php endif; ?>
                 sourceGrid += lguInfoItem('calendar-plus', 'CIMM Starting Date', formatDate(r.cimm_starting_date));
                 sourceGrid += lguInfoItem('calendar-check', 'CIMM Estimated End Date', formatDate(r.cimm_estimated_end_date));
             }
@@ -7700,9 +7695,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" class="vm-map-link"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
             locationGrid += '<div class="lgu-info-item lgu-info-value-full"><div class="lgu-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="lgu-info-label">Location</div><div class="lgu-info-value">' + locVal + '</div></div></div>';
-            <?php if ($is_road_supervisor): ?>
             locationGrid += lguInfoItem('map-pin', 'District', r.detected_district);
-            <?php endif; ?>
             document.getElementById('lgu-location-grid').innerHTML = locationGrid;
 
             // View Map button: only shown when the report has a saved
@@ -8544,6 +8537,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                 locVal += '<br><a href="https://www.google.com/maps?q=' + r.latitude + ',' + r.longitude + '" target="_blank" class="vm-map-link"><i class="fas fa-external-link-alt" style="font-size:10px;"></i> View on Map</a>';
             }
             locationGrid += '<div class="citizen-info-item citizen-info-value-full"><div class="citizen-info-icon"><i class="fas fa-map-marker-alt"></i></div><div><div class="citizen-info-label">Location</div><div class="citizen-info-value">' + locVal + '</div></div></div>';
+            locationGrid += cmInfoItem('map-pin', 'District', r.detected_district);
             document.getElementById('cm-location-grid').innerHTML = locationGrid;
 
             // View Map button: only shown when the report has a saved

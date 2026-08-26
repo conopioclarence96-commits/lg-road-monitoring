@@ -191,24 +191,19 @@ function rgmap_can_post_progress_update($conn, $report_id, $source, $user_id, $c
         return true;
     }
 
-    $source = strtolower(trim($source));
-    $resolved = rgmap_progress_resolve_table($source !== '' ? $source : 'lgu');
-    $table = $resolved['table'] ?? 'road_transportation_reports';
-    if ($table === 'ipms_road_projects') {
-        // IPMS projects are not assigned via report_assignments today.
-        return true;
-    }
-
     try {
         $check = $conn->query("SHOW TABLES LIKE 'report_assignments'");
         if (!$check || $check->num_rows === 0) {
             return true;
         }
 
+        // Same assignment key used when supervisors assign staff (incl. IPMS).
+        $report_type = rgmap_assignment_report_type_from_source($source);
+
         // An officer may post ONLY when they are the actively assigned user.
         $assigned = fetch_one(
             "SELECT id FROM report_assignments WHERE report_id = ? AND report_type = ? AND user_id = ? AND status = 'active'",
-            [$report_id, $table, $user_id], "isi"
+            [$report_id, $report_type, $user_id], "isi"
         );
         return (bool)$assigned;
     } catch (Exception $e) {
@@ -243,18 +238,17 @@ function rgmap_can_request_review($conn, $report_id, $source, $user_id, $current
             return false;
         }
 
-        $source = strtolower(trim($source));
-        $table = $source === 'cimm'
-            ? 'cimm_verification_reports'
-            : 'road_transportation_reports';
-        if (!$table) {
+        // Resolve assignment report_type the same way Assign Staff stores it
+        // (road_transportation_reports / cimm_verification_reports / ipms_road_projects).
+        $report_type = rgmap_assignment_report_type_from_source($source);
+        if ($report_type === '') {
             return false;
         }
 
         // An officer may request ONLY when they are the actively assigned user.
         $assigned = fetch_one(
             "SELECT id FROM report_assignments WHERE report_id = ? AND report_type = ? AND user_id = ? AND status = 'active'",
-            [$report_id, $table, $user_id], "isi"
+            [$report_id, $report_type, $user_id], "isi"
         );
         return (bool)$assigned;
     } catch (Exception $e) {
@@ -994,9 +988,8 @@ if ($method === 'GET') {
         $source = sanitize_input($_POST['source'] ?? '');
 
         // Resolve the report from the correct table based on the source hint
-        // sent by the frontend.  CIMM reports live in cimm_verification_reports;
-        // infrastructure/maintenance reports live in road_maintenance_reports;
-        // everything else comes from road_transportation_reports.
+        // sent by the frontend. CIMM → cimm_verification_reports; Infrastructure
+        // Projects → ipms_road_projects; everything else → transport table.
         if ($source === 'cimm') {
             require_once __DIR__ . '/cimm_verification_data.php';
             $pdo = rgmap_verification_pdo();
@@ -1004,10 +997,18 @@ if ($method === 'GET') {
             $stmt = $pdo->prepare("SELECT id, reference_code AS report_id, infrastructure AS title, 'road' AS report_category, location, issue AS description FROM cimm_verification_reports WHERE id = ?");
             $stmt->execute([$report_id]);
             $report = $stmt->fetch(PDO::FETCH_ASSOC);
-        } elseif ($source === 'infrastructure') {
+        } elseif (in_array($source, ['infrastructure', 'maintenance', 'ipms'], true)) {
             $report = fetch_one(
-                "SELECT id, report_id, title, description, location, report_category FROM road_maintenance_reports WHERE id = ?",
-                [$report_id], "i"
+                "SELECT project_id AS id,
+                        CAST(project_id AS CHAR) AS report_id,
+                        project_name AS title,
+                        road_status AS description,
+                        COALESCE(NULLIF(road_name, ''), project_name) AS location,
+                        'road' AS report_category
+                 FROM ipms_road_projects
+                 WHERE project_id = ?",
+                [$report_id],
+                "i"
             );
         } else {
             $report = fetch_one(
@@ -1021,6 +1022,20 @@ if ($method === 'GET') {
                 "SELECT id, report_id, title, description, location, report_category FROM road_transportation_reports WHERE id = ?",
                 [$report_id], "i"
             );
+            if (!$report) {
+                $report = fetch_one(
+                    "SELECT project_id AS id,
+                            CAST(project_id AS CHAR) AS report_id,
+                            project_name AS title,
+                            road_status AS description,
+                            COALESCE(NULLIF(road_name, ''), project_name) AS location,
+                            'road' AS report_category
+                     FROM ipms_road_projects
+                     WHERE project_id = ?",
+                    [$report_id],
+                    "i"
+                );
+            }
             if (!$report) {
                 $report = fetch_one(
                     "SELECT id, report_id, title, description, location, report_category FROM road_maintenance_reports WHERE id = ?",
