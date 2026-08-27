@@ -3628,14 +3628,14 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var vrMainRoadLayer = null;
         var QC_CENTER = [14.651417, 121.04917];
         // Full 8 routes — Route 1 detailed per official QC Gov map, others via official keyStops
-        // Official Q City Bus Route 1 — 6 stops as requested (plotted sequentially, road-following via TomTom)
+        // Official Q City Bus Route 1 — 6 stops as requested (exact coords 2026-08-27, plotted sequentially road-following via TomTom)
         var ROUTE1_STOPS = [
-            {name:'Quezon City Hall Gate 3 (Kalayaan Ave.)', lat:14.6479, lng:121.0518, type:'stop'},
-            {name:'Kalayaan Avenue cor. Masigla St.', lat:14.6459, lng:121.0538, type:'stop'},
-            {name:'Kalayaan Avenue cor. Kamias Rd. Interchange', lat:14.6432, lng:121.0549, type:'stop'},
-            {name:'Barangay Silangan Hall', lat:14.6368, lng:121.0599, type:'stop'},
-            {name:'15th Avenue cor. Aurora Boulevard', lat:14.6256, lng:121.0598, type:'stop'},
-            {name:'Cubao (Araneta City / Ali Mall area)', lat:14.6197, lng:121.0526, type:'stop'}
+            {name:'Quezon City Hall Gate 3 (Kalayaan Ave.)', lat:14.6508, lng:121.0494, type:'stop'},
+            {name:'Kalayaan Avenue cor. Masigla St.', lat:14.6395, lng:121.0544, type:'stop'},
+            {name:'Kalayaan Avenue cor. Kamias Rd. Interchange', lat:14.6343, lng:121.0592, type:'stop'},
+            {name:'Barangay Silangan Hall', lat:14.6280, lng:121.0625, type:'stop'},
+            {name:'15th Avenue cor. Aurora Boulevard', lat:14.6212, lng:121.0573, type:'stop'},
+            {name:'Cubao (Araneta City / Ali Mall area)', lat:14.6195, lng:121.0528, type:'stop'}
         ];
         var BUS_GIS_ROUTES = {
             1: { name:'Route 1: QC Hall to Cubao — Kalayaan Ave.', corridor:'Kalayaan Ave. via 15th Ave → Aurora Blvd', waypoints: ROUTE1_STOPS },
