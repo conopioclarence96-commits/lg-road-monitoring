@@ -2347,20 +2347,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
     <?php include __DIR__ . '/includes/hamburger_menu.php'; ?>
 
-    <!-- 5. Emergency Transit Advisory Ticker -->
-    <div id="emergencyTicker" class="emergency-ticker" role="alert" aria-live="assertive">
-        <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <div class="d-flex align-items-center gap-3 flex-wrap flex-grow-1">
-                <span class="emergency-ticker-badge"><i class="fas fa-exclamation-triangle"></i> Advisory</span>
-                <div class="emergency-ticker-text">
-                    <strong>Flash Flood Alert:</strong> Commonwealth Ave &amp; Quezon Ave partially closed until 8:00 PM — expect heavy delays &amp; rerouting via EDSA.
-                    <a href="#" class="emergency-ticker-link" onclick="document.getElementById('publicGisFab')?.click(); return false;">View Alternate Routes <i class="fas fa-arrow-right ms-1"></i></a>
-                </div>
-            </div>
-            <button type="button" class="emergency-ticker-dismiss" aria-label="Dismiss emergency advisory" onclick="dismissEmergencyTicker()"><i class="fas fa-times"></i></button>
-        </div>
-    </div>
-
     <!-- Hero Section -->
     <section class="hero" id="home" <?php echo ($access_settings['hide_hero'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
