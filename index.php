@@ -2815,12 +2815,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     </div>
                                     <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Commonwealth Ave corridor (heaviest demand)</div>
                                     <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>QC Hall</li>
-                                        <li>Commonwealth Avenue</li>
-                                        <li>Batasan Hills</li>
-                                        <li>Sandiganbayan</li>
-                                        <li>IBP Road</li>
-                                        <li><strong>Litex (Terminal)</strong></li>
+                                        <li>QC Hall Gate 3 — Kalayaan Ave.</li>
+                                        <li>St. Peter Parish: Shrine of Leaders (Commonwealth Avenue)</li>
+                                        <li>Rosario Maclang Bautista General Hospital (IBP Road)</li>
+                                        <li>QCU Guidance (Batasan Hills Campus, IBP Road)</li>
+                                        <li><strong>Litex Market (Dulo / Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>10–15 min</span></div>
                                     <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal" data-route-id="2" data-route-name="QC Hall to Litex / IBP Road" aria-label="View Route 2 on Map"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
@@ -3007,7 +3006,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     </div>
     <script type="application/json" id="qcBusRoutesData">[
   { "routeNumber": 1, "name": "QC Hall to Cubao", "keyStops": ["Quezon City Hall Materials Recovery Facility (Gate 3 - Simula)", "Masigla & Kalayaan Avenue", "Bus Stop - Route 3 - Kalayaan Ave cor. Kamias", "Barangay Silangan Hall", "Aurora Boulevard & 15th Avenue", "Ali Mall (Araneta City - Dulo)"] },
-  { "routeNumber": 2, "name": "QC Hall to Litex / IBP Road", "keyStops": ["QC Hall", "Commonwealth Avenue", "Batasan Hills", "Sandiganbayan", "IBP Road", "Litex"] },
+  { "routeNumber": 2, "name": "QC Hall to Litex / IBP Road", "keyStops": ["QC Hall Gate 3 Kalayaan Ave.", "St. Peter Parish: Shrine of Leaders (Commonwealth Avenue)", "Rosario Maclang Bautista General Hospital (IBP Road)", "QCU Guidance (Batasan Hills Campus, IBP Road)", "Litex Market (Dulo / Terminal)"] },
   { "routeNumber": 3, "name": "Welcome Rotonda to Aurora-Katipunan", "keyStops": ["Welcome Rotonda", "España Extension", "E. Rodriguez Sr. Avenue", "Gilmore", "Aurora Boulevard", "Katipunan"] },
   { "routeNumber": 4, "name": "QC Hall to General Luis", "keyStops": ["QC Hall", "Mindanao Avenue", "Tandang Sora", "Quirino Highway", "General Luis Avenue"] },
   { "routeNumber": 5, "name": "QC Hall to Mindanao Ave. via Visayas Ave.", "keyStops": ["QC Hall", "North Avenue", "Visayas Avenue", "Congressional Avenue", "Mindanao Avenue"] },
@@ -3631,13 +3630,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var BUS_GIS_ROUTES = {
             1: { name:'Route 1: QC Hall to Cubao — Kalayaan Ave.', corridor:'Kalayaan Ave. via 15th Ave → Aurora Blvd', waypoints: ROUTE1_STOPS },
             2: { name:'Route 2: QC Hall to Litex / IBP Road', corridor:'Commonwealth Ave corridor', waypoints:[
-                {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
-                {name:'Commonwealth Ave — PhilCOA', lat:14.6585, lng:121.0578, type:'turn'},
-                {name:'Commonwealth cor. Tandang Sora', lat:14.6720, lng:121.0640, type:'turn'},
-                {name:'Batasan Hills', lat:14.6950, lng:121.0980, type:'stop'},
-                {name:'Sandiganbayan', lat:14.7080, lng:121.1050, type:'stop'},
-                {name:'IBP Road', lat:14.7180, lng:121.1120, type:'stop'},
-                {name:'Litex (Terminal)', lat:14.7400, lng:121.0820, type:'stop'}
+                {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6479, lng:121.0518, type:'stop'},
+                {name:'St. Peter Parish: Shrine of Leaders (Commonwealth Avenue)', lat:14.6803, lng:121.0849, type:'stop'},
+                {name:'Rosario Maclang Bautista General Hospital (IBP Road)', lat:14.6861, lng:121.0891, type:'stop'},
+                {name:'QCU Guidance (Batasan Hills Campus, IBP Road)', lat:14.6900, lng:121.1010, type:'stop'},
+                {name:'Litex Market (Dulo / Terminal)', lat:14.7002, lng:121.0876, type:'stop'}
             ]},
             3: { name:'Route 3: Welcome Rotonda to Aurora-Katipunan', corridor:'E. Rodriguez / Aurora Blvd', waypoints:[
                 {name:'Welcome Rotonda', lat:14.6110, lng:121.0335, type:'stop'},
