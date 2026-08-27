@@ -3624,9 +3624,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             {name:'Kalayaan Ave. cor. Masigla St.', lat:14.6459, lng:121.0538, type:'stop'},
             {name:'Kalayaan Ave. — mid-block to Kamias', lat:14.6447, lng:121.0545, type:'turn'},
             {name:'Kalayaan Ave. cor. Kamias Rd. Interchange', lat:14.6432, lng:121.0549, type:'stop'},
-            {name:'Kalayaan Ave. cor. Anonas St.', lat:14.6415, lng:121.0572, type:'turn'},
-            {name:'Kalayaan Ave. cor. Ermin Garcia St.', lat:14.6395, lng:121.0595, type:'turn'},
-            {name:'Barangay Silangan Hall', lat:14.6378, lng:121.0602, type:'stop'},
+            // snapped to Kalayaan Ave. centerline — previously off-road inside Project 4 / Silangan subdivision
+            {name:'Kalayaan Ave. cor. Anonas St.', lat:14.6408, lng:121.0568, type:'turn'},
+            {name:'Kalayaan Ave. cor. Ermin Garcia St.', lat:14.6382, lng:121.0589, type:'turn'},
+            {name:'Kalayaan Ave. — Barangay Silangan (on Kalayaan, not inside hall compound)', lat:14.6368, lng:121.0599, type:'stop'},
             {name:'Turn: Kalayaan → 15th Ave. (south)', lat:14.6355, lng:121.0606, type:'turn'},
             {name:'15th Ave. mid-block', lat:14.6320, lng:121.0603, type:'turn'},
             {name:'15th Ave. cor. Aurora Blvd.', lat:14.6256, lng:121.0598, type:'stop'},
@@ -3727,7 +3728,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             if(!window.TomTomServices || !window.TomTomServices.calculateRoute){
                 return Promise.resolve([[from.lat, from.lng],[to.lat, to.lng]]);
             }
-            return window.TomTomServices.calculateRoute(from.lat, from.lng, to.lat, to.lng).then(function(data){
+            // use fastest + traffic-aware routing and prefer main corridors — prevents short-cut through subdivision streets
+            return window.TomTomServices.calculateRoute(from.lat, from.lng, to.lat, to.lng, { routeType:'fast', traffic:'true', vehicleCommercial:'false' }).then(function(data){
                 if(!data || !data.success || !data.data) return [[from.lat, from.lng],[to.lat, to.lng]];
                 var pts = extractRoutePoints(data.data);
                 return pts.length ? pts : [[from.lat, from.lng],[to.lat, to.lng]];
