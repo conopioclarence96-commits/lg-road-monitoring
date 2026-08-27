@@ -2795,12 +2795,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     </div>
                                     <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Kalayaan Ave. corridor via Kamias & 15th Ave → Aurora Blvd</div>
                                     <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>Quezon City Hall Gate 3 — Kalayaan Ave.</li>
-                                        <li>Kalayaan Ave. cor. Masigla St.</li>
-                                        <li>Kalayaan Ave. cor. Kamias Rd. Interchange</li>
-                                        <li>Barangay Silangan Hall</li>
-                                        <li>15th Ave. cor. Aurora Blvd.</li>
-                                        <li><strong>Cubao (Araneta City) — Terminal</strong></li>
+                                         <li>Quezon City Hall Materials Recovery Facility (Gate 3 - Simula)</li>
+                                         <li>Masigla &amp; Kalayaan Avenue</li>
+                                         <li>Bus Stop - Route 3 - Kalayaan Ave cor. Kamias</li>
+                                         <li>Barangay Silangan Hall</li>
+                                         <li>Aurora Boulevard &amp; 15th Avenue</li>
+                                         <li><strong>Ali Mall (Araneta City - Dulo) — Terminal</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>10–15 min</span></div>
                                     <button type="button" id="viewRoute1MapBtn" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal" data-route-id="1" data-route-name="QC Hall to Cubao" aria-label="View Route 1 QC Hall to Cubao on Map" title="Route 1: QC Hall → Cubao"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map <span style="background:var(--qc-primary-800); color:#fff; font-size:0.65rem; padding:2px 7px; border-radius:20px; margin-left:6px; font-weight:800; letter-spacing:0.3px;"><i class="fas fa-route me-1"></i>Route 1</span></button>
@@ -2988,12 +2988,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <div id="viewRoute1MapOverlay" class="view-route1-map-overlay" aria-live="polite">
                             <div style="font-weight:800; color:var(--qc-primary-900); font-size:11px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;"><span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.65rem;padding:2px 6px;border-radius:20px;">ROUTE <span id="viewRouteOverlayNum">1</span></span> <span id="viewRouteOverlayTitle">Route 1: QC Hall to Cubao — Kalayaan Ave.</span></div>
                             <div class="view-route1-stops" id="viewRouteOverlayStops">
-                                <span class="view-route1-stop"><span class="dot start"></span> Gate 3 Kalayaan</span><span class="view-route1-arrow">→</span>
-                                <span class="view-route1-stop"><span class="dot"></span> Masigla St.</span><span class="view-route1-arrow">→</span>
-                                <span class="view-route1-stop"><span class="dot"></span> Kamias Interchange</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot start"></span> QC Hall MRF Gate 3</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> Masigla &amp; Kalayaan</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> Kamias</span><span class="view-route1-arrow">→</span>
                                 <span class="view-route1-stop"><span class="dot"></span> Silangan Hall</span><span class="view-route1-arrow">→</span>
-                                <span class="view-route1-stop"><span class="dot"></span> 15th Ave Aurora</span><span class="view-route1-arrow">→</span>
-                                <span class="view-route1-stop"><span class="dot end"></span> Cubao</span>
+                                <span class="view-route1-stop"><span class="dot"></span> Aurora &amp; 15th</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot end"></span> Ali Mall</span>
                             </div>
                             <div id="viewRouteOverlayCorridor" style="color:#64748b; font-size:10px;"><i class="far fa-clock me-1"></i>Kalayaan Ave. via 15th Ave → Aurora Blvd • Based on official QC Gov Route 1 map</div>
                             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; font-size:9px; font-weight:600;"><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#115272;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Stop</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Turn (point-to-point)</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Start</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#dc2626;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> End</span></div>
@@ -3006,7 +3006,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </div>
     <script type="application/json" id="qcBusRoutesData">[
-  { "routeNumber": 1, "name": "QC Hall to Cubao", "keyStops": ["Quezon City Hall Gate 3 Kalayaan Ave.", "Kalayaan Ave. cor. Masigla St.", "Kalayaan Ave. cor. Kamias Rd. Interchange", "Barangay Silangan Hall", "15th Ave. cor. Aurora Blvd.", "Cubao (Araneta City)"] },
+  { "routeNumber": 1, "name": "QC Hall to Cubao", "keyStops": ["Quezon City Hall Materials Recovery Facility (Gate 3 - Simula)", "Masigla & Kalayaan Avenue", "Bus Stop - Route 3 - Kalayaan Ave cor. Kamias", "Barangay Silangan Hall", "Aurora Boulevard & 15th Avenue", "Ali Mall (Araneta City - Dulo)"] },
   { "routeNumber": 2, "name": "QC Hall to Litex / IBP Road", "keyStops": ["QC Hall", "Commonwealth Avenue", "Batasan Hills", "Sandiganbayan", "IBP Road", "Litex"] },
   { "routeNumber": 3, "name": "Welcome Rotonda to Aurora-Katipunan", "keyStops": ["Welcome Rotonda", "España Extension", "E. Rodriguez Sr. Avenue", "Gilmore", "Aurora Boulevard", "Katipunan"] },
   { "routeNumber": 4, "name": "QC Hall to General Luis", "keyStops": ["QC Hall", "Mindanao Avenue", "Tandang Sora", "Quirino Highway", "General Luis Avenue"] },
@@ -3621,19 +3621,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var QC_CENTER = [14.651417, 121.04917];
         // Full 8 routes — Route 1 detailed per official QC Gov map, others via official keyStops
         var ROUTE1_STOPS = [
-            {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6479, lng:121.0518, type:'stop'},
-            {name:'Kalayaan Ave. cor. Masigla St.', lat:14.6459, lng:121.0538, type:'stop'},
-            {name:'Kalayaan Ave. — mid-block to Kamias', lat:14.6447, lng:121.0545, type:'turn'},
-            {name:'Kalayaan Ave. cor. Kamias Rd. Interchange', lat:14.6432, lng:121.0549, type:'stop'},
-            {name:'Kalayaan Ave. cor. Anonas St.', lat:14.6415, lng:121.0572, type:'turn'},
-            {name:'Kalayaan Ave. cor. Ermin Garcia St.', lat:14.6395, lng:121.0595, type:'turn'},
-            {name:'Barangay Silangan Hall', lat:14.6378, lng:121.0602, type:'stop'},
-            {name:'Turn: Kalayaan → 15th Ave. (south)', lat:14.6355, lng:121.0606, type:'turn'},
-            {name:'15th Ave. mid-block', lat:14.6320, lng:121.0603, type:'turn'},
-            {name:'15th Ave. cor. Aurora Blvd.', lat:14.6256, lng:121.0598, type:'stop'},
-            {name:'Aurora Blvd. mid (Stanford)', lat:14.6232, lng:121.0575, type:'turn'},
-            {name:'Aurora Blvd. approach to Cubao', lat:14.6210, lng:121.0548, type:'turn'},
-            {name:'Cubao (Araneta City) — Terminal', lat:14.6197, lng:121.0526, type:'stop'}
+            {name:'Quezon City Hall Materials Recovery Facility (Gate 3 - Simula)', lat:14.6500, lng:121.0500, type:'stop'},
+            {name:'Masigla & Kalayaan Avenue', lat:14.6395, lng:121.0560, type:'stop'},
+            {name:'Bus Stop - Route 3 - Kalayaan Ave cor. Kamias', lat:14.6360, lng:121.0605, type:'stop'},
+            {name:'Barangay Silangan Hall', lat:14.6255, lng:121.0600, type:'stop'},
+            {name:'Aurora Boulevard & 15th Avenue', lat:14.6205, lng:121.0590, type:'stop'},
+            {name:'Ali Mall (Araneta City - Dulo) — Terminal', lat:14.6198, lng:121.0566, type:'stop'}
         ];
         var BUS_GIS_ROUTES = {
             1: { name:'Route 1: QC Hall to Cubao — Kalayaan Ave.', corridor:'Kalayaan Ave. via 15th Ave → Aurora Blvd', waypoints: ROUTE1_STOPS },
