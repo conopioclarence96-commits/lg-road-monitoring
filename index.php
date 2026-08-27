@@ -3768,7 +3768,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             var mainPts = waypoints.map(function(s){ return [s.lat, s.lng]; });
             vrMainRoadLayer = L.layerGroup().addTo(vrMap);
             L.polyline(mainPts, {color:'#f59e0b', weight:14, opacity:0.22, lineCap:'round', lineJoin:'round'}).addTo(vrMainRoadLayer);
-            L.polyline(mainPts, {color:'#b45309', weight:3, opacity:0.35, dashArray:'10 12', lineCap:'round', lineJoin:'round'}).addTo(vrMainRoadLayer);
             var mid = waypoints[Math.floor(waypoints.length/2)];
             if(mid){
                 L.marker([mid.lat, mid.lng], {
@@ -3926,7 +3925,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 var pts = waypoints.map(function(s){ return [s.lat, s.lng]; });
                 qcMainRoadLayer = L.layerGroup().addTo(qcMap);
                 L.polyline(pts, {color:'#f59e0b', weight:12, opacity:0.22, lineCap:'round', lineJoin:'round'}).addTo(qcMainRoadLayer);
-                L.polyline(pts, {color:'#b45309', weight:2.5, opacity:0.35, dashArray:'10 12', lineCap:'round'}).addTo(qcMainRoadLayer);
             }
             function showQcBusRoute(routeId){
                 routeId = parseInt(routeId,10)||1;
