@@ -2727,14 +2727,14 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">ROUTE 1</span>
                                         <h6 class="mb-0" style="font-weight:800; color:var(--qc-primary-900); font-size:0.95rem;">QC Hall to Cubao</h6>
                                     </div>
-                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Elliptical Rd. corridor via East Ave</div>
+                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Kalayaan Ave. corridor via Kamias & 15th Ave → Aurora Blvd</div>
                                     <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>QC Hall</li>
-                                        <li>Elliptical Road</li>
-                                        <li>East Avenue</li>
-                                        <li>Kamias Road</li>
-                                        <li>EDSA-Kamias</li>
-                                        <li><strong>Cubao (Terminal)</strong></li>
+                                        <li>Quezon City Hall Gate 3 — Kalayaan Ave.</li>
+                                        <li>Kalayaan Ave. cor. Masigla St.</li>
+                                        <li>Kalayaan Ave. cor. Kamias Rd. Interchange</li>
+                                        <li>Barangay Silangan Hall</li>
+                                        <li>15th Ave. cor. Aurora Blvd.</li>
+                                        <li><strong>Cubao (Araneta City) — Terminal</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>10–15 min</span></div>
                                     <button type="button" id="viewRoute1MapBtn" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal" data-route-id="1" data-route-name="QC Hall to Cubao" aria-label="View Route 1 QC Hall to Cubao on Map" title="Route 1: QC Hall → Cubao"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map <span style="background:var(--qc-primary-800); color:#fff; font-size:0.65rem; padding:2px 7px; border-radius:20px; margin-left:6px; font-weight:800; letter-spacing:0.3px;"><i class="fas fa-route me-1"></i>Route 1</span></button>
@@ -2907,16 +2907,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     <div class="view-route-gis-wrap">
                         <div id="viewRouteGisMap" role="region" aria-label="QC Bus Route Map"></div>
                         <div id="viewRoute1MapOverlay" class="view-route1-map-overlay" aria-live="polite">
-                            <div style="font-weight:800; color:var(--qc-primary-900); font-size:11px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;"><span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.65rem;padding:2px 6px;border-radius:20px;">ROUTE 1</span> QC Hall to Cubao — Elliptical Rd. corridor via East Ave</div>
+                            <div style="font-weight:800; color:var(--qc-primary-900); font-size:11px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;"><span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.65rem;padding:2px 6px;border-radius:20px;">ROUTE 1</span> QC Hall Gate 3 (Kalayaan Ave.) → Cubao (Araneta City) — Kalayaan Ave. corridor</div>
                             <div class="view-route1-stops">
-                                <span class="view-route1-stop"><span class="dot start"></span> QC Hall</span><span class="view-route1-arrow">→</span>
-                                <span class="view-route1-stop"><span class="dot"></span> Elliptical Rd.</span><span class="view-route1-arrow">→</span>
-                                <span class="view-route1-stop"><span class="dot"></span> East Ave</span><span class="view-route1-arrow">→</span>
-                                <span class="view-route1-stop"><span class="dot"></span> Kamias Rd.</span><span class="view-route1-arrow">→</span>
-                                <span class="view-route1-stop"><span class="dot"></span> EDSA-Kamias</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot start"></span> Gate 3 Kalayaan</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> Masigla St.</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> Kamias Interchange</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> Silangan Hall</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> 15th Ave Aurora</span><span class="view-route1-arrow">→</span>
                                 <span class="view-route1-stop"><span class="dot end"></span> Cubao</span>
                             </div>
-                            <div style="color:#64748b; font-size:10px;"><i class="far fa-clock me-1"></i>5AM–9PM • 10–15 min • Free Ride • 6 stops</div>
+                            <div style="color:#64748b; font-size:10px;"><i class="far fa-clock me-1"></i>Kalayaan Ave. via 15th Ave → Aurora Blvd • Based on official QC Gov Route 1 map</div>
                         </div>
                         <small class="text-muted text-center d-block"><i class="fas fa-info-circle me-1"></i> Modal-sized GIS — same layers as Live Road Map, constrained to modal.</small>
                     </div>
@@ -2925,7 +2925,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </div>
     <script type="application/json" id="qcBusRoutesData">[
-  { "routeNumber": 1, "name": "QC Hall to Cubao", "keyStops": ["QC Hall", "Elliptical Road", "East Avenue", "Kamias Road", "EDSA-Kamias", "Cubao"] },
+  { "routeNumber": 1, "name": "QC Hall to Cubao", "keyStops": ["Quezon City Hall Gate 3 Kalayaan Ave.", "Kalayaan Ave. cor. Masigla St.", "Kalayaan Ave. cor. Kamias Rd. Interchange", "Barangay Silangan Hall", "15th Ave. cor. Aurora Blvd.", "Cubao (Araneta City)"] },
   { "routeNumber": 2, "name": "QC Hall to Litex / IBP Road", "keyStops": ["QC Hall", "Commonwealth Avenue", "Batasan Hills", "Sandiganbayan", "IBP Road", "Litex"] },
   { "routeNumber": 3, "name": "Welcome Rotonda to Aurora-Katipunan", "keyStops": ["Welcome Rotonda", "España Extension", "E. Rodriguez Sr. Avenue", "Gilmore", "Aurora Boulevard", "Katipunan"] },
   { "routeNumber": 4, "name": "QC Hall to General Luis", "keyStops": ["QC Hall", "Mindanao Avenue", "Tandang Sora", "Quirino Highway", "General Luis Avenue"] },
@@ -3530,20 +3530,21 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     })();
     </script>
 
-    <!-- View Route Map Modal GIS — Route 1 indication inside map (modal-sized, not fullscreen) -->
+    <!-- View Route Map Modal GIS — Route 1 indication inside map (road-following, modal-sized) -->
     <script>
     (function(){
         'use strict';
         var vrMap = null, vrTrafficLayer = null, vrMapInited = false;
         var vrRoute1Layer = null, vrRoute1Markers = null;
         var QC_CENTER = [14.651417, 121.04917];
+        // Based on official QC Gov Route 1 map: https://quezoncity.gov.ph/qcitizen-guides/quezon-city-bus-service-program/ — QC Hall Gate 3 Kalayaan Ave. → Cubao (Araneta City) via Kalayaan Ave. corridor
         var ROUTE1_STOPS = [
-            {name:'QC Hall', lat:14.6488, lng:121.0501},
-            {name:'Elliptical Road', lat:14.6508, lng:121.0522},
-            {name:'East Avenue', lat:14.6445, lng:121.0508},
-            {name:'Kamias Road', lat:14.6372, lng:121.0511},
-            {name:'EDSA-Kamias', lat:14.6285, lng:121.0485},
-            {name:'Cubao (Terminal)', lat:14.6197, lng:121.0526}
+            {name:'QC Hall Gate 3 Kalayaan Ave.', lat:14.6479, lng:121.0518},
+            {name:'Kalayaan Ave. cor. Masigla St.', lat:14.6459, lng:121.0538},
+            {name:'Kalayaan Ave. cor. Kamias Rd. Interchange', lat:14.6432, lng:121.0549},
+            {name:'Barangay Silangan Hall', lat:14.6378, lng:121.0602},
+            {name:'15th Ave. cor. Aurora Blvd.', lat:14.6256, lng:121.0598},
+            {name:'Cubao (Araneta City)', lat:14.6197, lng:121.0526}
         ];
         function getTomTomKey(){ return (window.LG_ASSET_CONFIG && window.LG_ASSET_CONFIG.TOMTOM_API_KEY) || window.TOMTOM_API_KEY || ''; }
         function initViewRouteMap(){
@@ -3557,13 +3558,44 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             vrMapInited = true;
             setTimeout(function(){ if(vrMap) vrMap.invalidateSize(); }, 100);
         }
+        function extractRoutePoints(routeData){
+            var pts = [];
+            try{
+                var legs = routeData.routes && routeData.routes[0] && routeData.routes[0].legs;
+                if(legs){
+                    legs.forEach(function(leg){
+                        if(leg.path && leg.path.coordinates){
+                            leg.path.coordinates.forEach(function(c){ pts.push([c[1], c[0]]); });
+                        } else if(leg.points){
+                            leg.points.forEach(function(p){ pts.push([p.latitude, p.longitude]); });
+                        }
+                    });
+                }
+                if(!pts.length && routeData.routes && routeData.routes[0] && routeData.routes[0].path && routeData.routes[0].path.coordinates){
+                    routeData.routes[0].path.coordinates.forEach(function(c){ pts.push([c[1], c[0]]); });
+                }
+                if(!pts.length && routeData.path && routeData.path.coordinates){
+                    routeData.path.coordinates.forEach(function(c){ pts.push([c[1], c[0]]); });
+                }
+            }catch(e){}
+            return pts;
+        }
+        function fetchSegmentRoad(from, to){
+            if(!window.TomTomServices || !window.TomTomServices.calculateRoute){
+                return Promise.resolve([[from.lat, from.lng],[to.lat, to.lng]]);
+            }
+            return window.TomTomServices.calculateRoute(from.lat, from.lng, to.lat, to.lng).then(function(data){
+                if(!data || !data.success || !data.data) return [[from.lat, from.lng],[to.lat, to.lng]];
+                var pts = extractRoutePoints(data.data);
+                return pts.length ? pts : [[from.lat, from.lng],[to.lat, to.lng]];
+            }).catch(function(){ return [[from.lat, from.lng],[to.lat, to.lng]]; });
+        }
         function showRoute1Indication(){
             var overlay = document.getElementById('viewRoute1MapOverlay');
             if(overlay) overlay.classList.add('is-visible');
             if(!vrMap) return;
-            if(vrRoute1Layer) return;
-            var latlngs = ROUTE1_STOPS.map(function(s){ return [s.lat, s.lng]; });
-            vrRoute1Layer = L.polyline(latlngs, {color:'#115272', weight:5, opacity:0.88, dashArray:'8,7', lineCap:'round', lineJoin:'round'}).addTo(vrMap);
+            if(vrRoute1Layer || vrRoute1Markers) return;
+            // markers immediately so stops are visible even while routing loads
             vrRoute1Markers = L.layerGroup().addTo(vrMap);
             ROUTE1_STOPS.forEach(function(s, idx){
                 var isStart = idx===0, isEnd = idx===ROUTE1_STOPS.length-1;
@@ -3572,7 +3604,29 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 var icon = L.divIcon({html:html, className:'', iconSize:[22,22], iconAnchor:[11,11]});
                 L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>Route 1 stop '+(idx+1)+'/6</small>').addTo(vrRoute1Markers);
             });
-            try { vrMap.fitBounds(vrRoute1Layer.getBounds().pad(0.14)); } catch(e){}
+            // fetch road-following geometry segment-by-segment so it follows actual roads (not straight bypass)
+            var promises = [];
+            for(var i=0;i<ROUTE1_STOPS.length-1;i++){
+                promises.push(fetchSegmentRoad(ROUTE1_STOPS[i], ROUTE1_STOPS[i+1]));
+            }
+            Promise.all(promises).then(function(segments){
+                if(!vrMap) return;
+                if(vrRoute1Layer) return; // already drawn while awaiting
+                var all = [];
+                segments.forEach(function(seg){
+                    if(!seg || !seg.length) return;
+                    if(all.length && seg.length){
+                        var last = all[all.length-1];
+                        var first = seg[0];
+                        if(last[0]===first[0] && last[1]===first[1]) seg = seg.slice(1);
+                    }
+                    all = all.concat(seg);
+                });
+                if(!all.length) all = ROUTE1_STOPS.map(function(s){ return [s.lat, s.lng]; });
+                vrRoute1Layer = L.polyline(all, {color:'#115272', weight:5, opacity:0.92, lineCap:'round', lineJoin:'round'}).addTo(vrMap);
+                try { vrMap.fitBounds(vrRoute1Layer.getBounds().pad(0.14)); } catch(e){}
+                if(vrRoute1Markers) vrRoute1Markers.bringToFront();
+            });
         }
         function hideRoute1Indication(){
             var overlay = document.getElementById('viewRoute1MapOverlay');
