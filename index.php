@@ -3703,7 +3703,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                  {name:'C.P. Garcia Avenue — Krus na Ligas', lat:14.6477, lng:121.0648, type:'stop'},
                  {name:'Katipunan Avenue — Santa Maria della Strada Parish', lat:14.6470, lng:121.0742, type:'stop'},
                  {name:'Katipunan Avenue — Ateneo de Manila Gate 3', lat:14.6369, lng:121.0742, type:'stop'},
-                 {name:'Aurora Boulevard — Katipunan Avenue Interchange', lat:14.6350, lng:121.0780, type:'stop'},
+                 {name:'Aurora Boulevard — Katipunan Avenue Interchange', lat:14.6308, lng:121.0739, type:'stop'},
                  {name:'Katipunan Avenue — P. Tuazon (Quirino Memorial Medical Center)', lat:14.6232, lng:121.0739, type:'stop'},
                  {name:'Katipunan Avenue — Boni Serrano Avenue', lat:14.6271, lng:121.0741, type:'stop'},
                  {name:'E. Rodriguez Jr. Avenue — Eastwood City', lat:14.6097, lng:121.0801, type:'stop'},
