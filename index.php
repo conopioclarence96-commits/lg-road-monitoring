@@ -3663,22 +3663,22 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 {name:'Aurora Boulevard (J.P. Rizal Street)', lat:14.6220, lng:121.0600, type:'stop'},
                 {name:'Aurora Boulevard corner Katipunan Interchange (Dulo)', lat:14.6305, lng:121.0730, type:'stop'}
             ]},
-            4: { name:'Route 4: QC Hall to General Luis', corridor:'Mindanao / Quirino Hwy', waypoints:[
-                {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6479, lng:121.0518, type:'stop'},
-                {name:'North Avenue (Veterans / Vertis North)', lat:14.6535, lng:121.0330, type:'stop'},
-                {name:'Mindanao Avenue cor. Road 1', lat:14.6560, lng:121.0315, type:'stop'},
-                {name:'Mindanao Avenue (Tullahan Bridge)', lat:14.6640, lng:121.0310, type:'stop'},
-                {name:'Mindanao Avenue cor. Congressional Avenue', lat:14.6675, lng:121.0305, type:'stop'},
-                {name:'Mindanao Avenue cor. Tandang Sora Avenue', lat:14.6750, lng:121.0300, type:'stop'},
-                {name:'Mindanao Avenue cor. D. Muñoz Street', lat:14.6810, lng:121.0295, type:'stop'},
-                {name:'Mindanao Avenue cor. Old Sauyo Road', lat:14.6875, lng:121.0290, type:'stop'},
-                {name:'Mindanao Avenue cor. Quirino Highway', lat:14.6950, lng:121.0285, type:'stop'},
-                {name:'Quezon City University Main Campus / Novaliches District Hospital', lat:14.7010, lng:121.0330, type:'stop'},
-                {name:'Quirino Highway (SM City Novaliches)', lat:14.7065, lng:121.0365, type:'stop'},
-                {name:'General Luis (Nova Bayan)', lat:14.7155, lng:121.0435, type:'stop'},
-                {name:'General Luis cor. Banahaw Street', lat:14.7180, lng:121.0480, type:'stop'},
-                {name:'General Luis cor. SB Road (Dulo / Terminal)', lat:14.7205, lng:121.0520, type:'stop'}
-            ]},
+             4: { name:'Route 4: QC Hall to General Luis', corridor:'Mindanao / Quirino Hwy', waypoints:[
+                 {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6480, lng:121.0504, type:'stop'},
+                 {name:'North Avenue (Veterans / Vertis North)', lat:14.6546, lng:121.0351, type:'stop'},
+                 {name:'Mindanao Avenue cor. Road 1', lat:14.6570, lng:121.0360, type:'stop'},
+                 {name:'Mindanao Avenue (Tullahan Bridge)', lat:14.6640, lng:121.0360, type:'stop'},
+                 {name:'Mindanao Avenue cor. Congressional Avenue', lat:14.6697, lng:121.0326, type:'stop'},
+                 {name:'Mindanao Avenue cor. Tandang Sora Avenue', lat:14.6734, lng:121.0320, type:'stop'},
+                 {name:'Mindanao Avenue cor. D. Muñoz Street', lat:14.6803, lng:121.0319, type:'stop'},
+                 {name:'Mindanao Avenue cor. Old Sauyo Road', lat:14.6887, lng:121.0301, type:'stop'},
+                 {name:'Mindanao Avenue cor. Quirino Highway', lat:14.6959, lng:121.0320, type:'stop'},
+                 {name:'Quezon City University Main Campus / Novaliches District Hospital', lat:14.7008, lng:121.0349, type:'stop'},
+                 {name:'Quirino Highway (SM City Novaliches)', lat:14.7058, lng:121.0382, type:'stop'},
+                 {name:'General Luis (Nova Bayan)', lat:14.7195, lng:121.0399, type:'stop'},
+                 {name:'General Luis cor. Banahaw Street', lat:14.7205, lng:121.0305, type:'stop'},
+                 {name:'General Luis cor. SB Road (Dulo / Terminal)', lat:14.7210, lng:121.0290, type:'stop'}
+             ]},
             5: { name:'Route 5: QC Hall to Mindanao Ave. via Visayas Ave.', corridor:'Visayas/Congressional', waypoints:[
                 {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
                 {name:'North Ave.', lat:14.6515, lng:121.0385, type:'turn'},
