@@ -2306,41 +2306,35 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             display: flex;
             flex-direction: column;
             gap: 10px;
+            position: relative;
         }
-        .view-route-gis-wrap .public-gis-toolbar {
-            margin-bottom: 0;
-        }
-        #viewRouteMapModal .public-gis-legend {
-            font-size: 11px;
-            padding: 5px 10px;
-        }
-        #viewRouteMapModal .public-gis-search-box input {
-            width: 150px;
-        }
-        #viewRouteMapModal .search-results-dropdown {
+        .view-route1-map-overlay {
             position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: #fff;
-            border-radius: 0 0 8px 8px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-            z-index: 1055;
-            max-height: 200px;
-            overflow-y: auto;
+            left: 12px;
+            right: 12px;
+            bottom: 18px;
+            z-index: 500;
+            background: rgba(255,255,255,0.96);
+            border: 1px solid var(--qc-card-border);
+            border-left: 4px solid var(--qc-primary-800);
+            border-radius: 10px;
+            padding: 10px 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            font-size: 11px;
+            line-height: 1.5;
             display: none;
         }
-        #viewRouteMapModal .search-result-item {
-            padding: 8px 12px;
-            cursor: pointer;
-            font-size: 12px;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-        }
-        #viewRouteMapModal .search-result-item:hover { background: rgba(55,98,200,0.08); }
-        #viewRouteMapModal .search-result-item small { color:#666; display:block; }
+        .view-route1-map-overlay.is-visible { display: block; }
+        .view-route1-map-overlay strong { color: var(--qc-primary-900); }
+        .view-route1-stops { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0; }
+        .view-route1-stop { display:inline-flex; align-items:center; gap:4px; background:#fff; border:1px solid #e2e8f0; border-radius:20px; padding:2px 8px; font-size:10px; font-weight:600; color:#334155; }
+        .view-route1-stop .dot { width:8px; height:8px; border-radius:50%; background: var(--qc-primary-600); display:inline-block; }
+        .view-route1-stop .dot.start { background:#10b981; }
+        .view-route1-stop .dot.end { background:#dc2626; }
+        .view-route1-arrow { color:#94a3b8; font-size:10px; }
         @media (max-width: 768px) {
             #viewRouteGisMap { height: 320px; min-height: 260px; }
-            #viewRouteMapModal .public-gis-search-box input { width: 120px; }
+            .view-route1-map-overlay { left:8px; right:8px; bottom:12px; padding:8px 10px; }
         }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
@@ -2743,7 +2737,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <li><strong>Cubao (Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>10–15 min</span></div>
-                                    <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
+                                    <button type="button" id="viewRoute1MapBtn" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal" data-route-id="1" data-route-name="QC Hall to Cubao" aria-label="View Route 1 QC Hall to Cubao on Map" title="Route 1: QC Hall → Cubao"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map <span style="background:var(--qc-primary-800); color:#fff; font-size:0.65rem; padding:2px 7px; border-radius:20px; margin-left:6px; font-weight:800; letter-spacing:0.3px;"><i class="fas fa-route me-1"></i>Route 1</span></button>
                                 </div>
                             </div>
                             <!-- Route 2 -->
@@ -2911,52 +2905,19 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 </div>
                 <div class="modal-body p-3">
                     <div class="view-route-gis-wrap">
-                        <div class="public-gis-toolbar">
-                            <div class="public-gis-toolbar-left">
-                                <div class="public-gis-legend">
-                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#dc2626;"></span> Accident</span>
-                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#111827;"></span> Closed</span>
-                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#f59e0b;"></span> Jam</span>
-                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#ca8a04;"></span> Works</span>
-                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#0284c7;"></span> Bus</span>
-                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#475569;"></span> Rail</span>
-                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#dc2626;"></span> PT route</span>
-                                </div>
-                                <div class="public-gis-search-box">
-                                    <input type="text" id="viewRouteMapSearchInput" placeholder="Search places..." autocomplete="off" aria-label="Search places">
-                                    <button type="button" class="public-gis-btn" id="viewRouteMapSearchBtn" title="Search"><i class="fas fa-search"></i></button>
-                                    <div id="viewRouteMapSearchResults" class="search-results-dropdown"></div>
-                                </div>
-                            </div>
-                            <div class="public-gis-toolbar-right">
-                                <div class="public-gis-tools" id="viewRouteMapTools">
-                                    <button type="button" class="public-gis-btn public-gis-tools-toggle" id="viewRouteToolsDropdownBtn" aria-haspopup="true" aria-expanded="false">
-                                        <i class="fas fa-tools"></i> Tools
-                                        <span class="public-gis-tools-toggle-count" id="viewRouteToolsActiveCount" style="display:none;">0</span>
-                                    </button>
-                                    <div class="public-gis-tools-menu" id="viewRouteToolsDropdownMenu" role="menu" aria-label="Map tools">
-                                        <div class="public-gis-tools-heading">Layers</div>
-                                        <button type="button" class="public-gis-tools-item is-on" id="viewRouteToggleTrafficBtn" role="menuitemcheckbox" aria-checked="true">
-                                            <span class="public-gis-tools-item-main"><i class="fas fa-car"></i> Traffic</span>
-                                            <span class="public-gis-tools-item-state">On</span>
-                                        </button>
-                                        <button type="button" class="public-gis-tools-item is-off" id="viewRouteToggleAccidentsBtn" role="menuitemcheckbox" aria-checked="false">
-                                            <span class="public-gis-tools-item-main"><i class="fas fa-exclamation-triangle"></i> Incidents</span>
-                                            <span class="public-gis-tools-item-state">Off</span>
-                                        </button>
-                                        <button type="button" class="public-gis-tools-item is-off" id="viewRouteToggleBusBtn" role="menuitemcheckbox" aria-checked="false">
-                                            <span class="public-gis-tools-item-main"><i class="fas fa-bus"></i> Bus</span>
-                                            <span class="public-gis-tools-item-state">Off</span>
-                                        </button>
-                                        <button type="button" class="public-gis-tools-item is-off" id="viewRouteToggleRailBtn" role="menuitemcheckbox" aria-checked="false">
-                                            <span class="public-gis-tools-item-main"><i class="fas fa-train"></i> Rail</span>
-                                            <span class="public-gis-tools-item-state">Off</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                         <div id="viewRouteGisMap" role="region" aria-label="QC Bus Route Map"></div>
+                        <div id="viewRoute1MapOverlay" class="view-route1-map-overlay" aria-live="polite">
+                            <div style="font-weight:800; color:var(--qc-primary-900); font-size:11px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;"><span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.65rem;padding:2px 6px;border-radius:20px;">ROUTE 1</span> QC Hall to Cubao — Elliptical Rd. corridor via East Ave</div>
+                            <div class="view-route1-stops">
+                                <span class="view-route1-stop"><span class="dot start"></span> QC Hall</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> Elliptical Rd.</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> East Ave</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> Kamias Rd.</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot"></span> EDSA-Kamias</span><span class="view-route1-arrow">→</span>
+                                <span class="view-route1-stop"><span class="dot end"></span> Cubao</span>
+                            </div>
+                            <div style="color:#64748b; font-size:10px;"><i class="far fa-clock me-1"></i>5AM–9PM • 10–15 min • Free Ride • 6 stops</div>
+                        </div>
                         <small class="text-muted text-center d-block"><i class="fas fa-info-circle me-1"></i> Modal-sized GIS — same layers as Live Road Map, constrained to modal.</small>
                     </div>
                 </div>
@@ -3569,12 +3530,21 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     })();
     </script>
 
-    <!-- View Route Map Modal GIS (modal-sized, not fullscreen like .public-gis-dialog) -->
+    <!-- View Route Map Modal GIS — Route 1 indication inside map (modal-sized, not fullscreen) -->
     <script>
     (function(){
         'use strict';
-        var vrMap = null, vrTrafficLayer = null, vrTrafficVisible = true, vrMapInited = false, vrSearchMarker = null;
+        var vrMap = null, vrTrafficLayer = null, vrMapInited = false;
+        var vrRoute1Layer = null, vrRoute1Markers = null;
         var QC_CENTER = [14.651417, 121.04917];
+        var ROUTE1_STOPS = [
+            {name:'QC Hall', lat:14.6488, lng:121.0501},
+            {name:'Elliptical Road', lat:14.6508, lng:121.0522},
+            {name:'East Avenue', lat:14.6445, lng:121.0508},
+            {name:'Kamias Road', lat:14.6372, lng:121.0511},
+            {name:'EDSA-Kamias', lat:14.6285, lng:121.0485},
+            {name:'Cubao (Terminal)', lat:14.6197, lng:121.0526}
+        ];
         function getTomTomKey(){ return (window.LG_ASSET_CONFIG && window.LG_ASSET_CONFIG.TOMTOM_API_KEY) || window.TOMTOM_API_KEY || ''; }
         function initViewRouteMap(){
             if(vrMapInited || typeof L === 'undefined') return;
@@ -3584,54 +3554,53 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             vrMap = L.map('viewRouteGisMap', { zoomControl: true }).setView(QC_CENTER, 13);
             L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + key, { attribution: '\u00A9 TomTom', maxZoom: 18 }).addTo(vrMap);
             vrTrafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + key, { attribution: '\u00A9 TomTom Traffic', opacity: 0.7, maxZoom: 18 }).addTo(vrMap);
-            vrTrafficVisible = true;
             vrMapInited = true;
             setTimeout(function(){ if(vrMap) vrMap.invalidateSize(); }, 100);
         }
-        function setBtnState(btnId, on){
-            var btn = document.getElementById(btnId);
-            if(!btn) return;
-            btn.classList.toggle('is-on', !!on);
-            btn.classList.toggle('is-off', !on);
-            btn.setAttribute('aria-checked', on ? 'true' : 'false');
-            var st = btn.querySelector('.public-gis-tools-item-state');
-            if(st) st.textContent = on ? 'On' : 'Off';
+        function showRoute1Indication(){
+            var overlay = document.getElementById('viewRoute1MapOverlay');
+            if(overlay) overlay.classList.add('is-visible');
+            if(!vrMap) return;
+            if(vrRoute1Layer) return;
+            var latlngs = ROUTE1_STOPS.map(function(s){ return [s.lat, s.lng]; });
+            vrRoute1Layer = L.polyline(latlngs, {color:'#115272', weight:5, opacity:0.88, dashArray:'8,7', lineCap:'round', lineJoin:'round'}).addTo(vrMap);
+            vrRoute1Markers = L.layerGroup().addTo(vrMap);
+            ROUTE1_STOPS.forEach(function(s, idx){
+                var isStart = idx===0, isEnd = idx===ROUTE1_STOPS.length-1;
+                var bg = isStart ? '#10b981' : (isEnd ? '#dc2626' : '#115272');
+                var html = '<div style="width:22px;height:22px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:800;">'+(idx+1)+'</div>';
+                var icon = L.divIcon({html:html, className:'', iconSize:[22,22], iconAnchor:[11,11]});
+                L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>Route 1 stop '+(idx+1)+'/6</small>').addTo(vrRoute1Markers);
+            });
+            try { vrMap.fitBounds(vrRoute1Layer.getBounds().pad(0.14)); } catch(e){}
+        }
+        function hideRoute1Indication(){
+            var overlay = document.getElementById('viewRoute1MapOverlay');
+            if(overlay) overlay.classList.remove('is-visible');
+            if(vrRoute1Layer && vrMap){ vrMap.removeLayer(vrRoute1Layer); vrRoute1Layer=null; }
+            if(vrRoute1Markers && vrMap){ vrMap.removeLayer(vrRoute1Markers); vrRoute1Markers=null; }
         }
         document.addEventListener('DOMContentLoaded', function(){
             var modalEl = document.getElementById('viewRouteMapModal');
             if(!modalEl) return;
+            modalEl.addEventListener('show.bs.modal', function(e){
+                var trigger = e.relatedTarget;
+                var isRoute1 = !!(trigger && (trigger.id==='viewRoute1MapBtn' || trigger.getAttribute('data-route-id')==='1'));
+                modalEl._showRoute1 = isRoute1;
+                // If opened programmatically without relatedTarget, default to Route 1 (per request focus only on Route 1)
+                if(!trigger) modalEl._showRoute1 = true;
+            });
             modalEl.addEventListener('shown.bs.modal', function(){
                 initViewRouteMap();
-                if(vrMap) setTimeout(function(){ vrMap.invalidateSize(); vrMap.setView(QC_CENTER,13); }, 150);
+                if(!vrMap) return;
+                setTimeout(function(){
+                    vrMap.invalidateSize();
+                    if(modalEl._showRoute1){ showRoute1Indication(); }
+                    else { hideRoute1Indication(); vrMap.setView(QC_CENTER, 13); }
+                }, 180);
             });
-            var tBtn = document.getElementById('viewRouteToolsDropdownBtn');
-            var tMenu = document.getElementById('viewRouteToolsDropdownMenu');
-            if(tBtn && tMenu){
-                tBtn.addEventListener('click', function(e){ e.stopPropagation(); tMenu.classList.toggle('is-open'); tBtn.setAttribute('aria-expanded', tMenu.classList.contains('is-open')?'true':'false'); });
-                document.addEventListener('click', function(e){ if(!e.target.closest('#viewRouteMapTools')){ tMenu.classList.remove('is-open'); tBtn.setAttribute('aria-expanded','false'); }});
-            }
-            var trBtn = document.getElementById('viewRouteToggleTrafficBtn');
-            if(trBtn){ trBtn.addEventListener('click', function(){ if(!vrMap||!vrTrafficLayer) return; vrTrafficVisible=!vrTrafficVisible; if(vrTrafficVisible) vrTrafficLayer.addTo(vrMap); else vrMap.removeLayer(vrTrafficLayer); setBtnState('viewRouteToggleTrafficBtn', vrTrafficVisible); }); }
-            var sInput = document.getElementById('viewRouteMapSearchInput');
-            var sBtn = document.getElementById('viewRouteMapSearchBtn');
-            var sRes = document.getElementById('viewRouteMapSearchResults');
-            function doViewRouteSearch(){
-                if(!sInput || !sInput.value.trim() || !window.TomTomServices) return;
-                window.TomTomServices.poiSearch(sInput.value.trim(), {limit:6}).then(function(data){
-                    if(!data.success || !data.data || !data.data.results){ if(sRes) sRes.style.display='none'; return; }
-                    var results = data.data.results;
-                    if(results[0] && results[0].position && vrMap){ var p=results[0].position; vrMap.setView([p.lat,p.lon],15); if(vrSearchMarker) vrMap.removeLayer(vrSearchMarker); vrSearchMarker=L.marker([p.lat,p.lon]).addTo(vrMap); }
-                    if(!sRes) return;
-                    sRes.innerHTML = results.map(function(r){ var pos=r.position||{}; var name=(r.poi&&r.poi.name)|| (r.address&&r.address.freeformAddress)||'Unknown'; var addr=(r.address&&r.address.freeformAddress)||''; return '<div class="search-result-item" data-lat="'+(pos.lat||0)+'" data-lon="'+(pos.lon||0)+'"><i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>'+name+'<small>'+addr+'</small></div>'; }).join('');
-                    sRes.style.display='block';
-                    sRes.querySelectorAll('.search-result-item').forEach(function(item){ item.addEventListener('click', function(){ var lat=parseFloat(item.getAttribute('data-lat')), lon=parseFloat(item.getAttribute('data-lon')); if(vrMap){ vrMap.setView([lat,lon],15); if(vrSearchMarker) vrMap.removeLayer(vrSearchMarker); vrSearchMarker=L.marker([lat,lon]).addTo(vrMap); } sRes.style.display='none'; }); });
-                });
-            }
-            if(sBtn) sBtn.addEventListener('click', doViewRouteSearch);
-            if(sInput) sInput.addEventListener('keydown', function(e){ if(e.key==='Enter') doViewRouteSearch(); });
-            document.addEventListener('click', function(e){ if(sRes && !e.target.closest('.public-gis-search-box')) sRes.style.display='none'; });
+            modalEl.addEventListener('hide.bs.modal', function(){ hideRoute1Indication(); });
         });
-        window.ViewRouteGisMap = { doSearch: function(){ var b=document.getElementById('viewRouteMapSearchBtn'); if(b) b.click(); } };
     })();
     </script>
 </body>
