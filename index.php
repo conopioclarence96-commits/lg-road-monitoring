@@ -3698,11 +3698,18 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                   {name:'E. Rodriguez Sr. Ave. — Gilmore Interchange', lat:14.6237, lng:121.0300, type:'stop'},
                   {name:'Robinsons Magnolia — Doña Hemady (Terminal)', lat:14.6137, lng:121.0379, type:'stop'}
               ]},
-            7: { name:'Route 7: QC Hall to C5 / Ortigas Ave. Ext.', corridor:'C-5 Road', waypoints:[
-                {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
-                {name:'C-5 Road — Libis', lat:14.6250, lng:121.0700, type:'turn'},
-                {name:'Ortigas Ave. Ext. (Terminal)', lat:14.5850, lng:121.0800, type:'stop'}
-            ]},
+             7: { name:'Route 7: QC Hall to C5 / Ortigas Ave. Ext.', corridor:'C-5 / Katipunan', waypoints:[
+                 {name:'QC Hall NHA Interchange (Start)', lat:14.6493, lng:121.0517, type:'stop'},
+                 {name:'C.P. Garcia Avenue — Krus na Ligas', lat:14.6477, lng:121.0648, type:'stop'},
+                 {name:'Katipunan Avenue — Santa Maria della Strada Parish', lat:14.6470, lng:121.0742, type:'stop'},
+                 {name:'Katipunan Avenue — Ateneo de Manila Gate 3', lat:14.6369, lng:121.0742, type:'stop'},
+                 {name:'Aurora Boulevard — Katipunan Avenue Interchange', lat:14.6350, lng:121.0780, type:'stop'},
+                 {name:'Katipunan Avenue — P. Tuazon (Quirino Memorial Medical Center)', lat:14.6232, lng:121.0739, type:'stop'},
+                 {name:'Katipunan Avenue — Boni Serrano Avenue', lat:14.6271, lng:121.0741, type:'stop'},
+                 {name:'E. Rodriguez Jr. Avenue — Eastwood City', lat:14.6097, lng:121.0801, type:'stop'},
+                 {name:'E. Rodriguez Jr. Avenue — Greenmeadows Avenue', lat:14.6004, lng:121.0792, type:'stop'},
+                 {name:'E. Rodriguez Jr. Avenue — Ortigas Ave. Flyover (Terminal)', lat:14.5919, lng:121.0798, type:'stop'}
+             ]},
             8: { name:'Route 8: QC Hall to Muñoz', corridor:'North Ave / Roosevelt', waypoints:[
                 {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
                 {name:'North Ave.', lat:14.6515, lng:121.0385, type:'turn'},
