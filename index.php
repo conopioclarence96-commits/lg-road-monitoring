@@ -3710,12 +3710,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                  {name:'E. Rodriguez Jr. Avenue — Greenmeadows Avenue', lat:14.6004, lng:121.0792, type:'stop'},
                  {name:'E. Rodriguez Jr. Avenue — Ortigas Ave. Flyover (Terminal)', lat:14.5919, lng:121.0798, type:'stop'}
              ]},
-            8: { name:'Route 8: QC Hall to Muñoz', corridor:'North Ave / Roosevelt', waypoints:[
-                {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
-                {name:'North Ave.', lat:14.6515, lng:121.0385, type:'turn'},
-                {name:'Roosevelt Ave.', lat:14.6420, lng:121.0280, type:'turn'},
-                {name:'Muñoz (Terminal)', lat:14.6575, lng:121.0200, type:'stop'}
-            ]}
+             8: { name:'Route 8: QC Hall to Muñoz', corridor:'North Ave / Congressional', waypoints:[
+                 {name:'QC Hall NHA Interchange (Start)', lat:14.6492, lng:121.0516, type:'stop'},
+                 {name:'North Avenue — VMMC Main Gate / Vertis North', lat:14.6537, lng:121.0391, type:'stop'},
+                 {name:'North Avenue — Philippine Medical Association (MRT-3 Trinoma)', lat:14.6551, lng:121.0332, type:'stop'},
+                 {name:'Congressional Avenue — Abra Street (Muñoz Terminal)', lat:14.6594, lng:121.0200, type:'stop'}
+             ]},
         };
         // keep alias for external
         var currentRouteId = 1;
