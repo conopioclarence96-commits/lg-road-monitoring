@@ -2916,7 +2916,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                 <span class="view-route1-stop"><span class="dot"></span> 15th Ave Aurora</span><span class="view-route1-arrow">→</span>
                                 <span class="view-route1-stop"><span class="dot end"></span> Cubao</span>
                             </div>
-                            <div style="color:#64748b; font-size:10px;"><i class="far fa-clock me-1"></i>Kalayaan Ave. via 15th Ave → Aurora Blvd • Based on official QC Gov Route 1 map</div>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; font-size:9px; font-weight:600;"><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#115272;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Stop</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Turn (point-to-point)</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Start</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#dc2626;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> End</span></div>
+                            <div style="color:#64748b; font-size:10px; margin-top:4px;"><i class="fas fa-route me-1" style="color:#115272;"></i>Point-to-point at every turn • Follows Kalayaan Ave → 15th Ave → Aurora Blvd lanes (no bypass) • Official QC Gov</div>
                         </div>
                         <small class="text-muted text-center d-block"><i class="fas fa-info-circle me-1"></i> Modal-sized GIS — same layers as Live Road Map, constrained to modal.</small>
                     </div>
@@ -3537,14 +3538,21 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var vrMap = null, vrTrafficLayer = null, vrMapInited = false;
         var vrRoute1Layer = null, vrRoute1Markers = null;
         var QC_CENTER = [14.651417, 121.04917];
-        // Based on official QC Gov Route 1 map: https://quezoncity.gov.ph/qcitizen-guides/quezon-city-bus-service-program/ — QC Hall Gate 3 Kalayaan Ave. → Cubao (Araneta City) via Kalayaan Ave. corridor
+        // Based on official QC Gov Route 1 map: https://quezoncity.gov.ph/qcitizen-guides/quezon-city-bus-service-program/ — point-to-point at every turn (follows Kalayaan Ave. → 15th Ave → Aurora Blvd, no lane bypass)
         var ROUTE1_STOPS = [
-            {name:'QC Hall Gate 3 Kalayaan Ave.', lat:14.6479, lng:121.0518},
-            {name:'Kalayaan Ave. cor. Masigla St.', lat:14.6459, lng:121.0538},
-            {name:'Kalayaan Ave. cor. Kamias Rd. Interchange', lat:14.6432, lng:121.0549},
-            {name:'Barangay Silangan Hall', lat:14.6378, lng:121.0602},
-            {name:'15th Ave. cor. Aurora Blvd.', lat:14.6256, lng:121.0598},
-            {name:'Cubao (Araneta City)', lat:14.6197, lng:121.0526}
+            {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6479, lng:121.0518, type:'stop'},
+            {name:'Kalayaan Ave. cor. Masigla St.', lat:14.6459, lng:121.0538, type:'stop'},
+            {name:'Kalayaan Ave. — mid-block to Kamias', lat:14.6447, lng:121.0545, type:'turn'},
+            {name:'Kalayaan Ave. cor. Kamias Rd. Interchange', lat:14.6432, lng:121.0549, type:'stop'},
+            {name:'Kalayaan Ave. cor. Anonas St.', lat:14.6415, lng:121.0572, type:'turn'},
+            {name:'Kalayaan Ave. cor. Ermin Garcia St.', lat:14.6395, lng:121.0595, type:'turn'},
+            {name:'Barangay Silangan Hall', lat:14.6378, lng:121.0602, type:'stop'},
+            {name:'Turn: Kalayaan → 15th Ave. (south)', lat:14.6355, lng:121.0606, type:'turn'},
+            {name:'15th Ave. mid-block', lat:14.6320, lng:121.0603, type:'turn'},
+            {name:'15th Ave. cor. Aurora Blvd.', lat:14.6256, lng:121.0598, type:'stop'},
+            {name:'Aurora Blvd. mid (Stanford)', lat:14.6232, lng:121.0575, type:'turn'},
+            {name:'Aurora Blvd. approach to Cubao', lat:14.6210, lng:121.0548, type:'turn'},
+            {name:'Cubao (Araneta City) — Terminal', lat:14.6197, lng:121.0526, type:'stop'}
         ];
         function getTomTomKey(){ return (window.LG_ASSET_CONFIG && window.LG_ASSET_CONFIG.TOMTOM_API_KEY) || window.TOMTOM_API_KEY || ''; }
         function initViewRouteMap(){
@@ -3595,23 +3603,30 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             if(overlay) overlay.classList.add('is-visible');
             if(!vrMap) return;
             if(vrRoute1Layer || vrRoute1Markers) return;
-            // markers immediately so stops are visible even while routing loads
+            // point-to-point markers at every turn + stops (no lane bypass)
             vrRoute1Markers = L.layerGroup().addTo(vrMap);
             ROUTE1_STOPS.forEach(function(s, idx){
                 var isStart = idx===0, isEnd = idx===ROUTE1_STOPS.length-1;
-                var bg = isStart ? '#10b981' : (isEnd ? '#dc2626' : '#115272');
-                var html = '<div style="width:22px;height:22px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:800;">'+(idx+1)+'</div>';
-                var icon = L.divIcon({html:html, className:'', iconSize:[22,22], iconAnchor:[11,11]});
-                L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>Route 1 stop '+(idx+1)+'/6</small>').addTo(vrRoute1Markers);
+                var isTurn = s.type === 'turn';
+                var bg = isTurn ? '#f59e0b' : (isStart ? '#10b981' : (isEnd ? '#dc2626' : '#115272'));
+                var size = isTurn ? 18 : 22;
+                var iconInner = isTurn ? '<i class="fas fa-share" style="font-size:8px;"></i>' : (idx+1);
+                // number turns sequentially among turns+stops but label clearly
+                var label = isTurn ? 'Turn' : 'Stop';
+                var html = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:'+(isTurn?'7px':'9px')+';font-weight:800;" title="'+s.name+'">'+iconInner+'</div>';
+                var icon = L.divIcon({html:html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2]});
+                var popup = '<strong style="font-size:12px;">'+s.name+'</strong><br><small style="color:'+(isTurn?'#f59e0b':'#115272')+';font-weight:600;">'+label+' '+(idx+1)+'/'+ROUTE1_STOPS.length+' • '+(isTurn?'Follow lane':'Official stop')+'</small>';
+                if(isTurn) popup += '<br><small style="color:#64748b;">Point-to-point turn — stays on road</small>';
+                L.marker([s.lat, s.lng], {icon:icon}).bindPopup(popup).addTo(vrRoute1Markers);
             });
-            // fetch road-following geometry segment-by-segment so it follows actual roads (not straight bypass)
+            // fetch road-following geometry point-to-point at every turn so it never bypasses lanes
             var promises = [];
             for(var i=0;i<ROUTE1_STOPS.length-1;i++){
                 promises.push(fetchSegmentRoad(ROUTE1_STOPS[i], ROUTE1_STOPS[i+1]));
             }
             Promise.all(promises).then(function(segments){
                 if(!vrMap) return;
-                if(vrRoute1Layer) return; // already drawn while awaiting
+                if(vrRoute1Layer) return;
                 var all = [];
                 segments.forEach(function(seg){
                     if(!seg || !seg.length) return;
@@ -3623,7 +3638,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     all = all.concat(seg);
                 });
                 if(!all.length) all = ROUTE1_STOPS.map(function(s){ return [s.lat, s.lng]; });
-                vrRoute1Layer = L.polyline(all, {color:'#115272', weight:5, opacity:0.92, lineCap:'round', lineJoin:'round'}).addTo(vrMap);
+                vrRoute1Layer = L.polyline(all, {color:'#115272', weight:5, opacity:0.94, lineCap:'round', lineJoin:'round'}).addTo(vrMap);
+                // lane-center casing for visibility
+                L.polyline(all, {color:'#ffffff', weight:1.2, opacity:0.35, lineCap:'round', lineJoin:'round'}).addTo(vrRoute1Markers);
                 try { vrMap.fitBounds(vrRoute1Layer.getBounds().pad(0.14)); } catch(e){}
                 if(vrRoute1Markers) vrRoute1Markers.bringToFront();
             });
