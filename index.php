@@ -2996,7 +2996,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                 <span class="view-route1-stop"><span class="dot end"></span> Cubao</span>
                             </div>
                             <div id="viewRouteOverlayCorridor" style="color:#64748b; font-size:10px;"><i class="far fa-clock me-1"></i>Kalayaan Ave. via 15th Ave → Aurora Blvd • Based on official QC Gov Route 1 map</div>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; font-size:9px; font-weight:600;"><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#115272;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Stop</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Start</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#dc2626;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> End</span></div>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; font-size:9px; font-weight:600;"><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#115272;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Stop</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Turn (point-to-point)</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Start</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#dc2626;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> End</span></div>
                             <div style="color:#64748b; font-size:10px; margin-top:4px;"><i class="fas fa-route me-1" style="color:#115272;"></i>Point-to-point at every turn • Follows lanes (no bypass) • Official QC Gov</div>
                         </div>
                         <small class="text-muted text-center d-block"><i class="fas fa-info-circle me-1"></i> Modal-sized GIS — same layers as Live Road Map, constrained to modal.</small>
@@ -3778,20 +3778,20 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             var waypoints = BUS_GIS_ROUTES[routeId].waypoints;
             vrRouteMarkers = L.layerGroup().addTo(vrMap);
             vrRoute1Markers = vrRouteMarkers; // alias
-            // only stops are drawn — turn waypoints are kept for road-following routing but no yellow icon
-            var stopIdx = 0;
-            var stopsOnly = waypoints.filter(function(w){ return w.type !== 'turn'; });
             waypoints.forEach(function(s, idx){
-                if(s.type === 'turn') return;
-                stopIdx++;
                 var isStart = idx===0, isEnd = idx===waypoints.length-1;
-                var bg = isStart ? '#10b981' : (isEnd ? '#dc2626' : '#115272');
-                var html = '<div style="width:22px;height:22px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:800;" title="'+s.name+'">'+stopIdx+'</div>';
-                var icon = L.divIcon({html:html, className:'', iconSize:[22,22], iconAnchor:[11,11]});
-                var popup = '<strong style="font-size:12px;">'+s.name+'</strong><br><small style="color:#115272;font-weight:600;">Stop '+stopIdx+'/'+stopsOnly.length+' • Official stop</small>';
+                var isTurn = s.type === 'turn';
+                var bg = isTurn ? '#f59e0b' : (isStart ? '#10b981' : (isEnd ? '#dc2626' : '#115272'));
+                var size = isTurn ? 18 : 22;
+                var iconInner = isTurn ? '<i class="fas fa-share" style="font-size:8px;"></i>' : (idx+1);
+                var label = isTurn ? 'Turn' : 'Stop';
+                var html = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:'+(isTurn?'7px':'9px')+';font-weight:800;" title="'+s.name+'">'+iconInner+'</div>';
+                var icon = L.divIcon({html:html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2]});
+                var popup = '<strong style="font-size:12px;">'+s.name+'</strong><br><small style="color:'+(isTurn?'#f59e0b':'#115272')+';font-weight:600;">'+label+' '+(idx+1)+'/'+waypoints.length+' • '+(isTurn?'Follow lane':'Official stop')+'</small>';
+                if(isTurn) popup += '<br><small style="color:#64748b;">Point-to-point turn — stays on road</small>';
                 L.marker([s.lat, s.lng], {icon:icon}).bindPopup(popup).addTo(vrRouteMarkers);
             });
-            // fetch road-following geometry point-to-point (turn waypoints still used for routing)
+            // fetch road-following geometry point-to-point at every turn so it never bypasses lanes
             var promises = [];
             for(var i=0;i<waypoints.length-1;i++){
                 promises.push(fetchSegmentRoad(waypoints[i], waypoints[i+1]));
@@ -3910,16 +3910,15 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 clearQcBusRoute();
                 var waypoints = BUS_GIS_ROUTES[routeId].waypoints;
                 qcRouteMarkers = L.layerGroup().addTo(qcMap);
-                var qcStopIdx = 0;
-                var qcStopsOnly = waypoints.filter(function(w){ return w.type !== 'turn'; });
                 waypoints.forEach(function(s, idx){
-                    if(s.type === 'turn') return;
-                    qcStopIdx++;
                     var isStart = idx===0, isEnd = idx===waypoints.length-1;
-                    var bg = isStart ? '#10b981' : (isEnd ? '#dc2626' : '#115272');
-                    var html = '<div style="width:20px;height:20px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:8px;font-weight:800;" title="'+s.name+'">'+qcStopIdx+'</div>';
-                    var icon = L.divIcon({html:html, className:'', iconSize:[20,20], iconAnchor:[10,10]});
-                    L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>Stop '+qcStopIdx+'/'+qcStopsOnly.length+'</small>').addTo(qcRouteMarkers);
+                    var isTurn = s.type==='turn';
+                    var bg = isTurn ? '#f59e0b' : (isStart ? '#10b981' : (isEnd ? '#dc2626' : '#115272'));
+                    var size = isTurn ? 16 : 20;
+                    var iconInner = isTurn ? '<i class="fas fa-share" style="font-size:7px;"></i>' : (idx+1);
+                    var html = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:'+(isTurn?'6px':'8px')+';font-weight:800;" title="'+s.name+'">'+iconInner+'</div>';
+                    var icon = L.divIcon({html:html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2]});
+                    L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>'+(isTurn?'Turn':'Stop')+' '+(idx+1)+'/'+waypoints.length+'</small>').addTo(qcRouteMarkers);
                 });
                 var promises = [];
                 for(var i=0;i<waypoints.length-1;i++) promises.push(fetchSegmentRoad(waypoints[i], waypoints[i+1]));
