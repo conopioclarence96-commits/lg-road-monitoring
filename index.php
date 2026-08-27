@@ -217,27 +217,7 @@ if ($database_available && $conn) {
     }
 }
 
-// Get completed projects for Before & After section
-$before_after_projects = [];
-if ($database_available && $conn) {
-    try {
-        $stmt = $conn->prepare("SELECT id, title, description, location, completed_date, cost, completed_by, photo, before_photo, category FROM published_completed_projects WHERE photo IS NOT NULL AND photo != '' AND is_published = 1 ORDER BY completed_date DESC");
-        if (!$stmt) {
-            error_log("index.php: completed projects query prepare failed: " . $conn->error);
-            throw new Exception("prepare failed");
-        }
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            $before_after_projects[] = $row;
-        }
-        $stmt->close();
-    } catch (Exception $e) {
-        // Log details internally, show the generic "projects coming soon" state
-        error_log("index.php completed projects query: " . $e->getMessage());
-        $before_after_projects = [];
-    }
-}
+
 
 // Public Transparency announcements (index.php only; not internal dashboards)
 $public_announcements = [];
@@ -247,175 +227,6 @@ if ($database_available && $conn && function_exists('public_announcements_fetch_
     } catch (Exception $e) {
         error_log("index.php public announcements query: " . $e->getMessage());
         $public_announcements = [];
-    }
-}
-
-// Get latest infrastructure project updates
-$infrastructure_updates = [];
-if ($database_available && $conn) {
-    try {
-        // Check if the expected columns exist
-        $stmt = $conn->prepare("DESCRIBE infrastructure_projects");
-        if (!$stmt) {
-            error_log("index.php: DESCRIBE infrastructure_projects failed: " . $conn->error);
-            throw new Exception("prepare failed");
-        }
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if (!$result) {
-            $stmt->close();
-            throw new Exception("get_result failed");
-        }
-
-        $has_name = false;
-        $has_location = false;
-        $has_budget = false;
-        $has_progress = false;
-        $has_status = false;
-        $has_start_date = false;
-        $has_end_date = false;
-        $has_latitude = false;
-        $has_longitude = false;
-        $has_is_published = false;
-
-        while ($row = $result->fetch_assoc()) {
-            if ($row['Field'] === 'name') $has_name = true;
-            if ($row['Field'] === 'location') $has_location = true;
-            if ($row['Field'] === 'budget') $has_budget = true;
-            if ($row['Field'] === 'progress') $has_progress = true;
-            if ($row['Field'] === 'status') $has_status = true;
-            if ($row['Field'] === 'start_date') $has_start_date = true;
-            if ($row['Field'] === 'end_date') $has_end_date = true;
-            if ($row['Field'] === 'latitude') $has_latitude = true;
-            if ($row['Field'] === 'longitude') $has_longitude = true;
-            if ($row['Field'] === 'is_published') $has_is_published = true;
-        }
-        $stmt->close();
-
-        // Build query based on available columns
-        $select_fields = "id";
-        if ($has_name) $select_fields .= ", name";
-        if ($has_location) $select_fields .= ", location";
-        if ($has_budget) $select_fields .= ", budget";
-        if ($has_progress) $select_fields .= ", progress";
-        if ($has_status) $select_fields .= ", status";
-        if ($has_start_date) $select_fields .= ", start_date";
-        if ($has_end_date) $select_fields .= ", end_date";
-        if ($has_latitude) $select_fields .= ", latitude";
-        if ($has_longitude) $select_fields .= ", longitude";
-
-        $order_field = $has_start_date ? "start_date" : "created_at";
-
-        $infra_sql = "SELECT $select_fields FROM infrastructure_projects";
-        if ($has_is_published) {
-            $infra_sql .= " WHERE is_published = 1";
-        }
-        $infra_sql .= " ORDER BY $order_field DESC LIMIT 3";
-
-        $stmt = $conn->prepare($infra_sql);
-        if (!$stmt) {
-            error_log("index.php: infrastructure projects SELECT failed: " . $conn->error);
-            throw new Exception("prepare failed");
-        }
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            $infrastructure_updates[] = $row;
-        }
-        $stmt->close();
-    } catch (Exception $e) {
-        error_log("index.php infrastructure project updates query: " . $e->getMessage());
-        $infrastructure_updates = [];
-    }
-}
-
-// Infrastructure reports — same data the system admin sees in the
-// "Infrastructure Projects" panel on report_management.php (infraReportsPanel),
-// but the landing page only shows records the admin has verified
-// (approved / in-progress / completed). Pending, cancelled and rejected
-// records stay hidden until the admin verifies them.
-$infra_reports = [];
-if ($database_available && $conn) {
-    try {
-        $tr_est = false;
-        $est_res = $conn->query("SHOW COLUMNS FROM road_transportation_reports LIKE 'estimation'");
-        if ($est_res && $est_res->num_rows > 0) $tr_est = true;
-        $tr_est_col = $tr_est ? 'estimation' : '0 as estimation';
-
-        $maint_est = false;
-        $est_res = $conn->query("SHOW COLUMNS FROM road_maintenance_reports LIKE 'estimation'");
-        if ($est_res && $est_res->num_rows > 0) $maint_est = true;
-        $maint_est_col = $maint_est ? 'estimation' : '0 as estimation';
-
-        // Infrastructure issues stored in the transportation table.
-        $infra_sql = "SELECT id, report_id, title, description, location, latitude, longitude, priority, status, assigned_to, department, created_date, created_at, updated_at, approved_at, {$tr_est_col} as estimation, report_type, report_category, 'maintenance' as source_system FROM road_transportation_reports WHERE report_type = 'infrastructure_issue' AND status IN ('approved', 'in-progress', 'completed')";
-        $infra_res = $conn->query($infra_sql);
-        if ($infra_res) {
-            while ($row = $infra_res->fetch_assoc()) $infra_reports[] = $row;
-        } else {
-            error_log("index.php: infrastructure reports (transport) query failed: " . $conn->error);
-        }
-
-        // Infrastructure projects stored in the maintenance table.
-        $maint_sql = "SELECT id, report_id, title, description, location, priority, status, maintenance_team as assigned_to, department, created_date, created_at, updated_at, approved_at, {$maint_est_col} as estimation, report_type, 'maintenance' as source_system FROM road_maintenance_reports WHERE status IN ('approved', 'in-progress')";
-        $maint_res = $conn->query($maint_sql);
-        if ($maint_res) {
-            while ($row = $maint_res->fetch_assoc()) $infra_reports[] = $row;
-        } else {
-            error_log("index.php: infrastructure reports (maintenance) query failed: " . $conn->error);
-        }
-
-        // IPMS road projects synced into the system and approved by admin.
-        if ($conn->query("SHOW TABLES LIKE 'ipms_road_projects'")->num_rows > 0) {
-            $ipms_sql = "SELECT id, project_id, project_name, project_status, status_bucket,
-                progress_percent, start_date, end_date, road_name, road_type, road_status,
-                start_lat, start_lng, end_lat, end_lng, budget, assigned_engineers_json,
-                created_at, status, priority, start_address, end_address
-                FROM ipms_road_projects
-                WHERE status IN ('approved','completed')";
-            $ipms_res = @$conn->query($ipms_sql);
-            if ($ipms_res) {
-                while ($row = $ipms_res->fetch_assoc()) {
-                    $engineers = [];
-                    if (!empty($row['assigned_engineers_json'])) {
-                        $decoded = json_decode($row['assigned_engineers_json'], true);
-                        if (is_array($decoded)) $engineers = $decoded;
-                    }
-                    $location = $row['start_address'] ?: $row['road_name'];
-                    $infra_reports[] = [
-                        'id'            => 'ipms_' . $row['id'],
-                        'report_id'     => 'IPMS-' . $row['project_id'],
-                        'title'         => $row['project_name'],
-                        'description'   => $row['road_status'] . ($row['road_name'] ? ' — ' . $row['road_name'] : ''),
-                        'location'      => $location,
-                        'latitude'      => $row['start_lat'],
-                        'longitude'     => $row['start_lng'],
-                        'priority'      => $row['priority'] ?: 'medium',
-                        'status'        => $row['status'] ?: 'approved',
-                        'assigned_to'   => implode(', ', $engineers),
-                        'department'    => 'IPMS',
-                        'created_at'    => $row['created_at'],
-                        'estimation'    => $row['budget'],
-                        'report_type'   => 'ipms_project',
-                        'source_system' => 'ipms',
-                        '_ipms_progress'=> (int)$row['progress_percent'],
-                        '_ipms_start_date' => $row['start_date'] ?? null,
-                        '_ipms_end_date'   => $row['end_date'] ?? null,
-                    ];
-                }
-            }
-        }
-
-        // Newest first.
-        usort($infra_reports, function ($a, $b) {
-            $ta = strtotime($a['created_at'] ?? $a['created_date'] ?? '') ?: 0;
-            $tb = strtotime($b['created_at'] ?? $b['created_date'] ?? '') ?: 0;
-            return $tb - $ta;
-        });
-        $infra_reports = array_slice($infra_reports, 0, 12);
-    } catch (Exception $e) {
-        error_log("index.php infrastructure reports query: " . $e->getMessage());
-        $infra_reports = [];
     }
 }
 
@@ -869,27 +680,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             color: #951f1f;
         }
 
-        /* Infrastructure project status badges */
-        .badge-active {
-            background: #d6e9f8;
-            color: #0f4762;
-        }
-
-        .badge-completed {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .badge-delayed {
-            background: #fde3e3;
-            color: #951f1f;
-        }
-
-        .badge-pending {
-            background: #fff3cd;
-            color: #8a6d1a;
-        }
-
         /* Statistics Cards — flat QC style */
         .stat-card {
             background: #ffffff;
@@ -1274,180 +1064,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             opacity: 0.55;
         }
 
-        /* Before & After Projects Section */
-        .before-after-section {
-            background: var(--light-bg);
-        }
 
-        .before-after-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
-            gap: 30px;
-        }
-
-        @media (max-width: 576px) {
-            .before-after-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .before-after-card {
-            background: white;
-            border: 1px solid var(--qc-card-border);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: none;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .before-after-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 24px rgba(17, 82, 114, 0.1);
-        }
-
-        .comparison-slider {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 16 / 10;
-            overflow: hidden;
-            cursor: ew-resize;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        .comparison-slider img {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            pointer-events: none;
-        }
-
-        .comparison-slider .img-before {
-            z-index: 2;
-            clip-path: inset(0 50% 0 0);
-        }
-
-        .comparison-slider .img-after {
-            z-index: 1;
-        }
-
-        .comparison-handle {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            left: 50%;
-            width: 4px;
-            background: white;
-            z-index: 3;
-            transform: translateX(-50%);
-            box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
-            pointer-events: none;
-        }
-
-        .comparison-handle::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 44px;
-            height: 44px;
-            background: white;
-            border-radius: 50%;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-        }
-
-        .comparison-handle::after {
-            content: '◂ ▸';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--qc-primary-800);
-            z-index: 4;
-            letter-spacing: -2px;
-            white-space: nowrap;
-        }
-
-        .comparison-label {
-            position: absolute;
-            top: 12px;
-            padding: 5px 14px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            z-index: 4;
-            pointer-events: none;
-        }
-
-        .label-before {
-            left: 12px;
-            background: rgba(217, 57, 57, 0.92);
-            color: white;
-        }
-
-        .label-after {
-            right: 12px;
-            background: rgba(40, 167, 69, 0.92);
-            color: white;
-        }
-
-        .before-after-info {
-            padding: 20px 24px;
-        }
-
-        .before-after-info h4 {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--qc-primary-900);
-            margin-bottom: 8px;
-        }
-
-        .before-after-meta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 10px;
-        }
-
-        .before-after-meta span {
-            font-size: 0.85rem;
-            color: var(--qc-shades-500);
-        }
-
-        .before-after-meta i {
-            color: var(--qc-primary-500);
-            margin-right: 4px;
-        }
-
-        .before-after-cost {
-            display: inline-block;
-            background: var(--qc-primary-800);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-
-        .before-after-empty {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--qc-shades-400);
-        }
-
-        .before-after-empty i {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            color: var(--qc-shades-200);
-        }
 
         .gis-map-btn {
             display: inline-flex;
@@ -1525,492 +1142,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .gis-search-result-item:last-child { border-bottom: none; }
         .gis-search-result-item:hover { background: #eaf3f9; }
         .gis-search-result-item small { display: block; color: var(--qc-shades-400); font-size: 11px; margin-top: 2px; }
-
-        /* Infrastructure Project Updates — GIS map (flat QC card) */
-        .infra-map-card {
-            display: flex;
-            flex-direction: column;
-            background: #ffffff;
-            border: 1px solid var(--qc-card-border);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: none;
-        }
-        .infra-map-toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 16px;
-            border-bottom: 1px solid #eef3f6;
-            background: #ffffff;
-        }
-        .infra-map-count {
-            margin-left: auto;
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: var(--qc-shades-500);
-        }
-        .infra-map-canvas {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            height: 460px;
-            min-height: 320px;
-            background: var(--qc-shades-100);
-        }
-        .infra-map-legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 14px;
-            padding: 10px 16px;
-            border-top: 1px solid #eef3f6;
-            background: #ffffff;
-        }
-        .infra-map-legend .legend-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--qc-shades-500);
-        }
-        .legend-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid #ffffff;
-            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
-            flex-shrink: 0;
-        }
-        .infra-map-card.infra-map-fullscreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 9999;
-            border-radius: 0;
-            border: none;
-            box-shadow: none;
-        }
-        .infra-map-card.infra-map-fullscreen .infra-map-canvas {
-            height: auto;
-            flex: 1 1 auto;
-            min-height: 0;
-        }
-        @media (max-width: 575.98px) {
-            .infra-map-canvas { height: 340px; }
-            .infra-map-count { margin-left: 0; width: 100%; }
-        }
-        #infraMapModal .infra-map-canvas {
-            height: 60vh;
-            min-height: 380px;
-        }
-        #infraMapModal .modal-body {
-            padding: 16px;
-        }
-
-        .infra-map-pin {
-            position: relative;
-            width: 34px;
-            height: 44px;
-        }
-        .infra-map-pin .infra-pin-head {
-            position: absolute;
-            top: 0;
-            left: 4px;
-            width: 26px;
-            height: 26px;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            border: 2px solid #ffffff;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .infra-map-pin .infra-pin-head i {
-            transform: rotate(45deg);
-            color: #ffffff;
-            font-size: 12px;
-        }
-        .infra-map-pin .infra-pin-pulse {
-            display: none;
-            position: absolute;
-            top: 6px;
-            left: 10px;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: rgba(33, 161, 214, 0.35);
-            animation: infraPinPulse 1.8s ease-out infinite;
-            pointer-events: none;
-        }
-        .infra-map-pin.infra-pin-active .infra-pin-pulse {
-            display: block;
-        }
-        @keyframes infraPinPulse {
-            0% { transform: scale(0.6); opacity: 0.9; }
-            70% { transform: scale(2.6); opacity: 0; }
-            100% { transform: scale(2.6); opacity: 0; }
-        }
-
-        /* Infrastructure Reports Panel (flat QC E-Services style) */
-        .infra-reports-card {
-            margin-top: 28px;
-            background: #ffffff;
-            border: 1px solid var(--qc-card-border);
-            border-radius: 12px;
-            box-shadow: none;
-            overflow: hidden;
-        }
-        .infra-reports-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 25px;
-            border-bottom: 1px solid var(--qc-shades-100);
-        }
-        .infra-reports-header-left {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-        .infra-reports-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
-            background: var(--qc-icon-bg);
-            color: var(--qc-primary-800);
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        .infra-reports-title-group {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .infra-reports-title {
-            font-size: 1.15rem;
-            font-weight: 800;
-            color: var(--qc-primary-800);
-            margin: 0;
-            line-height: 1.25;
-        }
-        .infra-reports-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 3px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 700;
-            background: var(--qc-primary-100);
-            color: var(--qc-primary-800);
-            white-space: nowrap;
-        }
-        .infra-reports-subtitle {
-            margin: 3px 0 0;
-            font-size: 13px;
-            color: var(--qc-shades-500);
-        }
-        .infra-reports-search {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 10px;
-            padding: 14px 25px;
-            border-bottom: 1px solid var(--qc-shades-100);
-        }
-        .infra-reports-search-wrap {
-            position: relative;
-            flex: 1 1 280px;
-            min-width: 200px;
-        }
-        .infra-reports-search-wrap > i {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--qc-shades-400);
-            font-size: 13px;
-            pointer-events: none;
-        }
-        .infra-reports-search-input {
-            width: 100%;
-            padding: 9px 14px 9px 34px;
-            border: 1px solid #cbd3d6;
-            border-radius: 8px;
-            font-size: 13px;
-            color: var(--qc-shades-800);
-            background: #fff;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .infra-reports-search-input:focus {
-            border-color: var(--qc-primary-500);
-            box-shadow: 0 0 0 3px rgba(33, 161, 214, 0.15);
-        }
-        .infra-reports-sort-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 9px 16px;
-            border: none;
-            border-radius: 8px;
-            background: var(--qc-primary-950);
-            color: #fff;
-            font-size: 13px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .infra-reports-sort-btn:hover {
-            background: var(--qc-primary-500);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 14px rgba(17, 82, 114, 0.3);
-        }
-        .infra-projects-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 16px;
-            padding: 20px 25px;
-        }
-        .infra-project-card {
-            display: flex;
-            flex-direction: column;
-            background: #ffffff;
-            border: 1px solid var(--qc-card-border);
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(17, 82, 114, 0.06);
-            overflow: hidden;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .infra-project-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 24px rgba(17, 82, 114, 0.12);
-        }
-        .infra-project-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 16px 16px 12px;
-            border-bottom: 1px solid var(--qc-shades-100);
-        }
-        .infra-project-title-wrap {
-            min-width: 0;
-        }
-        .infra-project-type {
-            display: block;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--qc-shades-500);
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            margin-bottom: 4px;
-        }
-        .infra-project-title {
-            margin: 0 0 4px;
-            font-size: 15px;
-            font-weight: 700;
-            line-height: 1.35;
-            color: var(--qc-primary-800);
-        }
-        .infra-project-report {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--qc-shades-400);
-        }
-        .infra-project-report i {
-            font-size: 10px;
-        }
-        .infra-project-badges {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-        .infra-project-body {
-            flex: 1 1 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            padding: 14px 16px;
-        }
-        .infra-project-meta {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .infra-meta-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-        }
-        .infra-meta-row > i {
-            width: 16px;
-            text-align: center;
-            color: var(--qc-primary-500);
-            flex-shrink: 0;
-        }
-        .infra-meta-label {
-            flex-shrink: 0;
-            width: 92px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--qc-shades-400);
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        .infra-meta-value {
-            margin-left: auto;
-            text-align: right;
-            font-weight: 500;
-            color: var(--qc-shades-800);
-        }
-        .infra-project-progress .progress {
-            background: var(--qc-shades-100);
-            border-radius: 20px;
-        }
-        .infra-project-progress .progress-bar {
-            background: var(--qc-primary-500);
-            border-radius: 20px;
-        }
-        .infra-progress-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--qc-shades-500);
-        }
-        .infra-progress-head i {
-            font-size: 10px;
-        }
-        .infra-project-desc {
-            background: var(--qc-primary-50);
-            border: 1px solid var(--qc-shades-100);
-            border-radius: 8px;
-            padding: 10px 12px;
-            font-size: 13px;
-            color: var(--qc-shades-700);
-        }
-        .infra-project-desc p {
-            margin: 0 0 8px;
-            line-height: 1.6;
-        }
-        .infra-project-footer {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: auto;
-            padding: 12px 16px;
-            border-top: 1px solid var(--qc-shades-100);
-        }
-        .infra-project-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            flex: 1 1 auto;
-            padding: 8px 10px;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--qc-primary-800);
-            background: var(--qc-primary-50);
-            border: 1px solid var(--qc-shades-100);
-            border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-            transition: background 0.2s, border-color 0.2s;
-        }
-        .infra-project-btn i {
-            font-size: 11px;
-        }
-        .infra-project-btn:hover {
-            background: var(--qc-primary-100);
-            border-color: var(--qc-primary-300);
-            color: var(--qc-primary-800);
-            text-decoration: none;
-        }
-        .infra-status-badge,
-        .infra-priority-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: capitalize;
-            white-space: nowrap;
-        }
-        .infra-status-badge.approved,
-        .infra-status-badge.completed,
-        .infra-status-badge.resolved {
-            background: rgba(22, 163, 74, 0.12);
-            color: #166534;
-        }
-        .infra-status-badge.in-progress {
-            background: rgba(33, 161, 214, 0.12);
-            color: var(--qc-primary-700);
-        }
-        .infra-status-badge.pending {
-            background: rgba(217, 119, 6, 0.14);
-            color: #b45309;
-        }
-        .infra-status-badge.cancelled,
-        .infra-status-badge.rejected {
-            background: rgba(217, 57, 57, 0.12);
-            color: #b91c1c;
-        }
-        .infra-priority-badge.high { background: rgba(217, 57, 57, 0.12); color: #b91c1c; }
-        .infra-priority-badge.medium { background: rgba(217, 119, 6, 0.14); color: #b45309; }
-        .infra-priority-badge.low { background: rgba(22, 163, 74, 0.12); color: #166534; }
-        .infra-reports-verified {
-            display: inline-block;
-            margin-top: 4px;
-            font-weight: 600;
-            color: #166534;
-        }
-        .infra-reports-empty {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--qc-shades-500);
-        }
-        .infra-reports-empty-icon {
-            width: 56px;
-            height: 56px;
-            margin: 0 auto 12px;
-            background: var(--qc-icon-bg);
-            border-radius: 12px;
-            color: var(--qc-primary-800);
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .infra-reports-empty h4 {
-            margin: 0 0 6px;
-            color: var(--qc-primary-800);
-            font-size: 17px;
-            font-weight: 700;
-        }
-        .infra-reports-empty p {
-            margin: 0;
-            font-size: 14px;
-        }
-        @media (max-width: 575.98px) {
-            .infra-reports-header { flex-direction: column; align-items: flex-start; gap: 10px; }
-            .infra-reports-search { padding: 12px 16px; }
-        }
 
         /* Citizen Report Modal Styles */
         .modal-header.bg-primary {
@@ -2426,20 +1557,13 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .badge-maintenance { background: #4a3f13; color: #fde68a; }
         html.dark-mode .badge-advisory { background: #123044; color: #93c5fd; }
         html.dark-mode .badge-closure { background: #3f1d1d; color: #fca5a5; }
-        html.dark-mode .badge-active { background: #123044; color: #93c5fd; }
-        html.dark-mode .badge-completed { background: #13251a; color: #6ee7b7; }
-        html.dark-mode .badge-delayed { background: #3f1d1d; color: #fca5a5; }
-        html.dark-mode .badge-pending { background: #4a3f13; color: #fde68a; }
         html.dark-mode .stat-icon,
         html.dark-mode .service-icon,
         html.dark-mode .contact-icon { background: #26313c; }
         html.dark-mode .stat-icon i,
         html.dark-mode .service-icon i,
         html.dark-mode .contact-icon i { color: #93c5fd; }
-        html.dark-mode .before-after-card { background: #1e1e1e; border-color: #333; }
-        html.dark-mode .before-after-meta span { color: #9ca3af; }
-        html.dark-mode .before-after-empty { color: #9ca3af; }
-        html.dark-mode .before-after-empty i { color: #374151; }
+
         html.dark-mode .btn-outline-dark { color: #c8cdd4; border-color: #6b7280; }
         html.dark-mode .btn-outline-dark:hover,
         html.dark-mode .btn-check:checked + .btn-outline-dark { background: #343a40; color: #fff; border-color: #343a40; }
@@ -2472,69 +1596,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .gis-search-result-item { border-bottom-color: #2d323b; color: #e4e6ea; }
         html.dark-mode .gis-search-result-item:hover { background: #26313c; color: #fff; }
         html.dark-mode .gis-search-result-item small { color: #7f8b99; }
-        html.dark-mode .infra-map-card { background: #1e1e1e; border-color: #333; }
-        html.dark-mode .infra-map-toolbar,
-        html.dark-mode .infra-map-legend { background: #1e1e1e; border-color: #333; }
-        html.dark-mode .infra-map-count { color: #9ca3af; }
-        html.dark-mode .infra-map-legend .legend-item { color: #9ca3af; }
-        html.dark-mode .infra-map-canvas { background: #171a1f; }
-        html.dark-mode .infra-reports-card { background: #1e2229; border-color: #2d323b; }
-        html.dark-mode .infra-reports-header,
-        html.dark-mode .infra-reports-search { border-bottom-color: #2d323b; }
-        html.dark-mode .infra-reports-title { color: #93c5fd; }
-        html.dark-mode .infra-reports-subtitle { color: #9ca3af; }
-        html.dark-mode .infra-reports-badge { background: #0e2430; color: #7dd3fc; }
-        html.dark-mode .infra-reports-icon,
-        html.dark-mode .infra-reports-empty-icon { background: #0e2430; color: #7dd3fc; }
-        html.dark-mode .infra-reports-search-input {
-            background: #171a1f;
-            border-color: #444c56;
-            color: #e4e6ea;
-        }
-        html.dark-mode .infra-reports-search-input:focus {
-            border-color: var(--qc-primary-500);
-            box-shadow: 0 0 0 3px rgba(33, 161, 214, 0.25);
-        }
-        html.dark-mode .infra-project-card { background: #1e2229; border-color: #2d323b; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); }
-        html.dark-mode .infra-project-card:hover { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
-        html.dark-mode .infra-project-header,
-        html.dark-mode .infra-project-footer { border-color: #2d323b; }
-        html.dark-mode .infra-project-title { color: #93c5fd; }
-        html.dark-mode .infra-project-report { color: #7f8b99; }
-        html.dark-mode .infra-project-type { color: #9ca3af; }
-        html.dark-mode .infra-meta-value { color: #e4e6ea; }
-        html.dark-mode .infra-meta-label { color: #7f8b99; }
-        html.dark-mode .infra-project-progress .progress { background: #2d323b; }
-        html.dark-mode .infra-project-progress .progress-bar { background: var(--qc-primary-500); }
-        html.dark-mode .infra-progress-head { color: #9ca3af; }
-        html.dark-mode .infra-project-desc { background: #222a33; border-color: #2d323b; color: #c0c8d8; }
-        html.dark-mode .infra-project-btn { background: #0e2430; border-color: #2d323b; color: #93c5fd; }
-        html.dark-mode .infra-project-btn:hover { background: #16374a; border-color: var(--qc-primary-500); color: #fff; }
-        html.dark-mode .infra-reports-empty { color: #9ca3af; }
-        html.dark-mode .infra-reports-empty h4 { color: #93c5fd; }
-        html.dark-mode .infra-status-badge.approved,
-        html.dark-mode .infra-status-badge.completed,
-        html.dark-mode .infra-status-badge.resolved,
-        html.dark-mode .infra-priority-badge.low {
-            background: rgba(110, 231, 183, 0.12);
-            color: #6ee7b7;
-        }
-        html.dark-mode .infra-status-badge.in-progress {
-            background: rgba(147, 197, 253, 0.12);
-            color: #93c5fd;
-        }
-        html.dark-mode .infra-status-badge.pending,
-        html.dark-mode .infra-priority-badge.medium {
-            background: rgba(253, 230, 138, 0.12);
-            color: #fde68a;
-        }
-        html.dark-mode .infra-status-badge.cancelled,
-        html.dark-mode .infra-status-badge.rejected,
-        html.dark-mode .infra-priority-badge.high {
-            background: rgba(252, 165, 165, 0.12);
-            color: #fca5a5;
-        }
-        html.dark-mode .infra-reports-verified { color: #6ee7b7; }
 
         /* Leaflet maps */
         html.dark-mode .leaflet-container { background: #171a1f; }
@@ -2672,8 +1733,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             .stat-number { font-size: 1.75rem; }
             .stat-icon { width: 54px; height: 54px; font-size: 1.35rem; }
 
-            /* Before/after info */
-            .before-after-info { padding: 16px; }
+
 
             /* Footer */
             .footer-contact-row { gap: 10px; font-size: 13px; }
@@ -2693,6 +1753,541 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             .qc-brand-text small { font-size: 0.55rem; }
             .stat-number { font-size: 1.55rem; }
         }
+
+        /* ============================================================
+           SMART MOBILITY HUB - NEW FEATURES
+           ============================================================ */
+
+        /* 5. Emergency Transit Advisory Ticker */
+        .emergency-ticker {
+            margin-top: 62px;
+            background: linear-gradient(90deg, #b91c1c 0%, #dc2626 50%, #ef4444 100%);
+            color: #fff;
+            padding: 12px 0;
+            font-size: 0.92rem;
+            line-height: 1.4;
+            position: relative;
+            z-index: 1020;
+            box-shadow: 0 2px 8px rgba(185,28,28,0.25);
+            animation: tickerSlideDown 0.4s ease;
+        }
+        @keyframes tickerSlideDown { from { transform: translateY(-100%); opacity:0;} to { transform: translateY(0); opacity:1; } }
+        .emergency-ticker.dismissed { display: none !important; }
+        .emergency-ticker-badge {
+            background: rgba(255,255,255,0.22);
+            border: 1px solid rgba(255,255,255,0.35);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .emergency-ticker-badge i { animation: tickerPulse 1.2s infinite; }
+        @keyframes tickerPulse { 0%,100% { opacity:1; } 50% { opacity:0.55; } }
+        .emergency-ticker-text { color: #fff; }
+        .emergency-ticker-text strong { color: #fff; }
+        .emergency-ticker-link {
+            color: #fff !important;
+            font-weight: 700;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            margin-left: 10px;
+            white-space: nowrap;
+            background: rgba(255,255,255,0.18);
+            padding: 4px 10px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .emergency-ticker-link:hover { background: rgba(255,255,255,0.28); color: #fff !important; }
+        .emergency-ticker-dismiss {
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #fff;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .emergency-ticker-dismiss:hover { background: rgba(255,255,255,0.32); transform: rotate(90deg); }
+
+        /* 1. Interactive Public Transportation Widget */
+        .transport-card {
+            background: #fff;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 14px;
+            padding: 28px 22px;
+            text-align: center;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+        }
+        .transport-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 28px rgba(17,82,114,0.12);
+            border-color: var(--qc-primary-300);
+        }
+        .transport-icon {
+            width: 72px;
+            height: 72px;
+            background: var(--qc-icon-bg);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.9rem;
+            color: var(--qc-primary-800);
+            margin-bottom: 16px;
+        }
+        .transport-card h5 {
+            font-weight: 800;
+            color: var(--qc-primary-900);
+            font-size: 1.05rem;
+            margin-bottom: 8px;
+        }
+        .transport-card p {
+            font-size: 0.9rem;
+            color: var(--qc-shades-500);
+            line-height: 1.6;
+            flex: 1;
+            margin-bottom: 18px;
+        }
+        .transport-card-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--qc-primary-700);
+            text-decoration: none;
+            border: 1px solid var(--qc-card-border);
+            padding: 8px 14px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            background: #fff;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .transport-card-link:hover {
+            background: var(--qc-primary-800);
+            color: #fff;
+            border-color: var(--qc-primary-800);
+        }
+        .transport-badge {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+        }
+        .badge-bus { background: #dbeafe; color: #1e40af; }
+        .badge-jeep { background: #fef3c7; color: #92400e; }
+        .badge-bike { background: #dcfce7; color: #166534; }
+
+        /* 2. Live Traffic Congestion Layer */
+        .live-traffic-card {
+            background: #fff;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(17,82,114,0.06);
+        }
+        .live-traffic-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 22px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--qc-card-border);
+        }
+        .live-traffic-header h4 {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: var(--qc-primary-900);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .live-traffic-header h4 i { color: var(--qc-red); }
+        .traffic-toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--qc-primary-900);
+        }
+        .traffic-switch {
+            position: relative;
+            width: 52px;
+            height: 28px;
+            background: #cbd5e1;
+            border-radius: 28px;
+            cursor: pointer;
+            transition: background 0.25s;
+            border: none;
+            flex-shrink: 0;
+        }
+        .traffic-switch.active { background: #16a34a; }
+        .traffic-switch::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: #fff;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: transform 0.25s;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+        .traffic-switch.active::after { transform: translateX(24px); }
+        .traffic-status {
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        .traffic-status.live { background: #dcfce7; color: #166534; }
+        #liveTrafficMap {
+            height: 420px;
+            width: 100%;
+            background: #e8eef3;
+        }
+        .traffic-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 12px 22px;
+            background: #fff;
+            border-top: 1px solid var(--qc-card-border);
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--qc-shades-500);
+        }
+        .traffic-legend span { display: inline-flex; align-items: center; gap: 6px; }
+        .traffic-legend i { width: 14px; height: 8px; border-radius: 4px; display: inline-block; }
+        .legend-green { background: #22c55e; }
+        .legend-yellow { background: #eab308; }
+        .legend-red { background: #ef4444; }
+        .legend-dark { background: #7f1d1d; }
+
+        /* 3. Quick-Access Category Filter Bar */
+        .road-filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 36px;
+            padding: 16px;
+            background: #f8fafc;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 12px;
+        }
+        .filter-pill {
+            border: 1px solid var(--qc-card-border);
+            background: #fff;
+            color: var(--qc-primary-800);
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 8px 18px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .filter-pill:hover { border-color: var(--qc-primary-300); background: var(--qc-primary-50); transform: translateY(-1px); }
+        .filter-pill.active {
+            background: var(--qc-primary-800);
+            color: #fff;
+            border-color: var(--qc-primary-800);
+            box-shadow: 0 4px 10px rgba(17,82,114,0.22);
+        }
+        .filter-pill .count {
+            background: rgba(0,0,0,0.08);
+            padding: 2px 7px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+        }
+        .filter-pill.active .count { background: rgba(255,255,255,0.22); }
+        .update-card.filtered-out { display: none !important; }
+        .filter-empty {
+            display: none;
+            text-align: center;
+            padding: 36px 20px;
+            color: var(--qc-shades-400);
+        }
+        .filter-empty.show { display: block; }
+        .filter-empty i { font-size: 2rem; margin-bottom: 10px; color: var(--qc-shades-300); }
+
+        /* 4. Commuter FAQ Accordion */
+        .faq-accordion .accordion-item {
+            border: 1px solid var(--qc-card-border);
+            border-radius: 12px !important;
+            margin-bottom: 12px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .faq-accordion .accordion-button {
+            font-weight: 700;
+            color: var(--qc-primary-900);
+            background: #fff;
+            padding: 18px 20px;
+            font-size: 0.95rem;
+            gap: 12px;
+        }
+        .faq-accordion .accordion-button:not(.collapsed) {
+            background: var(--qc-primary-50);
+            color: var(--qc-primary-800);
+            box-shadow: none;
+        }
+        .faq-accordion .accordion-button:focus { box-shadow: none; border-color: var(--qc-primary-200); }
+        .faq-accordion .accordion-button::after { background-size: 1rem; }
+        .faq-accordion .accordion-body {
+            padding: 16px 20px 20px;
+            color: var(--qc-shades-600);
+            font-size: 0.92rem;
+            line-height: 1.7;
+            background: #fff;
+        }
+        .faq-accordion .accordion-body strong { color: var(--qc-primary-800); }
+        .faq-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--qc-icon-bg);
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--qc-primary-800);
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+
+        /* Responsive tweaks for new sections */
+        @media (max-width: 768px) {
+            .emergency-ticker { font-size: 0.85rem; padding: 10px 0; }
+            .emergency-ticker-link { margin-left: 0; margin-top: 6px; }
+            #liveTrafficMap { height: 340px; }
+            .live-traffic-header { flex-direction: column; align-items: flex-start; }
+            .road-filter-bar { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 10px; -webkit-overflow-scrolling: touch; }
+            .road-filter-bar::-webkit-scrollbar { display: none; }
+            .filter-pill { white-space: nowrap; }
+        }
+
+        /* Dark mode for new components */
+        html.dark-mode .emergency-ticker { background: linear-gradient(90deg, #7f1d1d 0%, #991b1b 100%); }
+        html.dark-mode .transport-card { background: #1e2229; border-color: #2d323b; }
+        html.dark-mode .transport-card p { color: #9ca3af; }
+        html.dark-mode .transport-card-link { border-color: #3a3f47; color: #93c5fd; background: #1e2229; }
+        html.dark-mode .transport-card-link:hover { background: var(--qc-primary-700); color: #fff; }
+        html.dark-mode .live-traffic-card { background: #1e2229; border-color: #2d323b; }
+        html.dark-mode .live-traffic-header { background: #171a1f; border-color: #2d323b; }
+        html.dark-mode .traffic-status { background: #2d323b; color: #9ca3af; }
+        html.dark-mode .traffic-status.live { background: #13251a; color: #6ee7b7; }
+        html.dark-mode .traffic-legend { background: #1e2229; border-color: #2d323b; }
+        html.dark-mode .road-filter-bar { background: #171a1f; border-color: #2d323b; }
+        html.dark-mode .filter-pill { background: #1e2229; border-color: #3a3f47; color: #cbd5e1; }
+        html.dark-mode .filter-pill:hover { background: #26313c; }
+        html.dark-mode .filter-pill.active { background: var(--qc-primary-800); color: #fff; }
+        html.dark-mode .faq-accordion .accordion-item { background: #1e2229; border-color: #2d323b; }
+        html.dark-mode .faq-accordion .accordion-button { background: #1e2229; color: #e4e6ea; }
+        html.dark-mode .faq-accordion .accordion-button:not(.collapsed) { background: #26313c; color: #93c5fd; }
+        html.dark-mode .faq-accordion .accordion-body { background: #1e2229; color: #9ca3af; }
+        html.dark-mode .faq-icon { background: #26313c; color: #93c5fd; }
+
+        /* ============================================================
+           LANDING PAGE ONLY — Premium modal styling for public-transport
+           (qcBusRoutesModal / jeepneyRoutesModal / bikeLaneModal) — light + dark
+           ============================================================ */
+        /* Premium base — all three modals */
+        #qcBusRoutesModal .modal-content,
+        #jeepneyRoutesModal .modal-content,
+        #bikeLaneModal .modal-content {
+            border: none !important;
+            border-radius: 16px !important;
+            overflow: hidden !important;
+            box-shadow: 0 25px 60px rgba(15,23,42,0.35), 0 8px 24px rgba(15,23,42,0.18) !important;
+            backdrop-filter: blur(0px);
+        }
+        #qcBusRoutesModal .modal-header,
+        #jeepneyRoutesModal .modal-header,
+        #bikeLaneModal .modal-header {
+            border-bottom: none !important;
+            position: relative;
+        }
+        #qcBusRoutesModal .modal-header::after,
+        #jeepneyRoutesModal .modal-header::after,
+        #bikeLaneModal .modal-header::after {
+            content: '';
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.18), rgba(255,255,255,0));
+        }
+        #qcBusRoutesModal .modal-footer,
+        #jeepneyRoutesModal .modal-footer,
+        #bikeLaneModal .modal-footer {
+            backdrop-filter: blur(6px);
+        }
+        /* Card hover premium */
+        #qcBusRoutesModal .row.g-3 > div > div,
+        #jeepneyRoutesModal .row.g-3 > div > div,
+        #bikeLaneModal .row.g-3 > div > div {
+            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+        }
+        #qcBusRoutesModal .row.g-3 > div > div:hover,
+        #jeepneyRoutesModal .row.g-3 > div > div:hover,
+        #bikeLaneModal .row.g-3 > div > div:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+        }
+
+        /* ——— Dark mode premium overrides — landing page modals only ——— */
+        html.dark-mode #qcBusRoutesModal .modal-content,
+        html.dark-mode #jeepneyRoutesModal .modal-content,
+        html.dark-mode #bikeLaneModal .modal-content {
+            background: #0f141c !important;
+            border: 1px solid #1e2e46 !important;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.65), 0 0 0 1px rgba(147,197,253,0.06) inset !important;
+        }
+        html.dark-mode #qcBusRoutesModal .modal-body,
+        html.dark-mode #jeepneyRoutesModal .modal-body,
+        html.dark-mode #bikeLaneModal .modal-body {
+            background: #0f141c !important;
+        }
+        html.dark-mode #qcBusRoutesModal .modal-footer,
+        html.dark-mode #jeepneyRoutesModal .modal-footer,
+        html.dark-mode #bikeLaneModal .modal-footer {
+            background: #0c1220 !important;
+            border-top-color: #1e2e46 !important;
+        }
+        /* Summary header blocks — override inline backgrounds */
+        html.dark-mode #qcBusRoutesModal .modal-body > div:first-child {
+            background: linear-gradient(180deg, #0f1d2e 0%, #0c1220 100%) !important;
+            border-bottom-color: #1e3a5a !important;
+        }
+        html.dark-mode #jeepneyRoutesModal .modal-body > div:first-child {
+            background: linear-gradient(180deg, #1a1406 0%, #141009 100%) !important;
+            border-bottom-color: #3a2a0a !important;
+        }
+        html.dark-mode #bikeLaneModal .modal-body > div:first-child {
+            background: linear-gradient(180deg, #071a10 0%, #0a1410 100%) !important;
+            border-bottom-color: #143a24 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .modal-body > div:first-child *,
+        html.dark-mode #jeepneyRoutesModal .modal-body > div:first-child *,
+        html.dark-mode #bikeLaneModal .modal-body > div:first-child * {
+            color: #cbd5e1 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .modal-body > div:first-child i,
+        html.dark-mode #jeepneyRoutesModal .modal-body > div:first-child i,
+        html.dark-mode #bikeLaneModal .modal-body > div:first-child i {
+            color: #93c5fd !important;
+        }
+        /* Row cards — override inline background:#fff / border */
+        html.dark-mode #qcBusRoutesModal .row.g-3 > div > div,
+        html.dark-mode #jeepneyRoutesModal .row.g-3 > div > div,
+        html.dark-mode #bikeLaneModal .row.g-3 > div > div {
+            background: #162032 !important;
+            border-color: #1e2e46 !important;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.35) !important;
+        }
+        /* Jeepney amber left-border stays but slightly muted in dark */
+        html.dark-mode #jeepneyRoutesModal .row.g-3 > div > div[style*="border-left"] {
+            border-left-color: #b45309 !important;
+        }
+        html.dark-mode #bikeLaneModal .row.g-3 > div > div[style*="border-left"] {
+            border-left-color: #16a34a !important;
+        }
+        /* Text & list items inside cards */
+        html.dark-mode #qcBusRoutesModal .row.g-3 h6,
+        html.dark-mode #jeepneyRoutesModal .row.g-3 h6,
+        html.dark-mode #bikeLaneModal .row.g-3 h6 {
+            color: #e2e8f0 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .row.g-3 ul,
+        html.dark-mode #qcBusRoutesModal .row.g-3 li,
+        html.dark-mode #jeepneyRoutesModal .row.g-3 ul,
+        html.dark-mode #jeepneyRoutesModal .row.g-3 li,
+        html.dark-mode #bikeLaneModal .row.g-3 ul,
+        html.dark-mode #bikeLaneModal .row.g-3 li {
+            color: #cbd5e1 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .row.g-3 .small,
+        html.dark-mode #jeepneyRoutesModal .row.g-3 .small,
+        html.dark-mode #bikeLaneModal .row.g-3 .small {
+            color: #94a3b8 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .row.g-3 strong,
+        html.dark-mode #jeepneyRoutesModal .row.g-3 strong,
+        html.dark-mode #bikeLaneModal .row.g-3 strong {
+            color: #e0f2fe !important;
+        }
+        /* Badges inside cards — subtle dark variant */
+        html.dark-mode #qcBusRoutesModal .badge.bg-light,
+        html.dark-mode #jeepneyRoutesModal .badge.bg-light,
+        html.dark-mode #bikeLaneModal .badge.bg-light {
+            background: #1e293b !important;
+            color: #93c5fd !important;
+            border-color: #334155 !important;
+        }
+        /* Amenities / QCitizen note boxes */
+        html.dark-mode #qcBusRoutesModal div[style*="background:#fff7ed"],
+        html.dark-mode #jeepneyRoutesModal div[style*="background:#f8fafc"],
+        html.dark-mode #bikeLaneModal div[style*="border:1px dashed"] {
+            background: #1a2333 !important;
+            border-color: #1e3a5a !important;
+        }
+        html.dark-mode #qcBusRoutesModal div[style*="background:#fff7ed"] *,
+        html.dark-mode #jeepneyRoutesModal div[style*="background:#f8fafc"] *,
+        html.dark-mode #bikeLaneModal div[style*="border:1px dashed"] * {
+            color: #cbd5e1 !important;
+        }
+        html.dark-mode #qcBusRoutesModal div[style*="background:#fff7ed"] h6,
+        html.dark-mode #bikeLaneModal div[style*="border:1px dashed"] h6 {
+            color: #fde68a !important;
+        }
+        /* Links inside dark modals */
+        html.dark-mode #qcBusRoutesModal a,
+        html.dark-mode #jeepneyRoutesModal a,
+        html.dark-mode #bikeLaneModal a {
+            color: #93c5fd !important;
+        }
+        /* Scrollbar for premium feel */
+        #qcBusRoutesModal .modal-body::-webkit-scrollbar,
+        #jeepneyRoutesModal .modal-body::-webkit-scrollbar,
+        #bikeLaneModal .modal-body::-webkit-scrollbar { width: 8px; }
+        #qcBusRoutesModal .modal-body::-webkit-scrollbar-thumb,
+        #jeepneyRoutesModal .modal-body::-webkit-scrollbar-thumb,
+        #bikeLaneModal .modal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+        html.dark-mode #qcBusRoutesModal .modal-body::-webkit-scrollbar-track,
+        html.dark-mode #jeepneyRoutesModal .modal-body::-webkit-scrollbar-track,
+        html.dark-mode #bikeLaneModal .modal-body::-webkit-scrollbar-track { background: #0f141c; }
+        html.dark-mode #qcBusRoutesModal .modal-body::-webkit-scrollbar-thumb,
+        html.dark-mode #jeepneyRoutesModal .modal-body::-webkit-scrollbar-thumb,
+        html.dark-mode #bikeLaneModal .modal-body::-webkit-scrollbar-thumb { background: #334155; }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
@@ -2751,6 +2346,20 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <?php include __DIR__ . '/includes/mobile_navbar_css.php'; ?>
 
     <?php include __DIR__ . '/includes/hamburger_menu.php'; ?>
+
+    <!-- 5. Emergency Transit Advisory Ticker -->
+    <div id="emergencyTicker" class="emergency-ticker" role="alert" aria-live="assertive">
+        <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3 flex-wrap flex-grow-1">
+                <span class="emergency-ticker-badge"><i class="fas fa-exclamation-triangle"></i> Advisory</span>
+                <div class="emergency-ticker-text">
+                    <strong>Flash Flood Alert:</strong> Commonwealth Ave &amp; Quezon Ave partially closed until 8:00 PM — expect heavy delays &amp; rerouting via EDSA.
+                    <a href="#" class="emergency-ticker-link" onclick="document.getElementById('publicGisFab')?.click(); return false;">View Alternate Routes <i class="fas fa-arrow-right ms-1"></i></a>
+                </div>
+            </div>
+            <button type="button" class="emergency-ticker-dismiss" aria-label="Dismiss emergency advisory" onclick="dismissEmergencyTicker()"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
 
     <!-- Hero Section -->
     <section class="hero" id="home" <?php echo ($access_settings['hide_hero'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
@@ -2910,11 +2519,29 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         <div class="container">
             <h2 class="section-title">Road Updates</h2>
             <p class="section-subtitle">Stay informed about the latest road conditions and maintenance activities</p>
+
+            <!-- 3. Quick-Access Category Filter Bar -->
+            <div class="road-filter-bar" role="tablist" aria-label="Filter road updates by category">
+                <button type="button" class="filter-pill active" data-filter="all" role="tab" aria-selected="true"><i class="fas fa-layer-group"></i> All</button>
+                <button type="button" class="filter-pill" data-filter="traffic_light" role="tab" aria-selected="false"><i class="fas fa-traffic-light"></i> Traffic Lights</button>
+                <button type="button" class="filter-pill" data-filter="accident" role="tab" aria-selected="false"><i class="fas fa-car-crash"></i> Accidents</button>
+                <button type="button" class="filter-pill" data-filter="closure" role="tab" aria-selected="false"><i class="fas fa-road"></i> Road Closures</button>
+                <button type="button" class="filter-pill" data-filter="pothole" role="tab" aria-selected="false"><i class="fas fa-exclamation-circle"></i> Potholes</button>
+            </div>
             
-            <div class="row g-4">
+            <div class="row g-4" id="roadUpdatesGrid">
                 <?php if (!empty($road_updates)): ?>
-                    <?php foreach ($road_updates as $update): ?>
-                        <div class="col-md-4">
+                    <?php foreach ($road_updates as $update):
+                        // Map DB report_type + title to filter category for pill filtering (non-destructive, display only)
+                        $rt = strtolower((string)($update['report_type'] ?? ''));
+                        $ttl = strtolower((string)($update['title'] ?? '') . ' ' . ($update['description'] ?? ''));
+                        if (strpos($rt, 'traffic') !== false || strpos($rt, 'light') !== false || strpos($ttl, 'traffic light') !== false || strpos($ttl, 'signal') !== false) $filterCat = 'traffic_light';
+                        elseif (strpos($rt, 'accident') !== false || strpos($ttl, 'accident') !== false || strpos($ttl, 'collision') !== false) $filterCat = 'accident';
+                        elseif (strpos($rt, 'closure') !== false || strpos($rt, 'closed') !== false || strpos($ttl, 'closure') !== false || strpos($ttl, 'closed') !== false) $filterCat = 'closure';
+                        elseif (strpos($rt, 'pothole') !== false || strpos($ttl, 'pothole') !== false) $filterCat = 'pothole';
+                        else $filterCat = 'other';
+                    ?>
+                        <div class="col-md-4 road-update-item" data-category="<?php echo htmlspecialchars($filterCat); ?>">
                             <div class="card update-card">
                                 <div class="card-header position-relative">
                                     <?php echo htmlspecialchars($update['title'] ?? 'Road Update'); ?>
@@ -2982,6 +2609,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     </div>
                 <?php endif; ?>
             </div>
+            <div id="filterEmptyState" class="filter-empty">
+                <i class="fas fa-search"></i>
+                <h6>No reports found in this category</h6>
+                <p class="mb-2">Try selecting <strong>All</strong> or browse the full archive.</p>
+                <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.querySelector('.filter-pill[data-filter=all]').click()">Show All</button>
+            </div>
             <div class="text-center mt-4">
                 <a href="public_reports.php" class="btn btn-primary-hero btn-hero" style="font-size: 1rem; padding: 12px 28px;">
                     <i class="fas fa-list"></i> View All Road Reports
@@ -2990,53 +2623,494 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </section>
 
-    <!-- Statistics Section -->
-    <section class="section bg-light" <?php echo ($access_settings['hide_stats'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
+    <!-- 1. Interactive Public Transportation Widget -->
+    <section class="section" id="public-transport">
         <div class="container">
-            <h2 class="section-title">Monitoring Statistics</h2>
-            <p class="section-subtitle">Real-time overview of road monitoring activities</p>
-            
+            <h2 class="section-title">Public Transportation Hub</h2>
+            <p class="section-subtitle">Plan your commute with official Quezon City mobility services — bus, jeepney, and bike infrastructure at a glance</p>
             <div class="row g-4">
-                <div class="col-md-3 col-sm-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-clipboard-list"></i>
-                        </div>
-                        <div class="stat-number"><?php echo number_format($stats['total_reports']); ?></div>
-                        <div class="stat-label">Total Reports</div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="transport-card">
+                        <span class="transport-badge badge-bus"><i class="fas fa-check-circle me-1"></i> Free Ride</span>
+                        <div class="transport-icon"><i class="fas fa-bus"></i></div>
+                        <h5>QC Bus Service</h5>
+                        <p>8 free routes covering major corridors including Quezon Ave, Commonwealth, and EDSA. Low-floor, PWD-friendly units with fixed 20-min intervals.</p>
+                        <button type="button" class="transport-card-link" data-bs-toggle="modal" data-bs-target="#qcBusRoutesModal" aria-label="View QC Bus Routes details"><i class="fas fa-bus"></i> View QC Bus Routes</button>
                     </div>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-tools"></i>
-                        </div>
-                        <div class="stat-number"><?php echo number_format($stats['ongoing_repairs']); ?></div>
-                        <div class="stat-label">Ongoing Repairs</div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="transport-card">
+                        <span class="transport-badge badge-jeep"><i class="fas fa-route me-1"></i> Rationalized</span>
+                        <div class="transport-icon"><i class="fas fa-shuttle-van"></i></div>
+                        <h5>Jeepney Rationalization</h5>
+                        <p>City-approved consolidated routes with designated stops. Real-time dispatch from QC EDSA Carousel &amp; Litex terminals.</p>
+                        <button type="button" class="transport-card-link" data-bs-toggle="modal" data-bs-target="#jeepneyRoutesModal" aria-label="View Jeepney Lines details"><i class="fas fa-shuttle-van"></i> View Jeepney Lines</button>
                     </div>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="stat-number"><?php echo number_format($stats['resolved_issues']); ?></div>
-                        <div class="stat-label">Resolved Issues</div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="transport-card">
+                        <span class="transport-badge badge-bike"><i class="fas fa-leaf me-1"></i> 90+ KM Network</span>
+                        <div class="transport-icon"><i class="fas fa-bicycle"></i></div>
+                        <h5>Bike Lane Network</h5>
+                        <p>Protected &amp; shared lanes along Elliptical, East Ave, Quezon Ave. With secure racks, repair stations, and park-and-ride links.</p>
+                        <button type="button" class="transport-card-link" data-bs-toggle="modal" data-bs-target="#bikeLaneModal" aria-label="View Bike-Lane Map details"><i class="fas fa-bicycle"></i> View Bike-Lane Map</button>
                     </div>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                        <div class="stat-number"><?php echo number_format($stats['pending_reports']); ?></div>
-                        <div class="stat-label">Pending Reports</div>
-                    </div>
-                </div>
+            </div>
+            <div class="text-center mt-4">
+                <small class="text-muted"><i class="fas fa-info-circle me-1"></i> Official schedules may change during holidays &amp; emergency rerouting — tap the <a href="#" onclick="document.getElementById('publicGisFab')?.click(); return false;"><i class="fas fa-map-marked-alt"></i> Live Road Map</a> FAB for current detours.</small>
             </div>
         </div>
     </section>
 
+    <!-- QC Bus Routes Modal — generated from official Libreng Sakay data -->
+    <div class="modal fade" id="qcBusRoutesModal" tabindex="-1" aria-labelledby="qcBusRoutesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="border-radius:14px; overflow:hidden;">
+                <div class="modal-header" style="background: linear-gradient(135deg, var(--qc-primary-800) 0%, #1d698b 100%); color:#fff; border-bottom:none; padding:16px 20px;">
+                    <h5 class="modal-title d-flex align-items-center gap-2" id="qcBusRoutesModalLabel" style="font-weight:800; font-size:1.05rem; line-height:1.3;">
+                        <span style="width:36px;height:36px;background:rgba(255,255,255,0.18);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;"><i class="fas fa-bus"></i></span>
+                        QC Bus Service — Libreng Sakay (8 Official Routes)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <!-- Summary header -->
+                    <div class="p-3 p-md-4" style="background: var(--qc-primary-50); border-bottom:1px solid var(--qc-card-border);">
+                        <div class="row g-3 small">
+                            <div class="col-md-4 d-flex gap-2"><i class="fas fa-clock mt-1" style="color:var(--qc-primary-700)"></i><div><strong>Operating Hours</strong><br><span class="text-muted">5:00 AM – 9:00 PM Daily<br>Mon–Sat full service • Sun/Holiday 6:00 AM – 8:00 PM</span></div></div>
+                            <div class="col-md-4 d-flex gap-2"><i class="fas fa-stopwatch mt-1" style="color:var(--qc-primary-700)"></i><div><strong>Intervals</strong><br><span class="text-muted">Every <strong>10–15 mins</strong> (peak 6–9 AM, 5–8 PM)<br>Every <strong>20 mins</strong> off-peak</span></div></div>
+                            <div class="col-md-4 d-flex gap-2"><i class="fas fa-id-card mt-1" style="color:var(--qc-primary-700)"></i><div><strong>Fare</strong><br><span class="text-muted"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:20px;font-weight:700;font-size:0.75rem;">LIBRE • FREE RIDE</span> Priority for QC residents</span></div></div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 p-md-4">
+                        <div class="row g-3 g-md-4">
+                            <!-- Route 1 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid var(--qc-card-border); border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">ROUTE 1</span>
+                                        <h6 class="mb-0" style="font-weight:800; color:var(--qc-primary-900); font-size:0.95rem;">QC Hall to Cubao</h6>
+                                    </div>
+                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Elliptical Rd. corridor via East Ave</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>QC Hall</li>
+                                        <li>Elliptical Road</li>
+                                        <li>East Avenue</li>
+                                        <li>Kamias Road</li>
+                                        <li>EDSA-Kamias</li>
+                                        <li><strong>Cubao (Terminal)</strong></li>
+                                    </ul>
+                                    <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>10–15 min</span></div>
+                                </div>
+                            </div>
+                            <!-- Route 2 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid var(--qc-card-border); border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">ROUTE 2</span>
+                                        <h6 class="mb-0" style="font-weight:800; color:var(--qc-primary-900); font-size:0.95rem;">QC Hall to Litex / IBP Road</h6>
+                                    </div>
+                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Commonwealth Ave corridor (heaviest demand)</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>QC Hall</li>
+                                        <li>Commonwealth Avenue</li>
+                                        <li>Batasan Hills</li>
+                                        <li>Sandiganbayan</li>
+                                        <li>IBP Road</li>
+                                        <li><strong>Litex (Terminal)</strong></li>
+                                    </ul>
+                                    <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>10–15 min</span></div>
+                                </div>
+                            </div>
+                            <!-- Route 3 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid var(--qc-card-border); border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">ROUTE 3</span>
+                                        <h6 class="mb-0" style="font-weight:800; color:var(--qc-primary-900); font-size:0.95rem;">Welcome Rotonda to Aurora-Katipunan</h6>
+                                    </div>
+                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Eastern QC via E. Rodriguez / Aurora Blvd</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>Welcome Rotonda</li>
+                                        <li>España Extension</li>
+                                        <li>E. Rodriguez Sr. Avenue</li>
+                                        <li>Gilmore</li>
+                                        <li>Aurora Boulevard</li>
+                                        <li><strong>Katipunan (Terminal)</strong></li>
+                                    </ul>
+                                    <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15–20 min</span></div>
+                                </div>
+                            </div>
+                            <!-- Route 4 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid var(--qc-card-border); border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">ROUTE 4</span>
+                                        <h6 class="mb-0" style="font-weight:800; color:var(--qc-primary-900); font-size:0.95rem;">QC Hall to General Luis</h6>
+                                    </div>
+                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Northern QC via Mindanao / Quirino Hwy</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>QC Hall</li>
+                                        <li>Mindanao Avenue</li>
+                                        <li>Tandang Sora</li>
+                                        <li>Quirino Highway</li>
+                                        <li><strong>General Luis Avenue (Terminal)</strong></li>
+                                    </ul>
+                                    <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15–20 min</span></div>
+                                </div>
+                            </div>
+                            <!-- Route 5 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid var(--qc-card-border); border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">ROUTE 5</span>
+                                        <h6 class="mb-0" style="font-weight:800; color:var(--qc-primary-900); font-size:0.95rem;">QC Hall to Mindanao Ave. via Visayas Ave.</h6>
+                                    </div>
+                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Visayas/Congressional connector</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>QC Hall</li>
+                                        <li>North Avenue</li>
+                                        <li>Visayas Avenue</li>
+                                        <li>Congressional Avenue</li>
+                                        <li><strong>Mindanao Avenue (Terminal)</strong></li>
+                                    </ul>
+                                    <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15–20 min</span></div>
+                                </div>
+                            </div>
+                            <!-- Route 6 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid var(--qc-card-border); border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">ROUTE 6</span>
+                                        <h6 class="mb-0" style="font-weight:800; color:var(--qc-primary-900); font-size:0.95rem;">QC Hall to Gilmore</h6>
+                                    </div>
+                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Short connector via East Ave / E. Rodriguez</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>QC Hall</li>
+                                        <li>East Avenue</li>
+                                        <li>E. Rodriguez Sr. Avenue</li>
+                                        <li><strong>Gilmore (Terminal)</strong></li>
+                                    </ul>
+                                    <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15 min</span></div>
+                                </div>
+                            </div>
+                            <!-- Route 7 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid var(--qc-card-border); border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">ROUTE 7</span>
+                                        <h6 class="mb-0" style="font-weight:800; color:var(--qc-primary-900); font-size:0.95rem;">QC Hall to C5 / Ortigas Ave. Ext.</h6>
+                                    </div>
+                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Eastern link via C-5 Road</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>QC Hall</li>
+                                        <li>C-5 Road</li>
+                                        <li><strong>Ortigas Avenue (Terminal)</strong></li>
+                                    </ul>
+                                    <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>20 min</span></div>
+                                </div>
+                            </div>
+                            <!-- Route 8 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid var(--qc-card-border); border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span style="background:var(--qc-primary-800);color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">ROUTE 8</span>
+                                        <h6 class="mb-0" style="font-weight:800; color:var(--qc-primary-900); font-size:0.95rem;">QC Hall to Muñoz</h6>
+                                    </div>
+                                    <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> North Ave corridor via Roosevelt</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>QC Hall</li>
+                                        <li>North Avenue</li>
+                                        <li>Roosevelt Avenue</li>
+                                        <li><strong>Muñoz (Terminal)</strong></li>
+                                    </ul>
+                                    <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15 min</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- QCitizen note -->
+                        <div class="mt-4 p-3" style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px;">
+                            <h6 class="mb-2" style="font-weight:800; color:#9a3412; font-size:0.9rem;"><i class="fas fa-id-badge me-2"></i>QCitizen ID Requirement</h6>
+                            <p class="small mb-2" style="color:#7c2d12; line-height:1.6;">
+                                <strong>Libreng Sakay is FREE for all passengers</strong> with priority boarding for Quezon City residents. Present your <strong>QCitizen ID</strong> upon boarding to avail of the free ride and help the city track ridership.
+                                Non-QC residents may still ride for free by presenting any valid government ID and registering on-site at the terminal. PWD, senior citizen, and pregnant-passenger priority seats are available in all low-floor units.
+                            </p>
+                            <p class="small mb-0" style="color:#9a3412;">
+                                <i class="fas fa-info-circle me-1"></i> Tip: Download the <strong>QCitizen App</strong> or visit <a href="https://qcitizen.qc.gov.ph" target="_blank" rel="noopener" style="color:#9a3412; text-decoration:underline; font-weight:700;">qcitizen.qc.gov.ph</a> to apply. Bring your ID — first-come, first-served.
+                            </p>
+                        </div>
+
+                        <p class="small text-muted text-center mt-3 mb-0"><i class="fas fa-exclamation-circle me-1"></i> Routes, stops, and intervals may change during holidays, class suspensions, or emergency rerouting — check the <a href="#" onclick="(bootstrap.Modal.getInstance(document.getElementById('qcBusRoutesModal'))||bootstrap.Modal.getOrCreateInstance(document.getElementById('qcBusRoutesModal'))).hide(); setTimeout(()=>document.getElementById('publicGisFab')?.click(), 300); return false;">Live Road Map FAB</a> or official QC Government page for real-time updates.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="application/json" id="qcBusRoutesData">[
+  { "routeNumber": 1, "name": "QC Hall to Cubao", "keyStops": ["QC Hall", "Elliptical Road", "East Avenue", "Kamias Road", "EDSA-Kamias", "Cubao"] },
+  { "routeNumber": 2, "name": "QC Hall to Litex / IBP Road", "keyStops": ["QC Hall", "Commonwealth Avenue", "Batasan Hills", "Sandiganbayan", "IBP Road", "Litex"] },
+  { "routeNumber": 3, "name": "Welcome Rotonda to Aurora-Katipunan", "keyStops": ["Welcome Rotonda", "España Extension", "E. Rodriguez Sr. Avenue", "Gilmore", "Aurora Boulevard", "Katipunan"] },
+  { "routeNumber": 4, "name": "QC Hall to General Luis", "keyStops": ["QC Hall", "Mindanao Avenue", "Tandang Sora", "Quirino Highway", "General Luis Avenue"] },
+  { "routeNumber": 5, "name": "QC Hall to Mindanao Ave. via Visayas Ave.", "keyStops": ["QC Hall", "North Avenue", "Visayas Avenue", "Congressional Avenue", "Mindanao Avenue"] },
+  { "routeNumber": 6, "name": "QC Hall to Gilmore", "keyStops": ["QC Hall", "East Avenue", "E. Rodriguez Sr. Avenue", "Gilmore"] },
+  { "routeNumber": 7, "name": "QC Hall to C5 / Ortigas Ave. Ext.", "keyStops": ["QC Hall", "C-5 Road", "Ortigas Avenue"] },
+  { "routeNumber": 8, "name": "QC Hall to Muñoz", "keyStops": ["QC Hall", "North Avenue", "Roosevelt Avenue", "Muñoz"] }
+]</script>
+
+    <!-- Jeepney Rationalization Modal — consolidated lines from QC DOTr rationalization program -->
+    <div class="modal fade" id="jeepneyRoutesModal" tabindex="-1" aria-labelledby="jeepneyRoutesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="border-radius:14px; overflow:hidden;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #92400e 0%, #d97706 100%); color:#fff; border-bottom:none; padding:16px 20px;">
+                    <h5 class="modal-title d-flex align-items-center gap-2" id="jeepneyRoutesModalLabel" style="font-weight:800; font-size:1.05rem; line-height:1.3;">
+                        <span style="width:36px;height:36px;background:rgba(255,255,255,0.22);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;"><i class="fas fa-shuttle-van"></i></span>
+                        Jeepney Rationalization — Consolidated Routes (DOTr)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <!-- Summary header -->
+                    <div class="p-3 p-md-4" style="background:#fffbeb; border-bottom:1px solid #fde68a;">
+                        <div class="row g-3 small">
+                            <div class="col-md-4 d-flex gap-2"><i class="fas fa-route mt-1" style="color:#92400e"></i><div><strong>Program</strong><br><span class="text-muted">PUV Modernization — Rationalized &amp; Consolidated<br>Designated stops only • No “baba lang”</span></div></div>
+                            <div class="col-md-4 d-flex gap-2"><i class="fas fa-warehouse mt-1" style="color:#92400e"></i><div><strong>Dispatch Terminals</strong><br><span class="text-muted">QC EDSA Carousel • Litex • Anonas<br>Welcome Rotonda Terminal</span></div></div>
+                            <div class="col-md-4 d-flex gap-2"><i class="fas fa-clock mt-1" style="color:#92400e"></i><div><strong>Operations</strong><br><span class="text-muted">5:00 AM – 10:00 PM Daily<br><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:20px;font-weight:700;font-size:0.72rem;">CONSOLIDATED</span></span></div></div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 p-md-4">
+                        <div class="row g-3 g-md-4">
+                            <!-- JR-01 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-01</span>
+                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
+                                    </div>
+                                    <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">QC Hall to Philcoa / SM North</h6>
+                                    <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> QC EDSA Terminal • Elliptical Rd. corridor</div>
+                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>QC Hall</li>
+                                        <li>Elliptical Road</li>
+                                        <li>Philcoa</li>
+                                        <li><strong>SM North EDSA (Terminal)</strong></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <!-- JR-02 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-02</span>
+                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
+                                    </div>
+                                    <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Litex to Fairview Center Mall</h6>
+                                    <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Litex Terminal • Commonwealth Ave corridor</div>
+                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>Litex</li>
+                                        <li>Commonwealth Avenue</li>
+                                        <li><strong>Fairview Center Mall (Terminal)</strong></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <!-- JR-03 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-03</span>
+                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
+                                    </div>
+                                    <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Project 2 &amp; 3 to Cubao / Anonas</h6>
+                                    <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Anonas Terminal • Aurora Blvd corridor</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>Project 2 &amp; 3</li>
+                                        <li>Aurora Boulevard</li>
+                                        <li>Anonas</li>
+                                        <li><strong>Cubao (Terminal)</strong></li>
+                                    </ul>
+                                    <div class="small text-muted"><i class="fas fa-arrows-alt-h me-1"></i>Connects to LRT-2 Anonas &amp; MRT-3 Cubao</div>
+                                </div>
+                            </div>
+                            <!-- JR-04 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-04</span>
+                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
+                                    </div>
+                                    <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Welcome Rotonda to E. Rodriguez / España</h6>
+                                    <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Welcome Rotonda Terminal • España / E. Rodriguez</div>
+                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>Welcome Rotonda</li>
+                                        <li>E. Rodriguez Sr. Avenue</li>
+                                        <li><strong>España Boulevard (Terminal)</strong></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Operational note -->
+                        <div class="mt-4 p-3" style="background:#f8fafc; border:1px solid var(--qc-card-border); border-radius:10px;">
+                            <h6 class="mb-2" style="font-weight:800; color:var(--qc-primary-900); font-size:0.88rem;"><i class="fas fa-info-circle me-2" style="color:var(--qc-primary-700)"></i>How to ride the rationalized lines</h6>
+                            <ul class="small mb-2 ps-3" style="color:#3e454c; line-height:1.7;">
+                                <li><strong>Board only at designated stops &amp; terminals</strong> — QC EDSA Carousel, Litex, Anonas, Welcome Rotonda. No flag-down outside stops.</li>
+                                <li>Units are <strong>consolidated cooperatives</strong> with dispatch intervals <strong>every 5–10 minutes</strong> peak. GPS-tracked, PWD-friendly for newer modern units.</li>
+                                <li>Fare matrix per LTFRB • Pay via cash or Beep in modern units. Keep queueig at terminals during rush hour.</li>
+                            </ul>
+                            <p class="small mb-0" style="color:var(--qc-shades-500);">
+                                <i class="fas fa-map-marked-alt me-1"></i> Need exact stop location? Tap the <a href="#" onclick="(bootstrap.Modal.getInstance(document.getElementById('jeepneyRoutesModal'))||bootstrap.Modal.getOrCreateInstance(document.getElementById('jeepneyRoutesModal'))).hide(); setTimeout(()=>document.getElementById('publicGisFab')?.click(), 300); return false;" style="color:var(--qc-primary-700); font-weight:700; text-decoration:underline;">Live Road Map FAB → Search</a> and type the terminal name.
+                            </p>
+                        </div>
+
+                        <p class="small text-muted text-center mt-3 mb-0"><i class="fas fa-exclamation-circle me-1"></i> Routes and dispatch times may change during coding, class suspensions, or emergencies — check terminals or the Live Road Map for real-time updates. Official list via QC DPOS / LTFRB.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="application/json" id="jeepneyRoutesData">[
+  { "routeCode": "JR-01", "lineName": "QC Hall to Philcoa / SM North", "terminal": "QC EDSA Terminal", "status": "Rationalized & Consolidated", "keyStops": ["QC Hall", "Elliptical Road", "Philcoa", "SM North EDSA"] },
+  { "routeCode": "JR-02", "lineName": "Litex to Fairview Center Mall", "terminal": "Litex Terminal", "status": "Rationalized & Consolidated", "keyStops": ["Litex", "Commonwealth Avenue", "Fairview Center Mall"] },
+  { "routeCode": "JR-03", "lineName": "Project 2 & 3 to Cubao / Anonas", "terminal": "Anonas Terminal", "status": "Rationalized & Consolidated", "keyStops": ["Project 2 & 3", "Aurora Boulevard", "Anonas", "Cubao"] },
+  { "routeCode": "JR-04", "lineName": "Welcome Rotonda to E. Rodriguez / España", "terminal": "Welcome Rotonda Terminal", "status": "Rationalized & Consolidated", "keyStops": ["Welcome Rotonda", "E. Rodriguez Sr. Avenue", "España Boulevard"] }
+]</script>
+
+    <!-- Bike Lane Network Modal — 90+ km QC protected & shared network -->
+    <div class="modal fade" id="bikeLaneModal" tabindex="-1" aria-labelledby="bikeLaneModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="border-radius:14px; overflow:hidden;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #065f46 0%, #16a34a 100%); color:#fff; border-bottom:none; padding:16px 20px;">
+                    <h5 class="modal-title d-flex align-items-center gap-2" id="bikeLaneModalLabel" style="font-weight:800; font-size:1.05rem; line-height:1.3;">
+                        <span style="width:36px;height:36px;background:rgba(255,255,255,0.22);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;"><i class="fas fa-bicycle"></i></span>
+                        Bike Lane Network — 90+ km Protected &amp; Shared Corridors
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <!-- Summary header -->
+                    <div class="p-3 p-md-4" style="background:#f0fdf4; border-bottom:1px solid #bbf7d0;">
+                        <div class="row g-3 small">
+                            <div class="col-md-4 d-flex gap-2"><i class="fas fa-road mt-1" style="color:#065f46"></i><div><strong>Network</strong><br><span class="text-muted">90+ km citywide<br>Protected + shared + buffered lanes</span></div></div>
+                            <div class="col-md-4 d-flex gap-2"><i class="fas fa-tools mt-1" style="color:#065f46"></i><div><strong>Amenities</strong><br><span class="text-muted">Secure racks • Repair stations<br>Park-and-ride links</span></div></div>
+                            <div class="col-md-4 d-flex gap-2"><i class="fas fa-shield-alt mt-1" style="color:#065f46"></i><div><strong>Safety</strong><br><span class="text-muted"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:20px;font-weight:700;font-size:0.72rem;">PROTECTED</span> Barriers &amp; green sight-lines</span></div></div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 p-md-4">
+                        <div class="row g-3 g-md-4">
+                            <!-- BK-01 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-01</span>
+                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Bike Lane</span>
+                                    </div>
+                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Elliptical Road &amp; Quezon Memorial Circle</h6>
+                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> QMC core loop — green-paved premier corridor</div>
+                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>Green-paved lanes</li>
+                                        <li>Concrete plant box barriers</li>
+                                        <li>Access to QMC Underpass bike ramp</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <!-- BK-02 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-02</span>
+                                        <span style="background:#fef3c7;color:#92400e;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected &amp; Shared Network</span>
+                                    </div>
+                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Commonwealth Avenue</h6>
+                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Longest QC corridor — Tandang Sora to Fairview</div>
+                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>Physical bollards and plant box separators</li>
+                                        <li>Footbridge bike ramps (Philcoa &amp; UP AIT)</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <!-- BK-03 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-03</span>
+                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Lane</span>
+                                    </div>
+                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">East Avenue</h6>
+                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Government &amp; medical district spine</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>Connected to major QC government offices and hospital zones</li>
+                                        <li>Clear road markings</li>
+                                    </ul>
+                                    <div class="small text-muted"><i class="fas fa-hospital me-1"></i> Links QC Hall • East Ave Medical • Heart Center</div>
+                                </div>
+                            </div>
+                            <!-- BK-04 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-04</span>
+                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Lane</span>
+                                    </div>
+                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Quezon Avenue</h6>
+                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Central QC — Welcome Rotonda to EDSA</div>
+                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>NAPWC footbridge bike ramps</li>
+                                        <li>Seamless transit convergence points</li>
+                                    </ul>
+                                    <div class="small text-muted"><i class="fas fa-exchange-alt me-1"></i> Interchanges with MRT-3 &amp; QC Bus</div>
+                                </div>
+                            </div>
+                            <!-- BK-05 -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-05</span>
+                                        <span style="background:#a7f3d0;color:#065f46;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Buffered &amp; Protected Lane</span>
+                                    </div>
+                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Katipunan Avenue</h6>
+                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> University corridor — Ateneo to UP</div>
+                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                        <li>UP Town Center footbridge bike ramp</li>
+                                        <li>University corridor connections</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <!-- Amenities card -->
+                            <div class="col-md-6">
+                                <div class="h-100" style="border:1px dashed #86efac; border-radius:12px; padding:16px; background:#f0fdf4;">
+                                    <h6 class="mb-2" style="font-weight:800; color:#065f46; font-size:0.9rem;"><i class="fas fa-parking me-2"></i>Corridor Amenities</h6>
+                                    <ul class="small mb-2 ps-3" style="color:#065f46; line-height:1.7;">
+                                        <li><strong>Secure racks</strong> — QC Hall, QMC, SM North, Anonas, Philcoa terminals</li>
+                                        <li><strong>Repair stations</strong> — Elliptical, Commonwealth, Katipunan (pump &amp; tools)</li>
+                                        <li><strong>Park-and-ride links</strong> — Bike → QC Bus /MRT-3 seamless transfer at Philcoa, SM North, Cubao, Anonas</li>
+                                        <li><strong>Safety</strong> — Solar studs, green paint at intersections, 30 kph shared-zone markings</li>
+                                    </ul>
+                                    <p class="small mb-0" style="color:#047857;">
+                                        <i class="fas fa-bicycle me-1"></i> Tip: Use the <a href="#" onclick="(bootstrap.Modal.getInstance(document.getElementById('bikeLaneModal'))||bootstrap.Modal.getOrCreateInstance(document.getElementById('bikeLaneModal'))).hide(); setTimeout(()=>document.getElementById('publicGisFab')?.click(), 300); return false;" style="color:#065f46; font-weight:700; text-decoration:underline;">Live Road Map FAB → Search “bike”</a> to locate the nearest ramp or rack.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="small text-muted text-center mt-3 mb-0"><i class="fas fa-exclamation-circle me-1"></i> Network expands quarterly — 90+ km as of 2026. Lane types and footbridge access may shift during road works — check the Live Road Map for closures and safe detours.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="application/json" id="bikeLaneData">[
+  { "sectionId": "bk-01", "corridorName": "Elliptical Road & Quezon Memorial Circle", "type": "Protected Bike Lane", "features": ["Green-paved lanes", "Concrete plant box barriers", "Access to QMC Underpass bike ramp"] },
+  { "sectionId": "bk-02", "corridorName": "Commonwealth Avenue", "type": "Protected & Shared Network", "features": ["Physical bollards and plant box separators", "Footbridge bike ramps (Philcoa & UP AIT)"] },
+  { "sectionId": "bk-03", "corridorName": "East Avenue", "type": "Protected Lane", "features": ["Connected to major QC government offices and hospital zones", "Clear road markings"] },
+  { "sectionId": "bk-04", "corridorName": "Quezon Avenue", "type": "Protected Lane", "features": ["NAPWC footbridge bike ramps", "Seamless transit convergence points"] },
+  { "sectionId": "bk-05", "corridorName": "Katipunan Avenue", "type": "Buffered & Protected Lane", "features": ["UP Town Center footbridge bike ramp", "University corridor connections"] }
+]</script>
+
+    <!-- 2. Live Traffic (now via FAB) — inline map removed; use the floating Live Road Map button -->
     <!-- System Announcements (published from Public Transparency) -->
     <section class="section announcements-public-section" id="announcements">
         <div class="container">
@@ -3086,378 +3160,85 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </section>
 
-    <!-- Before & After Projects Section -->
-    <section class="section before-after-section" id="projects" <?php echo ($access_settings['hide_before_after'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
+    <!-- 4. Commuter FAQ Accordion -->
+    <section class="section bg-light" id="commuter-faq">
         <div class="container">
-            <h2 class="section-title">See the Transformation</h2>
-            <p class="section-subtitle">Drag the slider to compare before and after our completed road projects</p>
-
-            <?php if (!empty($before_after_projects)): ?>
-            <div class="before-after-grid">
-                <?php foreach ($before_after_projects as $proj):
-                    $after_img = htmlspecialchars(ltrim(str_replace(['../', '..\\'], '', $proj['photo']), '/\\'));
-                    $before_img = !empty($proj['before_photo']) 
-                        ? htmlspecialchars(ltrim(str_replace(['../', '..\\'], '', $proj['before_photo']), '/\\'))
-                        : $after_img;
-                    $has_before = !empty($proj['before_photo']);
-                ?>
-                <div class="before-after-card">
-                    <div class="comparison-slider" data-slider>
-                        <img src="<?php echo $before_img; ?>" alt="Before" class="img-before" loading="lazy"
-                             onerror="this.onerror=null;this.src='https://via.placeholder.com/600x375/dc3545/ffffff?text=Before+Image';">
-                        <img src="<?php echo $after_img; ?>" alt="After" class="img-after" loading="lazy"
-                             onerror="this.onerror=null;this.src='https://via.placeholder.com/600x375/4CAF50/ffffff?text=After+Image';">
-                        <div class="comparison-handle" data-handle></div>
-                        <span class="comparison-label label-before">Before</span>
-                        <span class="comparison-label label-after">After</span>
-                    </div>
-                    <div class="before-after-info">
-                        <h4><?php echo htmlspecialchars($proj['title']); ?></h4>
-                        <div class="before-after-meta">
-                            <?php if (!empty($proj['location'])): ?>
-                            <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($proj['location']); ?></span>
-                            <?php endif; ?>
-                            <?php if (!empty($proj['completed_date'])): ?>
-                            <span><i class="fas fa-calendar-check"></i> <?php echo safe_date_fmt($proj['completed_date']); ?></span>
-                            <?php endif; ?>
+            <h2 class="section-title">Commuter Information Center</h2>
+            <p class="section-subtitle">Answers to the most common questions from Quezon City commuters and motorists</p>
+            <div class="row justify-content-center">
+                <div class="col-lg-9">
+                    <div class="accordion faq-accordion" id="commuterFaqAccordion">
+                        <div class="accordion-item">
+                            <h3 class="accordion-header" id="faqOneHeading">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faqOne" aria-expanded="true" aria-controls="faqOne">
+                                    <span class="faq-icon"><i class="fas fa-gavel"></i></span>
+                                    How do I contest a traffic ticket issued in Quezon City?
+                                </button>
+                            </h3>
+                            <div id="faqOne" class="accordion-collapse collapse show" aria-labelledby="faqOneHeading" data-bs-parent="#commuterFaqAccordion">
+                                <div class="accordion-body">
+                                    <strong>5-day contest window.</strong> Bring your ticket, valid ID, and supporting evidence (dashcam, photo) to the QC Department of Public Order &amp; Safety (DPOS) at QC Hall Compound, 8AM–5PM Mon–Fri. You may also file via email at <a href="mailto:roads@lgu.gov.ph">roads@lgu.gov.ph</a>. Adjudication is typically <strong>3–5 working days</strong>; fines are held in abeyance until resolution. Tip: keep your citation number — you can track status at the <a href="public_reports.php">Road Reports portal</a>.
+                                </div>
+                            </div>
                         </div>
-                        <?php if (!empty($proj['cost'])): ?>
-                        <span class="before-after-cost">₱<?php echo number_format($proj['cost'], 0); ?></span>
-                        <?php endif; ?>
+                        <div class="accordion-item">
+                            <h3 class="accordion-header" id="faqTwoHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqTwo" aria-expanded="false" aria-controls="faqTwo">
+                                    <span class="faq-icon"><i class="fas fa-bicycle"></i></span>
+                                    What are the penalties for parking on a bike lane?
+                                </button>
+                            </h3>
+                            <div id="faqTwo" class="accordion-collapse collapse" aria-labelledby="faqTwoHeading" data-bs-parent="#commuterFaqAccordion">
+                                <div class="accordion-body">
+                                    Under QC Ordinance No. SP-2942 and MMDA coordination, <strong>illegal parking on protected bike lanes is ₱1,000 (first offense) to ₱2,000 + towing for repeat</strong>. Towing is enforced 24/7 on Elliptical, East Ave, and QC Circle access roads. Motorcycles, e-trikes, and vendor carts are also covered. Report violations via the <a href="#home" onclick="document.getElementById('makeReportBtn').click(); return false;">Make a Report</a> button — include a photo with plate visible.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h3 class="accordion-header" id="faqThreeHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqThree" aria-expanded="false" aria-controls="faqThree">
+                                    <span class="faq-icon"><i class="fas fa-traffic-light"></i></span>
+                                    How long does traffic signal repair take after reporting?
+                                </button>
+                            </h3>
+                            <div id="faqThree" class="accordion-collapse collapse" aria-labelledby="faqThreeHeading" data-bs-parent="#commuterFaqAccordion">
+                                <div class="accordion-body">
+                                    <strong>Standard SLA: 24–48 hours</strong> for signal bulb/controller faults, <strong>72 hours</strong> for knocked-down poles or power-feed damage. Emergency blinking-red mode is deployed within <strong>4 hours</strong> and manual enforcers are dispatched. Track progress on <a href="public_reports.php">Browse All Reports</a> — look for status <em>In-Progress</em> → <em>Completed</em>. For outages blocking intersections, call <strong>(02) 8988-1234</strong>.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h3 class="accordion-header" id="faqFourHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqFour" aria-expanded="false" aria-controls="faqFour">
+                                    <span class="faq-icon"><i class="fas fa-road"></i></span>
+                                    Where can I see planned road closures &amp; alternate routes?
+                                </button>
+                            </h3>
+                            <div id="faqFour" class="accordion-collapse collapse" aria-labelledby="faqFourHeading" data-bs-parent="#commuterFaqAccordion">
+                                <div class="accordion-body">
+                                    Closures are posted in <a href="#updates">Road Updates</a>, <a href="#announcements">Announcements</a>, and on the <a href="#" onclick="document.getElementById('publicGisFab')?.click(); return false;">Live Road Map FAB</a> (red overlays). Detour maps are attached to each advisory post. Major events (QC Anniversary, rallies) are announced <strong>48 hours in advance</strong> on the QC Government Facebook page. Pro tip: open the <strong>Live Road Map FAB → Tools → Traffic Flow</strong> to preview current congestion before you leave.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h3 class="accordion-header" id="faqFiveHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqFive" aria-expanded="false" aria-controls="faqFive">
+                                    <span class="faq-icon"><i class="fas fa-tools"></i></span>
+                                    How are pothole reports prioritized?
+                                </button>
+                            </h3>
+                            <div id="faqFive" class="accordion-collapse collapse" aria-labelledby="faqFiveHeading" data-bs-parent="#commuterFaqAccordion">
+                                <div class="accordion-body">
+                                    Potholes are triaged by <strong>severity, traffic volume, and proximity to schools/hospitals</strong>. <em>Severe</em> (tire/axle damage, &gt;15cm deep) is patched within <strong>5 days</strong>; <em>Medium</em> within <strong>15 days</strong>. Submit via <a href="#home" onclick="document.getElementById('makeReportBtn').click(); return false;">Make a Report</a> with at least 2 photos and a pinned location — it auto-routes to the correct QC district engineering office.
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                    <p class="text-center small text-muted mt-4 mb-0"><i class="fas fa-headset me-1"></i> Still need help? <a href="#contact">Contact the Road &amp; Transportation Department</a> or call <a href="tel:+63289881234">(02) 8988-1234</a>.</p>
                 </div>
-                <?php endforeach; ?>
-            </div>
-            <?php else: ?>
-            <div class="before-after-empty">
-                <i class="fas fa-images"></i>
-                <h5>Projects Coming Soon</h5>
-                <p>Before and after comparisons of our completed road projects will be displayed here.</p>
-            </div>
-            <?php endif; ?>
-        </div>
-    </section>
-
-    <!-- Infrastructure Project Updates Section -->
-    <section class="section" id="infrastructure" <?php echo ($access_settings['hide_infrastructure_updates'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
-        <div class="container">
-            <h2 class="section-title">Infrastructure Project Updates</h2>
-            <p class="section-subtitle">Track the latest road and transportation infrastructure projects underway across the city</p>
-
-            <div class="row g-4">
-                <?php if (!empty($infrastructure_updates)): ?>
-                    <?php foreach ($infrastructure_updates as $project): ?>
-                        <?php
-                        $project_status_key = strtolower(str_replace(' ', '_', $project['status'] ?? 'active'));
-                        $project_badge_class = in_array($project_status_key, ['active', 'completed', 'delayed', 'pending'], true) ? $project_status_key : 'active';
-                        ?>
-                        <div class="col-md-4">
-                            <div class="card update-card">
-                                <div class="card-header position-relative">
-                                    <?php echo htmlspecialchars($project['name'] ?? 'Infrastructure Project'); ?>
-                                    <span class="update-badge badge-<?php echo $project_badge_class; ?>">
-                                        <?php echo ucfirst(str_replace('_', ' ', $project_status_key)); ?>
-                                    </span>
-                                </div>
-                                <div class="card-body">
-                                    <?php
-                                    $project_image_candidates = [];
-                                    if (!empty($project['attachments'])):
-                                        $attachments = json_decode($project['attachments'], true);
-                                        if (is_array($attachments) && !empty($attachments)):
-                                            foreach ($attachments as $attachment):
-                                                if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
-                                                    $project_image_candidates[] = $attachment['file_path'];
-                                                    break;
-                                                endif;
-                                            endforeach;
-                                        endif;
-                                    endif;
-                                    if (!empty($project['photo'])):
-                                        $project_image_candidates[] = $project['photo'];
-                                    endif;
-                                    if (!empty($project['image_path'])):
-                                        $project_image_candidates[] = $project['image_path'];
-                                    endif;
-                                    $project_display_image = '';
-                                    foreach ($project_image_candidates as $candidate):
-                                        $resolved = road_updates_resolve_image_url($candidate, $basePath);
-                                        if ($resolved) { $project_display_image = $resolved; break; }
-                                    endforeach;
-                                    ?>
-                                    <?php if ($project_display_image): ?>
-                                        <div class="mb-3">
-                                            <img src="<?php echo htmlspecialchars($project_display_image); ?>"
-                                                 alt="<?php echo htmlspecialchars(($project['name'] ?? 'Infrastructure project') . ' photo'); ?>"
-                                                 loading="lazy"
-                                                 class="img-fluid rounded shadow-sm"
-                                                 style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
-                                                 onclick="window.open(this.src, '_blank')"
-                                                 title="Click to view full size">
-                                        </div>
-                                    <?php endif; ?>
-
-                                    <?php if (!empty($project['location'])): ?>
-                                    <p class="card-text">
-                                        <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($project['location']); ?>
-                                    </p>
-                                    <?php endif; ?>
-
-                                    <?php if (isset($project['progress']) && $project['progress'] !== ''): ?>
-                                    <div class="mb-3">
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <small class="text-muted"><i class="fas fa-tasks"></i> Progress</small>
-                                            <small class="text-muted"><?php echo (int)$project['progress']; ?>%</small>
-                                        </div>
-                                        <div class="progress" style="height: 8px;">
-                                            <div class="progress-bar" role="progressbar"
-                                                 style="width: <?php echo max(0, min(100, (int)$project['progress'])); ?>%;"
-                                                 aria-valuenow="<?php echo (int)$project['progress']; ?>" aria-valuemin="0" aria-valuemax="100"></div>
-                                        </div>
-                                    </div>
-                                    <?php endif; ?>
-
-                                    <div class="before-after-meta">
-                                        <?php if (!empty($project['start_date'])): ?>
-                                        <span><i class="fas fa-calendar-check"></i> <?php echo safe_date_fmt($project['start_date']); ?></span>
-                                        <?php endif; ?>
-                                        <?php if (!empty($project['end_date'])): ?>
-                                        <span><i class="fas fa-flag-checkered"></i> <?php echo safe_date_fmt($project['end_date']); ?></span>
-                                        <?php endif; ?>
-                                    </div>
-
-                                    <?php if (!empty($project['budget'])): ?>
-                                    <span class="before-after-cost">₱<?php echo number_format((float)$project['budget'], 0); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <!-- No infrastructure project updates - show empty state -->
-                    <div class="col-12">
-                        <div class="before-after-empty">
-                            <i class="fas fa-hard-hat"></i>
-                            <h5>No Project Updates Yet</h5>
-                            <p>Infrastructure project updates will be posted here as work progresses.</p>
-                        </div>
-                    </div>
-                <?php endif; ?>
-            </div>
-
-            <!-- Infrastructure Reports Panel (mirrors the system admin "Infrastructure Projects" panel) -->
-            <div class="infra-reports-card" id="infraReportsPanel">
-                <div class="infra-reports-header">
-                    <div class="infra-reports-header-left">
-                        <div class="infra-reports-icon">
-                            <i class="fas fa-hard-hat"></i>
-                        </div>
-                        <div>
-                            <div class="infra-reports-title-group">
-                                <h3 class="infra-reports-title">Infrastructure Projects</h3>
-                                <span class="infra-reports-badge"><?php echo count($infra_reports); ?> Projects</span>
-                            </div>
-                            <p class="infra-reports-subtitle">Infrastructure maintenance and project records verified by the LGU</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="infra-reports-search">
-                    <div class="infra-reports-search-wrap">
-                        <i class="fas fa-search"></i>
-                        <input type="text" class="infra-reports-search-input" id="infraReportsSearchInput" placeholder="Search by Report #..." oninput="panelInfraSearch()" autocomplete="off">
-                    </div>
-                    <button type="button" class="btn-qc btn-qc-primary infra-reports-sort-btn" onclick="toggleInfraReportsSort()">
-                        <i class="fas fa-sort"></i> Sort
-                    </button>
-                </div>
-
-                <div class="infra-projects-grid" id="infraProjectsGrid">
-                    <?php
-                    $infra_type_labels = [
-                        'infrastructure_issue' => 'Infrastructure Issue',
-                        'routine' => 'Routine Maintenance',
-                        'emergency' => 'Emergency Repair',
-                        'preventive' => 'Preventive Maintenance',
-                        'corrective' => 'Corrective Maintenance',
-                        'scheduled' => 'Scheduled Maintenance',
-                        'ipms_project' => 'IPMS Project',
-                    ];
-                    $infra_progress_map = [
-                        'approved' => 30,
-                        'in-progress' => 60,
-                        'completed' => 100,
-                        'resolved' => 100,
-                        'pending' => 10,
-                        'cancelled' => 0,
-                        'rejected' => 0,
-                    ];
-                    $infraHasRows = false;
-                    foreach ($infra_reports as $infra_report):
-                        $infraHasRows = true;
-                        $infra_status_key = strtolower(str_replace(' ', '-', $infra_report['status'] ?? ''));
-                        $infra_priority = $infra_report['priority'] ?? 'medium';
-                        $infra_progress = isset($infra_report['_ipms_progress'])
-                            ? $infra_report['_ipms_progress']
-                            : ($infra_progress_map[$infra_status_key] ?? 10);
-                        $infra_search_data = strtolower(
-                            ($infra_report['report_id'] ?? '') . ' ' .
-                            ($infra_report['title'] ?? '') . ' ' .
-                            ($infra_report['location'] ?? '') . ' ' .
-                            ($infra_report['department'] ?? '') . ' ' .
-                            ($infra_report['status'] ?? '') . ' ' .
-                            ($infra_report['priority'] ?? '') . ' ' .
-                            ($infra_report['assigned_to'] ?? '')
-                        );
-                    ?>
-                    <div class="infra-project-card" data-id="<?php echo htmlspecialchars($infra_report['report_id'] ?? '', ENT_QUOTES); ?>" data-search="<?php echo htmlspecialchars($infra_search_data, ENT_QUOTES); ?>" data-lat="<?php echo htmlspecialchars($infra_report['latitude'] ?? '', ENT_QUOTES); ?>" data-lng="<?php echo htmlspecialchars($infra_report['longitude'] ?? '', ENT_QUOTES); ?>" data-loc="<?php echo htmlspecialchars($infra_report['location'] ?? '', ENT_QUOTES); ?>" data-status="<?php echo htmlspecialchars($infra_status_key, ENT_QUOTES); ?>">
-                        <div class="infra-project-header">
-                            <div class="infra-project-title-wrap">
-                                <span class="infra-project-type"><?php echo htmlspecialchars($infra_type_labels[$infra_report['report_type'] ?? ''] ?? ucfirst(str_replace('_', ' ', $infra_report['report_type'] ?? ''))); ?></span>
-                                <h4 class="infra-project-title"><?php echo htmlspecialchars($infra_report['title'] ?? 'Infrastructure Project'); ?></h4>
-                                <span class="infra-project-report"><i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($infra_report['report_id'] ?? '—'); ?></span>
-                            </div>
-                            <div class="infra-project-badges">
-                                <span class="infra-priority-badge <?php echo htmlspecialchars($infra_priority); ?>"><?php echo ucfirst(htmlspecialchars($infra_priority)); ?></span>
-                                <span class="infra-status-badge <?php echo htmlspecialchars($infra_status_key); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', $infra_report['status'] ?? ''))); ?></span>
-                            </div>
-                        </div>
-                        <div class="infra-project-body">
-                            <div class="infra-project-meta">
-                                <?php if (!empty($infra_report['location'])): ?>
-                                <div class="infra-meta-row">
-                                    <i class="fas fa-map-marker-alt"></i>
-                                    <span class="infra-meta-label">Location</span>
-                                    <span class="infra-meta-value"><?php echo htmlspecialchars($infra_report['location']); ?></span>
-                                </div>
-                                <?php endif; ?>
-                                <?php if (!empty($infra_report['department'])): ?>
-                                <div class="infra-meta-row">
-                                    <i class="fas fa-building"></i>
-                                    <span class="infra-meta-label">Department</span>
-                                    <span class="infra-meta-value"><?php echo htmlspecialchars(ucfirst($infra_report['department'])); ?></span>
-                                </div>
-                                <?php endif; ?>
-                                <?php if (!empty($infra_report['assigned_to'])): ?>
-                                <div class="infra-meta-row">
-                                    <i class="fas fa-user-cog"></i>
-                                    <span class="infra-meta-label">Assigned To</span>
-                                    <span class="infra-meta-value"><?php echo htmlspecialchars($infra_report['assigned_to']); ?></span>
-                                </div>
-                                <?php endif; ?>
-                                <?php if (!empty($infra_report['estimation']) && (float)$infra_report['estimation'] > 0): ?>
-                                <div class="infra-meta-row">
-                                    <i class="fas fa-coins"></i>
-                                    <span class="infra-meta-label">Budget</span>
-                                    <span class="infra-meta-value">₱<?php echo number_format((float)$infra_report['estimation'], 0); ?></span>
-                                </div>
-                                <?php endif; ?>
-                                <div class="infra-meta-row">
-                                    <i class="fas fa-calendar-check"></i>
-                                    <span class="infra-meta-label">Created</span>
-                                    <span class="infra-meta-value"><?php echo safe_date_fmt($infra_report['created_at'] ?? ''); ?></span>
-                                </div>
-                                <?php if (($infra_report['report_type'] ?? '') === 'ipms_project'): ?>
-                                <?php if (!empty($infra_report['_ipms_start_date'])): ?>
-                                <div class="infra-meta-row">
-                                    <i class="fas fa-calendar-alt"></i>
-                                    <span class="infra-meta-label">Start</span>
-                                    <span class="infra-meta-value"><?php echo safe_date_fmt($infra_report['_ipms_start_date']); ?></span>
-                                </div>
-                                <?php endif; ?>
-                                <?php if (!empty($infra_report['_ipms_end_date'])): ?>
-                                <div class="infra-meta-row">
-                                    <i class="fas fa-calendar-minus"></i>
-                                    <span class="infra-meta-label">End</span>
-                                    <span class="infra-meta-value"><?php echo safe_date_fmt($infra_report['_ipms_end_date']); ?></span>
-                                </div>
-                                <?php endif; ?>
-                                <?php endif; ?>
-                            </div>
-
-                            <div class="infra-project-progress">
-                                <div class="infra-progress-head">
-                                    <span><i class="fas fa-tasks"></i> Progress</span>
-                                    <span><?php echo (int)$infra_progress; ?>%</span>
-                                </div>
-                                <div class="progress" style="height: 8px;">
-                                    <div class="progress-bar" role="progressbar" style="width: <?php echo max(0, min(100, (int)$infra_progress)); ?>%;" aria-valuenow="<?php echo (int)$infra_progress; ?>" aria-valuemin="0" aria-valuemax="100"></div>
-                                </div>
-                            </div>
-
-                            <div class="infra-project-desc" hidden>
-                                <p><?php echo nl2br(htmlspecialchars($infra_report['description'] ?? 'No additional details provided for this project.')); ?></p>
-                                <?php if (($infra_report['status'] ?? '') === 'approved' && !empty($infra_report['approved_at'])): ?>
-                                    <span class="infra-reports-verified"><i class="fas fa-check-circle"></i> Verified: <?php echo safe_date_fmt($infra_report['approved_at'] ?? ''); ?></span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                        <div class="infra-project-footer">
-                            <button type="button" class="infra-project-btn" onclick="toggleInfraDetails(this)">
-                                <i class="fas fa-eye"></i> View Details
-                            </button>
-                            <button type="button" class="infra-project-btn" onclick="showInfraReportOnMap(this)">
-                                <i class="fas fa-map-marked-alt"></i> View on Map
-                            </button>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-
-                <div class="infra-reports-empty" id="infraReportsNoResults" style="display:none;">
-                    <div class="infra-reports-empty-icon">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <h4>No Matching Projects</h4>
-                    <p>No infrastructure projects match your search.</p>
-                </div>
-
-                <?php if (!$infraHasRows): ?>
-                <div class="infra-reports-empty">
-                    <div class="infra-reports-empty-icon">
-                        <i class="fas fa-hard-hat"></i>
-                    </div>
-                    <h4>No Verified Infrastructure Projects</h4>
-                    <p>Infrastructure projects will appear here once they are verified by the LGU.</p>
-                </div>
-                <?php endif; ?>
             </div>
         </div>
     </section>
-
-    <!-- Infrastructure Project Location Map Modal -->
-    <div class="modal fade" id="infraMapModal" tabindex="-1" aria-labelledby="infraMapModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="infraMapModalLabel">
-                        <i class="fas fa-map-marked-alt"></i> Infrastructure Project Location
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="infra-map-card" id="infrastructureMapCard">
-                        <div class="infra-map-toolbar">
-                            <div class="gis-map-search-box">
-                                <label for="infraMapSearchInput" class="visually-hidden">Search for a location in Quezon City</label>
-                                <input type="text" id="infraMapSearchInput" placeholder="Search for a location..." class="gis-search-input" autocomplete="off">
-                                <button type="button" class="gis-map-btn gis-search-btn" id="infraMapSearchBtn" title="Search" aria-label="Search for a location"><i class="fas fa-search"></i></button>
-                                <div id="infraMapSearchResults" class="gis-search-results"></div>
-                            </div>
-                            <button type="button" class="gis-map-btn" id="toggleInfraTrafficBtn" title="Toggle traffic overlay"><i class="fas fa-car"></i> Traffic</button>
-                            <span class="infra-map-count"><i class="fas fa-hard-hat"></i> <?php echo count($infra_reports); ?> report(s)</span>
-                        </div>
-                        <div class="infra-map-canvas" id="infrastructureMap" role="region" aria-label="Map of verified infrastructure reports in Quezon City"></div>
-                        <div class="infra-map-legend">
-                            <span class="legend-item"><span class="legend-dot" style="background:#16a34a;"></span> Approved</span>
-                            <span class="legend-item"><span class="legend-dot" style="background:#1381b6;"></span> In Progress</span>
-                            <span class="legend-item"><span class="legend-dot" style="background:#28a745;"></span> Completed</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- About Section -->
     <section class="section" id="about" <?php echo ($access_settings['hide_about'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
@@ -3581,425 +3362,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <!-- Citizen Report (map, OTP, photo upload, submit) -->
     <script src="assets/js/citizen-report.js?v=<?php echo htmlspecialchars((string)(@filemtime(__DIR__ . '/assets/js/citizen-report.js') ?: $asset_version), ENT_QUOTES, 'UTF-8'); ?>"></script>
 
-    <!-- Infrastructure Project Updates GIS Map (same engine/features as the staff & citizen GIS maps) -->
-    <script>
-    (function () {
-        'use strict';
-
-        var CONFIG = window.LG_ASSET_CONFIG || {};
-        var TOMTOM_API_KEY = CONFIG.TOMTOM_API_KEY || '';
-        var QC_GEOJSON = window.QC_GEOJSON || null;
-        var mapEl = document.getElementById('infrastructureMap');
-        if (!mapEl || typeof L === 'undefined') return;
-
-        var PROJECTS = <?php echo json_encode($infrastructure_updates, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-
-        var INFRA_REPORTS = <?php echo json_encode(array_values(array_map(function ($r) {
-            return array_diff_key($r, array_flip(['_ipms_progress', '_ipms_start_date', '_ipms_end_date']));
-        }, array_filter($infra_reports, function ($r) {
-            return !empty($r['latitude']) && !empty($r['longitude']) &&
-                is_numeric($r['latitude']) && is_numeric($r['longitude']);
-        }))), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-
-        var map = null;
-        var trafficLayer = null;
-        var trafficVisible = true;
-        var reportMarkers = {};
-        var activePinId = null;
-
-        function statusColor(status) {
-            switch (String(status || '').toLowerCase()) {
-                case 'active': return '#1381b6';
-                case 'completed': return '#28a745';
-                case 'delayed': return '#dc3545';
-                case 'pending': return '#ffc107';
-                default: return '#6c757d';
-            }
-        }
-
-        function prettyStatus(status) {
-            return String(status || 'active').toLowerCase().replace(/[-_]/g, ' ').replace(/^\w/, function (c) { return c.toUpperCase(); });
-        }
-
-        function escapeHtml(t) {
-            if (t === null || t === undefined) return '';
-            var d = document.createElement('div');
-            d.textContent = String(t);
-            return d.innerHTML;
-        }
-
-        function initInfrastructureMap() {
-            var latlngs = (QC_GEOJSON && QC_GEOJSON.coordinates && QC_GEOJSON.coordinates[0] && QC_GEOJSON.coordinates[0][0])
-                ? QC_GEOJSON.coordinates[0][0].map(function (c) { return [c[1], c[0]]; })
-                : [[14.61, 120.97], [14.71, 121.12]];
-            var bounds = L.latLngBounds(latlngs);
-
-            map = L.map('infrastructureMap', {
-                maxBounds: bounds.pad(0.12),
-                maxBoundsViscosity: 1.0,
-                zoomControl: true
-            }).setView([14.651417, 121.04917], 13);
-
-            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-                attribution: '&copy; TomTom',
-                maxZoom: 18
-            }).addTo(map);
-
-            trafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + TOMTOM_API_KEY, {
-                attribution: '&copy; TomTom Traffic',
-                opacity: 0.7
-            }).addTo(map);
-
-            // Quezon City administrative boundary
-            if (QC_GEOJSON && QC_GEOJSON.coordinates) {
-                L.polygon(latlngs, {
-                    color: '#3762c8',
-                    weight: 2,
-                    opacity: 0.8,
-                    fillOpacity: 0.06,
-                    fillColor: '#3762c8'
-                }).addTo(map);
-            }
-
-            // QC district overlay (same GeoJSON used by the staff GIS map)
-            fetch('lgu_staff/pages/api/qc_districts.geojson')
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    if (!data || !data.features || !data.features.length) return;
-                    var colors = { 1: '#3b82f6', 2: '#8b5cf6', 3: '#10b981', 4: '#f59e0b', 5: '#ef4444', 6: '#06b6d4' };
-                    L.geoJSON(data, {
-                        style: function (feature) {
-                            var dNum = parseInt(String(feature.properties.district_number || feature.properties.district || '').replace(/\D/g, '')) || 1;
-                            return {
-                                color: colors[dNum] || '#3762c8',
-                                weight: 1.5,
-                                opacity: 0.55,
-                                fillOpacity: 0.05,
-                                fillColor: colors[dNum] || '#3762c8',
-                                dashArray: '5,5'
-                            };
-                        },
-                        onEachFeature: function (feature, layer) {
-                            layer.bindTooltip(feature.properties.district_name || feature.properties.district || 'District', { sticky: true });
-                        }
-                    }).addTo(map);
-                })
-                .catch(function () {});
-
-            // Infrastructure project markers (only rows that carry coordinates)
-            (PROJECTS || []).forEach(function (p) {
-                var lat = parseFloat(p.latitude);
-                var lng = parseFloat(p.longitude);
-                if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return;
-                var color = statusColor(p.status);
-                var icon = L.divIcon({
-                    html: '<div style="background:' + color + ';color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);"><i class="fas fa-hard-hat"></i></div>',
-                    className: '',
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15]
-                });
-                var lines = ['<b>' + escapeHtml(p.name) + '</b>'];
-                if (p.location) lines.push('<small><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(p.location) + '</small>');
-                if (typeof p.progress === 'number') lines.push('<small><i class="fas fa-tasks"></i> Progress: ' + parseInt(p.progress, 10) + '%</small>');
-                if (p.start_date) lines.push('<small><i class="fas fa-calendar-check"></i> ' + escapeHtml(String(p.start_date).slice(0, 10)) + '</small>');
-                if (p.budget) lines.push('<small><i class="fas fa-coins"></i> Budget: &#8369;' + Number(p.budget).toLocaleString(undefined, { maximumFractionDigits: 0 }) + '</small>');
-                lines.push('<span style="color:' + color + ';font-weight:700;">' + escapeHtml(prettyStatus(p.status)) + '</span>');
-                L.marker([lat, lng], { icon: icon }).addTo(map).bindPopup(lines.join('<br>'));
-            });
-
-            // Infrastructure report markers (verified reports that carry coordinates)
-            (INFRA_REPORTS || []).forEach(function (r) {
-                var lat = parseFloat(r.latitude);
-                var lng = parseFloat(r.longitude);
-                if (isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) return;
-                var color = reportStatusColor(r.status);
-                var icon = reportPinIcon(color, false);
-                var lines = ['<b>' + escapeHtml(r.title || r.report_id) + '</b>'];
-                if (r.report_id) lines.push('<small><i class="fas fa-hashtag"></i> ' + escapeHtml(r.report_id) + '</small>');
-                if (r.location) lines.push('<small><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(r.location) + '</small>');
-                if (r.assigned_to) lines.push('<small><i class="fas fa-user-cog"></i> ' + escapeHtml(r.assigned_to) + '</small>');
-                lines.push('<span style="color:' + color + ';font-weight:700;">' + escapeHtml(prettyStatus(r.status)) + '</span>');
-                var marker = L.marker([lat, lng], { icon: icon }).addTo(map).bindPopup(lines.join('<br>'));
-                reportMarkers[r.report_id] = marker;
-            });
-
-            map.setMinZoom(10);
-            map.setMaxZoom(18);
-
-            setTimeout(function () { if (map) map.invalidateSize(); }, 400);
-        }
-
-        function reportStatusColor(status) {
-            switch (String(status || '').toLowerCase().replace(/[\s_]+/g, '-')) {
-                case 'approved': return '#16a34a';
-                case 'in-progress': return '#1381b6';
-                case 'completed': case 'resolved': return '#28a745';
-                case 'pending': return '#d97706';
-                case 'cancelled': case 'rejected': return '#dc3545';
-                default: return '#6c757d';
-            }
-        }
-
-        // Classic pin-shaped marker for a report location.
-        function reportPinIcon(color, active) {
-            return L.divIcon({
-                html: '<div class="infra-map-pin' + (active ? ' infra-pin-active' : '') + '">' +
-                    '<span class="infra-pin-pulse"></span>' +
-                    '<div class="infra-pin-head" style="background:' + color + ';"><i class="fas fa-hard-hat"></i></div>' +
-                    '</div>',
-                className: '',
-                iconSize: [34, 44],
-                iconAnchor: [17, 42],
-                popupAnchor: [0, -40]
-            });
-        }
-
-        // Open the location map modal and focus the clicked report's location.
-        window.showInfraReportOnMap = function (btn) {
-            var card = btn.closest('.infra-project-card');
-            if (!card) return;
-            var id = card.getAttribute('data-id');
-            var title = card.querySelector('.infra-project-title');
-            var titleText = title ? title.textContent.trim() : id;
-            var locText = card.getAttribute('data-loc') || '';
-            var lat = parseFloat(card.getAttribute('data-lat'));
-            var lng = parseFloat(card.getAttribute('data-lng'));
-            var hasCoords = !isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng);
-
-            var modalEl = document.getElementById('infraMapModal');
-            if (!modalEl) return;
-
-            var modalTitle = document.getElementById('infraMapModalLabel');
-            if (modalTitle) {
-                modalTitle.innerHTML = '<i class="fas fa-map-marked-alt"></i> ' + (titleText ? escapeHtml(titleText) : 'Infrastructure Project Location');
-            }
-
-            if (window.bootstrap) {
-                var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-                modal.show();
-            }
-
-            function placeMarker(tLat, tLng) {
-                map.setView([tLat, tLng], 17);
-                var existing = reportMarkers[id];
-                if (existing) {
-                    existing.setLatLng([tLat, tLng]);
-                    existing.openPopup();
-                    activePinId = id;
-                    updateActivePin();
-                    return;
-                }
-                var color = reportStatusColor(card.getAttribute('data-status') || 'approved');
-                var icon = reportPinIcon(color, true);
-                var lines = ['<b>' + escapeHtml(titleText) + '</b>'];
-                if (id) lines.push('<small><i class="fas fa-hashtag"></i> ' + escapeHtml(id) + '</small>');
-                if (locText) lines.push('<small><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(locText) + '</small>');
-                var marker = L.marker([tLat, tLng], { icon: icon }).addTo(map).bindPopup(lines.join('<br>')).openPopup();
-                reportMarkers[id] = marker;
-                activePinId = id;
-            }
-
-            // Add a pulsing ring to the pin of the currently focused report.
-            function updateActivePin() {
-                Object.keys(reportMarkers).forEach(function (key) {
-                    var el = reportMarkers[key].getElement();
-                    var pinEl = el ? el.querySelector('.infra-map-pin') : null;
-                    if (pinEl) pinEl.classList.toggle('infra-pin-active', key === activePinId);
-                });
-            }
-
-            function focusReport() {
-                if (!map) return;
-                if (hasCoords) {
-                    placeMarker(lat, lng);
-                    return;
-                }
-                if (locText && window.TomTomServices) {
-                    window.TomTomServices.poiSearch(locText, { limit: 1 }).then(function (data) {
-                        if (data.success && data.data && data.data.results && data.data.results[0]) {
-                            var pos = data.data.results[0].position || {};
-                            if (pos.lat && pos.lon) {
-                                placeMarker(parseFloat(pos.lat), parseFloat(pos.lon));
-                                return;
-                            }
-                        }
-                        map.setView([14.651417, 121.04917], 13);
-                    });
-                    return;
-                }
-                map.setView([14.651417, 121.04917], 13);
-            }
-
-            if (modalEl.classList.contains('show')) {
-                focusReport();
-            } else {
-                modalEl.addEventListener('shown.bs.modal', function handler() {
-                    modalEl.removeEventListener('shown.bs.modal', handler);
-                    focusReport();
-                });
-            }
-        };
-
-        function infraMapSearch() {
-            var q = document.getElementById('infraMapSearchInput').value.trim();
-            var resultsDiv = document.getElementById('infraMapSearchResults');
-            if (!q || !window.TomTomServices) return;
-            window.TomTomServices.poiSearch(q, { limit: 8 }).then(function (data) {
-                if (!data.success || !data.data || !data.data.results) {
-                    resultsDiv.style.display = 'none';
-                    return;
-                }
-                resultsDiv.innerHTML = data.data.results.map(function (r) {
-                    var pos = r.position || {};
-                    return '<div class="gis-search-result-item" data-lat="' + (pos.lat || 0) + '" data-lng="' + (pos.lon || 0) + '">' +
-                        '<i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>' + (r.poi && r.poi.name || (r.address && r.address.freeformAddress) || 'Unknown') +
-                        '<small>' + ((r.address && r.address.freeformAddress) || '') + '</small></div>';
-                }).join('');
-                resultsDiv.style.display = 'block';
-            });
-        }
-
-        function toggleInfraTraffic() {
-            if (!map || !trafficLayer) return;
-            var btn = document.getElementById('toggleInfraTrafficBtn');
-            if (trafficVisible) {
-                map.removeLayer(trafficLayer);
-                btn.classList.add('inactive-toggle');
-            } else {
-                trafficLayer.addTo(map);
-                btn.classList.remove('inactive-toggle');
-            }
-            trafficVisible = !trafficVisible;
-        }
-
-        var searchBtn = document.getElementById('infraMapSearchBtn');
-        if (searchBtn) searchBtn.addEventListener('click', infraMapSearch);
-
-        var searchInput = document.getElementById('infraMapSearchInput');
-        if (searchInput) searchInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') infraMapSearch(); });
-
-        var searchResults = document.getElementById('infraMapSearchResults');
-        if (searchResults) {
-            searchResults.addEventListener('click', function (e) {
-                var item = e.target.closest('.gis-search-result-item');
-                if (!item || !map) return;
-                searchResults.style.display = 'none';
-                map.setView([parseFloat(item.dataset.lat), parseFloat(item.dataset.lng)], 15);
-            });
-        }
-
-        document.addEventListener('click', function (e) {
-            if (!e.target.closest('.infra-map-toolbar') && searchResults) {
-                searchResults.style.display = 'none';
-            }
-        });
-
-        var trafficBtn = document.getElementById('toggleInfraTrafficBtn');
-        if (trafficBtn) trafficBtn.addEventListener('click', toggleInfraTraffic);
-
-        window.addEventListener('resize', function () {
-            if (map) map.invalidateSize();
-        });
-
-        initInfrastructureMap();
-
-        // Invalidate Leaflet when the modal is opened so tiles render correctly.
-        var infraMapModalEl = document.getElementById('infraMapModal');
-        if (infraMapModalEl && window.bootstrap) {
-            infraMapModalEl.addEventListener('shown.bs.modal', function () {
-                if (map) setTimeout(function () { map.invalidateSize(); }, 100);
-            });
-        }
-    })();
-    </script>
-
-    <!-- Infrastructure Reports Panel search & sort -->
-    <script>
-        (function () {
-            'use strict';
-
-            var infraSortState = 'asc';
-
-            // Search matches Report #, title, location, department, status, priority on the cards grid.
-            window.panelInfraSearch = function () {
-                var input = document.getElementById('infraReportsSearchInput');
-                var grid = document.getElementById('infraProjectsGrid');
-                var noResults = document.getElementById('infraReportsNoResults');
-                if (!input || !grid) return;
-                var q = input.value.trim().toLowerCase();
-                var cards = grid.querySelectorAll('.infra-project-card');
-                var visible = 0;
-                cards.forEach(function (card) {
-                    var haystack = (card.getAttribute('data-search') || '').toLowerCase();
-                    var show = (q === '' || haystack.indexOf(q) !== -1);
-                    card.style.display = show ? '' : 'none';
-                    if (show) visible++;
-                });
-                if (noResults) noResults.style.display = visible === 0 ? '' : 'none';
-            };
-
-            function cellCompare(a, b) {
-                var tokensA = a.toLowerCase().match(/\d+|\D+/g) || [];
-                var tokensB = b.toLowerCase().match(/\d+|\D+/g) || [];
-                var count = Math.max(tokensA.length, tokensB.length);
-                for (var i = 0; i < count; i++) {
-                    var ta = tokensA[i] === undefined ? '' : tokensA[i];
-                    var tb = tokensB[i] === undefined ? '' : tokensB[i];
-                    if (ta === tb) continue;
-                    var na = /^\d+$/.test(ta);
-                    var nb = /^\d+$/.test(tb);
-                    if (na && nb) {
-                        var diff = ta.length - tb.length;
-                        if (diff !== 0) return diff;
-                        var cmp = ta.localeCompare(tb);
-                        if (cmp !== 0) return cmp;
-                    } else {
-                        var cmp = ta.localeCompare(tb);
-                        if (cmp !== 0) return cmp;
-                    }
-                }
-                return 0;
-            }
-
-            window.toggleInfraReportsSort = function () {
-                var grid = document.getElementById('infraProjectsGrid');
-                if (!grid) return;
-                infraSortState = infraSortState === 'asc' ? 'desc' : 'asc';
-                var dir = infraSortState === 'asc' ? 1 : -1;
-                var visible = Array.prototype.slice.call(grid.querySelectorAll('.infra-project-card'))
-                    .filter(function (card) { return card.style.display !== 'none'; });
-                visible.sort(function (a, b) {
-                    var idText = function (card) { return (card.getAttribute('data-id') || '').trim(); };
-                    return cellCompare(idText(a).toLowerCase(), idText(b).toLowerCase()) * dir;
-                });
-                visible.forEach(function (card) { grid.appendChild(card); });
-                var hidden = Array.prototype.slice.call(grid.querySelectorAll('.infra-project-card'))
-                    .filter(function (card) { return card.style.display === 'none'; });
-                hidden.forEach(function (card) { grid.appendChild(card); });
-            };
-
-            window.toggleInfraDetails = function (btn) {
-                var card = btn.closest('.infra-project-card');
-                if (!card) return;
-                var desc = card.querySelector('.infra-project-desc');
-                if (!desc) return;
-                var hidden = desc.hasAttribute('hidden');
-                if (hidden) {
-                    desc.removeAttribute('hidden');
-                    btn.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Details';
-                } else {
-                    desc.setAttribute('hidden', '');
-                    btn.innerHTML = '<i class="fas fa-eye"></i> View Details';
-                }
-            };
-
-            var input = document.getElementById('infraReportsSearchInput');
-            if (input) {
-                input.addEventListener('input', function () { window.panelInfraSearch(); });
-            }
-        })();
-    </script>
-
     <!-- Terms and Conditions Modal -->
     <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
@@ -4042,5 +3404,55 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     </div>
 
     <script src="assets/js/terms-modal.js?v=<?php echo $asset_version; ?>"></script>
+
+    <!-- Smart Mobility Hub Features -->
+    <script>
+    (function(){
+        'use strict';
+
+        // 5. Emergency Ticker dismiss (persist for session)
+        window.dismissEmergencyTicker = function(){
+            var el = document.getElementById('emergencyTicker');
+            if(el){ el.classList.add('dismissed'); try{ sessionStorage.setItem('qc_emergency_dismissed','1'); }catch(e){} }
+        };
+        try{ if(sessionStorage.getItem('qc_emergency_dismissed')==='1'){ var t=document.getElementById('emergencyTicker'); if(t) t.classList.add('dismissed'); } }catch(e){}
+
+        // 3. Road Updates Filter Bar (client-side, no reload, does not touch PHP data)
+        var pills = document.querySelectorAll('.filter-pill');
+        var items = document.querySelectorAll('.road-update-item');
+        var emptyState = document.getElementById('filterEmptyState');
+        function applyFilter(cat){
+            var visible=0;
+            items.forEach(function(card){
+                var c = card.getAttribute('data-category') || 'other';
+                var show = (cat==='all' || c===cat);
+                card.style.display = show ? '' : 'none';
+                card.classList.toggle('filtered-out', !show);
+                if(show) visible++;
+            });
+            if(emptyState){ emptyState.classList.toggle('show', visible===0 && items.length>0); }
+            pills.forEach(function(p){
+                var active = p.getAttribute('data-filter')===cat;
+                p.classList.toggle('active', active);
+                p.setAttribute('aria-selected', active ? 'true':'false');
+            });
+        }
+        pills.forEach(function(p){
+            p.addEventListener('click', function(){ applyFilter(this.getAttribute('data-filter')); });
+        });
+        // keyboard accessible handled by button role
+
+        // 2. Live Traffic — inline #liveTrafficMap removed per user request (FAB provides the GIS map).
+        // Keep toggleLiveTraffic as a backward-compatible shim that opens the public-gis FAB and ensures traffic flow is visible.
+        window.toggleLiveTraffic = function(){
+            var fab = document.getElementById('publicGisFab');
+            if(fab) fab.click();
+            setTimeout(function(){
+                var tBtn = document.getElementById('publicToggleTrafficBtn');
+                if(tBtn && tBtn.classList.contains('is-off')) tBtn.click();
+            }, 450);
+        };
+    })();
+    </script>
 </body>
 </html>

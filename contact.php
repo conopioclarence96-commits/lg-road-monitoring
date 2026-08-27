@@ -156,6 +156,22 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
             .footer-contact-row { justify-content: center; flex-wrap: wrap; }
             .footer-links-row { justify-content: center; gap: 16px; }
         }
+
+        html.dark-mode body { background: #1a1d23; color: #e4e6ea; }
+        html.dark-mode .qc-navbar { background: #1e2229 !important; border-bottom-color: #2d323b; }
+        html.dark-mode .qc-brand-text strong { color: #e4e6ea; }
+        html.dark-mode .qc-brand-text small { color: #93c5fd; }
+        html.dark-mode .hero-bar { background: linear-gradient(135deg, #0e2f43 0%, #115272 100%); }
+        html.dark-mode .section { background: #1a1d23; }
+        html.dark-mode .section-title { color: #e4e6ea; }
+        html.dark-mode .section-subtitle { color: #9ca3af; }
+        html.dark-mode .contact-section { background: #1e2229; }
+        html.dark-mode .contact-info { background: #22262e; border-color: #2d323b; }
+        html.dark-mode .contact-info:hover { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35); }
+        html.dark-mode .contact-icon { background: rgba(147, 197, 253, 0.1); color: #93c5fd; }
+        html.dark-mode .contact-info h4 { color: #e4e6ea; }
+        html.dark-mode .contact-info p { color: #9ca3af; }
+        html.dark-mode footer.qc-footer { background: linear-gradient(135deg, #0e2f43 0%, #115272 100%); }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
