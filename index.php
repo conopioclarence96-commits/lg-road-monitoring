@@ -3640,9 +3640,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 {name:'Litex Market (Dulo / Terminal)', lat:14.7002, lng:121.0876, type:'stop'}
             ]},
             3: { name:'Route 3: Welcome Rotonda to Aurora-Katipunan', corridor:'E. Rodriguez / Aurora Blvd', waypoints:[
-                {name:'Welcome Rotonda / E. Rodriguez Sr. Avenue (Mabuhay Rotonda)', lat:14.6150, lng:121.0020, type:'stop'},
+                {name:'Welcome Rotonda / E. Rodriguez Sr. Avenue (Mabuhay Rotonda)', lat:14.6178, lng:121.0017, type:'stop'},
                 {name:'E. Rodriguez Sr. Avenue (Quezon Institute)', lat:14.6185, lng:121.0180, type:'stop'},
-                {name:'E. Rodriguez Sr. Avenue (St. Luke’s / National Children’s Hospital)', lat:14.6210, lng:121.0255, type:'stop'},
+                {name:'E. Rodriguez Sr. Avenue (St. Luke’s / National Children’s Hospital)', lat:14.6227, lng:121.0233, type:'stop'},
                 {name:'E. Rodriguez Sr. Avenue corner Gilmore Interchange', lat:14.6225, lng:121.0330, type:'stop'},
                 {name:'Kamuning Road (Delgado Hospital / Kamuning Market)', lat:14.6275, lng:121.0375, type:'stop'},
                 {name:'Kamuning Road (K-E Street)', lat:14.6280, lng:121.0430, type:'stop'},
@@ -3650,9 +3650,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 {name:'Kalayaan Avenue corner Kamias Interchange', lat:14.6360, lng:121.0605, type:'stop'},
                 {name:'Kamias Road corner Anonas Road', lat:14.6285, lng:121.0630, type:'stop'},
                 {name:'Anonas Road (Chico Street)', lat:14.6260, lng:121.0635, type:'stop'},
-                {name:'LRT-2 Anonas Station, Aurora Blvd.', lat:14.6235, lng:121.0620, type:'stop'},
+                {name:'LRT-2 Anonas Station, Aurora Blvd.', lat:14.6280, lng:121.0647, type:'stop'},
                 {name:'Aurora Boulevard (J.P. Rizal Street)', lat:14.6220, lng:121.0600, type:'stop'},
-                {name:'Aurora Boulevard corner Katipunan Interchange (Dulo)', lat:14.6205, lng:121.0590, type:'stop'}
+                {name:'Aurora Boulevard corner Katipunan Interchange (Dulo)', lat:14.6305, lng:121.0730, type:'stop'}
             ]},
             4: { name:'Route 4: QC Hall to General Luis', corridor:'Mindanao / Quirino Hwy', waypoints:[
                 {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
