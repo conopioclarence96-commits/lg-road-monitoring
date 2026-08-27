@@ -2289,6 +2289,60 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode #jeepneyRoutesModal .modal-body::-webkit-scrollbar-thumb,
         html.dark-mode #bikeLaneModal .modal-body::-webkit-scrollbar-thumb { background: #334155; }
     </style>
+    <style>
+        /* View Route Map Modal — GIS sized for modal only (not fullscreen like .public-gis-dialog) */
+        #viewRouteMapModal .modal-dialog { max-width: 860px; }
+        #viewRouteGisMap {
+            width: 100%;
+            height: 420px;
+            min-height: 320px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(55, 98, 200, 0.2);
+            background: #e8eef8;
+            z-index: 1;
+        }
+        .view-route-gis-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .view-route-gis-wrap .public-gis-toolbar {
+            margin-bottom: 0;
+        }
+        #viewRouteMapModal .public-gis-legend {
+            font-size: 11px;
+            padding: 5px 10px;
+        }
+        #viewRouteMapModal .public-gis-search-box input {
+            width: 150px;
+        }
+        #viewRouteMapModal .search-results-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            z-index: 1055;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+        #viewRouteMapModal .search-result-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        #viewRouteMapModal .search-result-item:hover { background: rgba(55,98,200,0.08); }
+        #viewRouteMapModal .search-result-item small { color:#666; display:block; }
+        @media (max-width: 768px) {
+            #viewRouteGisMap { height: 320px; min-height: 260px; }
+            #viewRouteMapModal .public-gis-search-box input { width: 120px; }
+        }
+    </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
 </head>
@@ -2689,6 +2743,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <li><strong>Cubao (Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>10–15 min</span></div>
+                                    <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
                                 </div>
                             </div>
                             <!-- Route 2 -->
@@ -2708,6 +2763,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <li><strong>Litex (Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>10–15 min</span></div>
+                                    <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
                                 </div>
                             </div>
                             <!-- Route 3 -->
@@ -2727,6 +2783,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <li><strong>Katipunan (Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15–20 min</span></div>
+                                    <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
                                 </div>
                             </div>
                             <!-- Route 4 -->
@@ -2745,6 +2802,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <li><strong>General Luis Avenue (Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15–20 min</span></div>
+                                    <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
                                 </div>
                             </div>
                             <!-- Route 5 -->
@@ -2763,6 +2821,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <li><strong>Mindanao Avenue (Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15–20 min</span></div>
+                                    <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
                                 </div>
                             </div>
                             <!-- Route 6 -->
@@ -2780,6 +2839,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <li><strong>Gilmore (Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15 min</span></div>
+                                    <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
                                 </div>
                             </div>
                             <!-- Route 7 -->
@@ -2796,6 +2856,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <li><strong>Ortigas Avenue (Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>20 min</span></div>
+                                    <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
                                 </div>
                             </div>
                             <!-- Route 8 -->
@@ -2813,6 +2874,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         <li><strong>Muñoz (Terminal)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>15 min</span></div>
+                                    <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
                                 </div>
                             </div>
                         </div>
@@ -2830,6 +2892,72 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         </div>
 
                         <p class="small text-muted text-center mt-3 mb-0"><i class="fas fa-exclamation-circle me-1"></i> Routes, stops, and intervals may change during holidays, class suspensions, or emergency rerouting — check the <a href="#" onclick="(bootstrap.Modal.getInstance(document.getElementById('qcBusRoutesModal'))||bootstrap.Modal.getOrCreateInstance(document.getElementById('qcBusRoutesModal'))).hide(); setTimeout(()=>document.getElementById('publicGisFab')?.click(), 300); return false;">Live Road Map FAB</a> or official QC Government page for real-time updates.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Route on Map Modal — GIS sized for modal only -->
+    <div class="modal fade" id="viewRouteMapModal" tabindex="-1" aria-labelledby="viewRouteMapModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content" style="border-radius:14px; overflow:hidden;">
+                <div class="modal-header" style="background: linear-gradient(135deg, var(--qc-primary-800) 0%, #1d698b 100%); color:#fff; border-bottom:none; padding:16px 20px;">
+                    <h5 class="modal-title d-flex align-items-center gap-2" id="viewRouteMapModalLabel" style="font-weight:800; font-size:1.05rem; line-height:1.3;">
+                        <span style="width:32px;height:32px;background:rgba(255,255,255,0.18);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;"><i class="fas fa-map-marked-alt"></i></span>
+                        QC Bus Route — Map View
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div class="view-route-gis-wrap">
+                        <div class="public-gis-toolbar">
+                            <div class="public-gis-toolbar-left">
+                                <div class="public-gis-legend">
+                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#dc2626;"></span> Accident</span>
+                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#111827;"></span> Closed</span>
+                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#f59e0b;"></span> Jam</span>
+                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#ca8a04;"></span> Works</span>
+                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#0284c7;"></span> Bus</span>
+                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#475569;"></span> Rail</span>
+                                    <span class="public-gis-legend-item"><span class="public-gis-legend-dot" style="background:#dc2626;"></span> PT route</span>
+                                </div>
+                                <div class="public-gis-search-box">
+                                    <input type="text" id="viewRouteMapSearchInput" placeholder="Search places..." autocomplete="off" aria-label="Search places">
+                                    <button type="button" class="public-gis-btn" id="viewRouteMapSearchBtn" title="Search"><i class="fas fa-search"></i></button>
+                                    <div id="viewRouteMapSearchResults" class="search-results-dropdown"></div>
+                                </div>
+                            </div>
+                            <div class="public-gis-toolbar-right">
+                                <div class="public-gis-tools" id="viewRouteMapTools">
+                                    <button type="button" class="public-gis-btn public-gis-tools-toggle" id="viewRouteToolsDropdownBtn" aria-haspopup="true" aria-expanded="false">
+                                        <i class="fas fa-tools"></i> Tools
+                                        <span class="public-gis-tools-toggle-count" id="viewRouteToolsActiveCount" style="display:none;">0</span>
+                                    </button>
+                                    <div class="public-gis-tools-menu" id="viewRouteToolsDropdownMenu" role="menu" aria-label="Map tools">
+                                        <div class="public-gis-tools-heading">Layers</div>
+                                        <button type="button" class="public-gis-tools-item is-on" id="viewRouteToggleTrafficBtn" role="menuitemcheckbox" aria-checked="true">
+                                            <span class="public-gis-tools-item-main"><i class="fas fa-car"></i> Traffic</span>
+                                            <span class="public-gis-tools-item-state">On</span>
+                                        </button>
+                                        <button type="button" class="public-gis-tools-item is-off" id="viewRouteToggleAccidentsBtn" role="menuitemcheckbox" aria-checked="false">
+                                            <span class="public-gis-tools-item-main"><i class="fas fa-exclamation-triangle"></i> Incidents</span>
+                                            <span class="public-gis-tools-item-state">Off</span>
+                                        </button>
+                                        <button type="button" class="public-gis-tools-item is-off" id="viewRouteToggleBusBtn" role="menuitemcheckbox" aria-checked="false">
+                                            <span class="public-gis-tools-item-main"><i class="fas fa-bus"></i> Bus</span>
+                                            <span class="public-gis-tools-item-state">Off</span>
+                                        </button>
+                                        <button type="button" class="public-gis-tools-item is-off" id="viewRouteToggleRailBtn" role="menuitemcheckbox" aria-checked="false">
+                                            <span class="public-gis-tools-item-main"><i class="fas fa-train"></i> Rail</span>
+                                            <span class="public-gis-tools-item-state">Off</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="viewRouteGisMap" role="region" aria-label="QC Bus Route Map"></div>
+                        <small class="text-muted text-center d-block"><i class="fas fa-info-circle me-1"></i> Modal-sized GIS — same layers as Live Road Map, constrained to modal.</small>
                     </div>
                 </div>
             </div>
@@ -3438,6 +3566,72 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 if(tBtn && tBtn.classList.contains('is-off')) tBtn.click();
             }, 450);
         };
+    })();
+    </script>
+
+    <!-- View Route Map Modal GIS (modal-sized, not fullscreen like .public-gis-dialog) -->
+    <script>
+    (function(){
+        'use strict';
+        var vrMap = null, vrTrafficLayer = null, vrTrafficVisible = true, vrMapInited = false, vrSearchMarker = null;
+        var QC_CENTER = [14.651417, 121.04917];
+        function getTomTomKey(){ return (window.LG_ASSET_CONFIG && window.LG_ASSET_CONFIG.TOMTOM_API_KEY) || window.TOMTOM_API_KEY || ''; }
+        function initViewRouteMap(){
+            if(vrMapInited || typeof L === 'undefined') return;
+            var el = document.getElementById('viewRouteGisMap');
+            if(!el) return;
+            var key = getTomTomKey();
+            vrMap = L.map('viewRouteGisMap', { zoomControl: true }).setView(QC_CENTER, 13);
+            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + key, { attribution: '\u00A9 TomTom', maxZoom: 18 }).addTo(vrMap);
+            vrTrafficLayer = L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + key, { attribution: '\u00A9 TomTom Traffic', opacity: 0.7, maxZoom: 18 }).addTo(vrMap);
+            vrTrafficVisible = true;
+            vrMapInited = true;
+            setTimeout(function(){ if(vrMap) vrMap.invalidateSize(); }, 100);
+        }
+        function setBtnState(btnId, on){
+            var btn = document.getElementById(btnId);
+            if(!btn) return;
+            btn.classList.toggle('is-on', !!on);
+            btn.classList.toggle('is-off', !on);
+            btn.setAttribute('aria-checked', on ? 'true' : 'false');
+            var st = btn.querySelector('.public-gis-tools-item-state');
+            if(st) st.textContent = on ? 'On' : 'Off';
+        }
+        document.addEventListener('DOMContentLoaded', function(){
+            var modalEl = document.getElementById('viewRouteMapModal');
+            if(!modalEl) return;
+            modalEl.addEventListener('shown.bs.modal', function(){
+                initViewRouteMap();
+                if(vrMap) setTimeout(function(){ vrMap.invalidateSize(); vrMap.setView(QC_CENTER,13); }, 150);
+            });
+            var tBtn = document.getElementById('viewRouteToolsDropdownBtn');
+            var tMenu = document.getElementById('viewRouteToolsDropdownMenu');
+            if(tBtn && tMenu){
+                tBtn.addEventListener('click', function(e){ e.stopPropagation(); tMenu.classList.toggle('is-open'); tBtn.setAttribute('aria-expanded', tMenu.classList.contains('is-open')?'true':'false'); });
+                document.addEventListener('click', function(e){ if(!e.target.closest('#viewRouteMapTools')){ tMenu.classList.remove('is-open'); tBtn.setAttribute('aria-expanded','false'); }});
+            }
+            var trBtn = document.getElementById('viewRouteToggleTrafficBtn');
+            if(trBtn){ trBtn.addEventListener('click', function(){ if(!vrMap||!vrTrafficLayer) return; vrTrafficVisible=!vrTrafficVisible; if(vrTrafficVisible) vrTrafficLayer.addTo(vrMap); else vrMap.removeLayer(vrTrafficLayer); setBtnState('viewRouteToggleTrafficBtn', vrTrafficVisible); }); }
+            var sInput = document.getElementById('viewRouteMapSearchInput');
+            var sBtn = document.getElementById('viewRouteMapSearchBtn');
+            var sRes = document.getElementById('viewRouteMapSearchResults');
+            function doViewRouteSearch(){
+                if(!sInput || !sInput.value.trim() || !window.TomTomServices) return;
+                window.TomTomServices.poiSearch(sInput.value.trim(), {limit:6}).then(function(data){
+                    if(!data.success || !data.data || !data.data.results){ if(sRes) sRes.style.display='none'; return; }
+                    var results = data.data.results;
+                    if(results[0] && results[0].position && vrMap){ var p=results[0].position; vrMap.setView([p.lat,p.lon],15); if(vrSearchMarker) vrMap.removeLayer(vrSearchMarker); vrSearchMarker=L.marker([p.lat,p.lon]).addTo(vrMap); }
+                    if(!sRes) return;
+                    sRes.innerHTML = results.map(function(r){ var pos=r.position||{}; var name=(r.poi&&r.poi.name)|| (r.address&&r.address.freeformAddress)||'Unknown'; var addr=(r.address&&r.address.freeformAddress)||''; return '<div class="search-result-item" data-lat="'+(pos.lat||0)+'" data-lon="'+(pos.lon||0)+'"><i class="fas fa-map-pin" style="color:#3762c8;margin-right:6px;"></i>'+name+'<small>'+addr+'</small></div>'; }).join('');
+                    sRes.style.display='block';
+                    sRes.querySelectorAll('.search-result-item').forEach(function(item){ item.addEventListener('click', function(){ var lat=parseFloat(item.getAttribute('data-lat')), lon=parseFloat(item.getAttribute('data-lon')); if(vrMap){ vrMap.setView([lat,lon],15); if(vrSearchMarker) vrMap.removeLayer(vrSearchMarker); vrSearchMarker=L.marker([lat,lon]).addTo(vrMap); } sRes.style.display='none'; }); });
+                });
+            }
+            if(sBtn) sBtn.addEventListener('click', doViewRouteSearch);
+            if(sInput) sInput.addEventListener('keydown', function(e){ if(e.key==='Enter') doViewRouteSearch(); });
+            document.addEventListener('click', function(e){ if(sRes && !e.target.closest('.public-gis-search-box')) sRes.style.display='none'; });
+        });
+        window.ViewRouteGisMap = { doSearch: function(){ var b=document.getElementById('viewRouteMapSearchBtn'); if(b) b.click(); } };
     })();
     </script>
 </body>
