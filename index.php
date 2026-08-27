@@ -2821,11 +2821,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     </div>
                                     <div class="small text-muted mb-2"><i class="fas fa-map-pin me-1" style="color:var(--qc-primary-600)"></i> Commonwealth Ave corridor (heaviest demand)</div>
                                     <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>Quezon City Hall (NHA Interchange / Terminal Start)</li>
+                                        <li>Quezon City Hall NHA Interchange (Start)</li>
                                         <li>Commonwealth Avenue (St. Peter Parish Church)</li>
-                                        <li>IBP Road (Maclang General Hospital / Filinvest)</li>
-                                        <li>IBP Road (Quezon City University — Batasan Hills / Sinag-tala)</li>
-                                        <li><strong>IBP Road / Litex (End Station)</strong></li>
+                                        <li>IBP Road (Maclang General Hospital)</li>
+                                        <li>IBP Road (Quezon City University – Batasan Hills)</li>
+                                        <li><strong>Litex / IBP Road (End Station)</strong></li>
                                     </ul>
                                     <div class="d-flex flex-wrap gap-2 small"><span class="badge bg-light text-dark border"><i class="far fa-clock me-1"></i>5AM–9PM</span><span class="badge bg-light text-dark border"><i class="fas fa-sync-alt me-1"></i>10–15 min</span></div>
                                     <button type="button" class="btn btn-sm w-100 mt-3" style="border:1px solid var(--qc-primary-800); color:var(--qc-primary-800); font-weight:700; border-radius:8px; padding:8px 12px;" data-bs-toggle="modal" data-bs-target="#viewRouteMapModal" data-route-id="2" data-route-name="QC Hall to Litex / IBP Road" aria-label="View Route 2 on Map"><i class="fas fa-map-marked-alt me-1"></i> View Route on Map</button>
@@ -3013,7 +3013,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     </div>
     <script type="application/json" id="qcBusRoutesData">[
   { "routeNumber": 1, "name": "QC Hall to Cubao", "keyStops": ["Quezon City Hall Gate 3 Kalayaan Ave.", "Kalayaan Ave. cor. Masigla St.", "Kalayaan Ave. cor. Kamias Rd. Interchange", "Barangay Silangan Hall", "15th Ave. cor. Aurora Blvd.", "Cubao (Araneta City)"] },
-  { "routeNumber": 2, "name": "QC Hall to Litex / IBP Road", "keyStops": ["Quezon City Hall (NHA Interchange / Terminal Start)", "Commonwealth Avenue (St. Peter Parish Church)", "IBP Road (Maclang General Hospital / Filinvest)", "IBP Road (Quezon City University — Batasan Hills / Sinag-tala)", "IBP Road / Litex (End Station)"] },
+  { "routeNumber": 2, "name": "QC Hall to Litex / IBP Road", "keyStops": ["Quezon City Hall NHA Interchange (Start)", "Commonwealth Avenue (St. Peter Parish Church)", "IBP Road (Maclang General Hospital)", "IBP Road (Quezon City University – Batasan Hills)", "Litex / IBP Road (End Station)"] },
   { "routeNumber": 3, "name": "Welcome Rotonda to Aurora-Katipunan", "keyStops": ["Welcome Rotonda", "España Extension", "E. Rodriguez Sr. Avenue", "Gilmore", "Aurora Boulevard", "Katipunan"] },
   { "routeNumber": 4, "name": "QC Hall to General Luis", "keyStops": ["QC Hall", "Mindanao Avenue", "Tandang Sora", "Quirino Highway", "General Luis Avenue"] },
   { "routeNumber": 5, "name": "QC Hall to Mindanao Ave. via Visayas Ave.", "keyStops": ["QC Hall", "North Avenue", "Visayas Avenue", "Congressional Avenue", "Mindanao Avenue"] },
@@ -3639,11 +3639,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var BUS_GIS_ROUTES = {
             1: { name:'Route 1: QC Hall to Cubao — Kalayaan Ave.', corridor:'Kalayaan Ave. via 15th Ave → Aurora Blvd', waypoints: ROUTE1_STOPS },
             2: { name:'Route 2: QC Hall to Litex / IBP Road', corridor:'Commonwealth Ave corridor', waypoints:[
-                {name:'Quezon City Hall (NHA Interchange / Terminal Start)', lat:14.651855, lng:121.049305, type:'stop'},
-                {name:'Commonwealth Avenue (St. Peter Parish Church)', lat:14.653420, lng:121.043510, type:'stop'},
-                {name:'IBP Road (Maclang General Hospital / Filinvest)', lat:14.685320, lng:121.102450, type:'stop'},
-                {name:'IBP Road (Quezon City University — Batasan Hills / Sinag-tala)', lat:14.690850, lng:121.107120, type:'stop'},
-                {name:'IBP Road / Litex (End Station)', lat:14.697410, lng:121.101180, type:'stop'}
+                {name:'Quezon City Hall NHA Interchange (Start)', lat:14.651712, lng:121.049445, type:'stop'},
+                {name:'Commonwealth Avenue (St. Peter Parish Church)', lat:14.653650, lng:121.043320, type:'stop'},
+                {name:'IBP Road (Maclang General Hospital)', lat:14.685240, lng:121.102110, type:'stop'},
+                {name:'IBP Road (Quezon City University – Batasan Hills)', lat:14.690710, lng:121.107310, type:'stop'},
+                {name:'Litex / IBP Road (End Station)', lat:14.697280, lng:121.100950, type:'stop'}
             ]},
             3: { name:'Route 3: Welcome Rotonda to Aurora-Katipunan', corridor:'E. Rodriguez / Aurora Blvd', waypoints:[
                 {name:'Welcome Rotonda', lat:14.6110, lng:121.0335, type:'stop'},
