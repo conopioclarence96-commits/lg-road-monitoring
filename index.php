@@ -3003,10 +3003,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             </div>
                             <div id="viewRouteOverlayCorridor" style="color:#64748b; font-size:10px;"><i class="far fa-clock me-1"></i>Kalayaan Ave. via 15th Ave → Aurora Blvd • Based on official QC Gov Route 1 map</div>
                             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; font-size:9px; font-weight:600;"><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#115272;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Stop</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Start</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#dc2626;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> End</span></div>
-                            <div class="view-route-legend"><span><span class="swatch bus"></span> Bus route (road-following)</span></div>
-                            <div style="color:#64748b; font-size:10px; margin-top:4px;"><i class="fas fa-route me-1" style="color:#115272;"></i>Blue line = road-following bus path • Official QC Gov stops only</div>
+                            <div class="view-route-legend"><span><span class="swatch main"></span> Main road (bus-only corridor)</span><span><span class="swatch bus"></span> Bus route (road-following)</span></div>
+                            <div style="color:#64748b; font-size:10px; margin-top:4px;"><i class="fas fa-bus me-1" style="color:#b45309;"></i>Amber = main road bus-only corridor (Kalayaan → 15th → Aurora) • Blue = live road-following bus path</div>
                         </div>
-                        <small class="text-muted text-center d-block"><i class="fas fa-info-circle me-1"></i> Modal-sized GIS — same layers as Live Road Map, constrained to modal.</small>
+                        <small class="text-muted text-center d-block"><i class="fas fa-info-circle me-1"></i> Modal-sized GIS — amber highlights the main road buses use; blue is the snapped route.</small>
                     </div>
                 </div>
             </div>
@@ -3765,9 +3765,15 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }
         function addMainRoadHighlight(waypoints){
             if(!vrMap || !waypoints || !waypoints.length) return;
-            // yellow main-road line removed per request — keep layer empty (no amber polyline)
+            var mainPts = waypoints.map(function(s){ return [s.lat, s.lng]; });
             vrMainRoadLayer = L.layerGroup().addTo(vrMap);
-        }
+            L.polyline(mainPts, {color:'#f59e0b', weight:14, opacity:0.22, lineCap:'round', lineJoin:'round'}).addTo(vrMainRoadLayer);
+            var mid = waypoints[Math.floor(waypoints.length/2)];
+            if(mid){
+                L.marker([mid.lat, mid.lng], {
+                    icon: L.divIcon({html:'<div style="background:#fffbeb;border:1px solid #f59e0b;color:#92400e;font-size:8px;font-weight:800;padding:2px 6px;border-radius:20px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.15);"><i class="fas fa-bus" style="margin-right:3px;"></i>MAIN ROAD — BUS ONLY</div>', className:'', iconSize:[110,18], iconAnchor:[55,9]})
+                }).addTo(vrMainRoadLayer);
+            }
         }
         function showRouteIndication(routeId){
             routeId = parseInt(routeId,10) || 1;
@@ -3797,9 +3803,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 stopIdx++;
                 var isStart = idx===0, isEnd = idx===waypoints.length-1;
                 var bg = isStart ? '#10b981' : (isEnd ? '#dc2626' : '#115272');
-                var html = '<div style="width:14px;height:14px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);" title="'+s.name+'"></div>';
-                var icon = L.divIcon({html:html, className:'', iconSize:[14,14], iconAnchor:[7,7]});
-                var popup = '<strong style="font-size:12px;">'+s.name+'</strong><br><small style="color:#115272;font-weight:600;">'+(isStart?'Start':isEnd?'End':'Stop')+' '+stopIdx+'/'+stopsOnly.length+' • Official stop</small>';
+                var html = '<div style="width:22px;height:22px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:800;" title="'+s.name+'">'+stopIdx+'</div>';
+                var icon = L.divIcon({html:html, className:'', iconSize:[22,22], iconAnchor:[11,11]});
+                var popup = '<strong style="font-size:12px;">'+s.name+'</strong><br><small style="color:#115272;font-weight:600;">Stop '+stopIdx+'/'+stopsOnly.length+' • Official stop</small>';
                 L.marker([s.lat, s.lng], {icon:icon}).bindPopup(popup).addTo(vrRouteMarkers);
             });
             // fetch road-following geometry point-to-point (turn waypoints still used for routing)
@@ -3915,9 +3921,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 if(qcMainRoadLayer && qcMap){ qcMap.removeLayer(qcMainRoadLayer); qcMainRoadLayer=null; }
             }
             function addQcMainRoadHighlight(waypoints){
-                // yellow line removed per request — no amber polyline
                 if(!qcMap || !waypoints) return;
+                var pts = waypoints.map(function(s){ return [s.lat, s.lng]; });
                 qcMainRoadLayer = L.layerGroup().addTo(qcMap);
+                L.polyline(pts, {color:'#f59e0b', weight:12, opacity:0.22, lineCap:'round', lineJoin:'round'}).addTo(qcMainRoadLayer);
             }
             function showQcBusRoute(routeId){
                 routeId = parseInt(routeId,10)||1;
@@ -3935,9 +3942,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     qcStopIdx++;
                     var isStart = idx===0, isEnd = idx===waypoints.length-1;
                     var bg = isStart ? '#10b981' : (isEnd ? '#dc2626' : '#115272');
-                    var html = '<div style="width:12px;height:12px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);" title="'+s.name+'"></div>';
-                    var icon = L.divIcon({html:html, className:'', iconSize:[12,12], iconAnchor:[6,6]});
-                    L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>'+(isStart?'Start':isEnd?'End':'Stop')+' '+qcStopIdx+'/'+qcStopsOnly.length+'</small>').addTo(qcRouteMarkers);
+                    var html = '<div style="width:20px;height:20px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:8px;font-weight:800;" title="'+s.name+'">'+qcStopIdx+'</div>';
+                    var icon = L.divIcon({html:html, className:'', iconSize:[20,20], iconAnchor:[10,10]});
+                    L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>Stop '+qcStopIdx+'/'+qcStopsOnly.length+'</small>').addTo(qcRouteMarkers);
                 });
                 var promises = [];
                 for(var i=0;i<waypoints.length-1;i++) promises.push(fetchSegmentRoad(waypoints[i], waypoints[i+1]));
