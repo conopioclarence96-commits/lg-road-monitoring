@@ -3679,13 +3679,15 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                  {name:'General Luis cor. Banahaw Street', lat:14.7205, lng:121.0305, type:'stop'},
                  {name:'General Luis cor. SB Road (Dulo / Terminal)', lat:14.7210, lng:121.0290, type:'stop'}
              ]},
-            5: { name:'Route 5: QC Hall to Mindanao Ave. via Visayas Ave.', corridor:'Visayas/Congressional', waypoints:[
-                {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
-                {name:'North Ave.', lat:14.6515, lng:121.0385, type:'turn'},
-                {name:'Visayas Ave.', lat:14.6605, lng:121.0405, type:'stop'},
-                {name:'Congressional Ave.', lat:14.6720, lng:121.0360, type:'stop'},
-                {name:'Mindanao Ave. (Terminal)', lat:14.6735, lng:121.0320, type:'stop'}
-            ]},
+             5: { name:'Route 5: QC Hall to Mindanao Ave. via Visayas Ave.', corridor:'Visayas/Congressional', waypoints:[
+                 {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6509, lng:121.0520, type:'stop'},
+                 {name:'Visayas Ave. — Central Ave.', lat:14.6605, lng:121.0449, type:'stop'},
+                 {name:'Visayas Ave. — Vargas St.', lat:14.6655, lng:121.0445, type:'stop'},
+                 {name:'Congressional Ave. — Visayas Ave.', lat:14.6718, lng:121.0420, type:'stop'},
+                 {name:'Congressional Ave. — Circle C', lat:14.6707, lng:121.0377, type:'stop'},
+                 {name:'Mindanao Ave. — Congressional Ave.', lat:14.6697, lng:121.0326, type:'stop'},
+                 {name:'Mindanao Ave. — Quirino Hwy. (Terminal)', lat:14.6904, lng:121.0284, type:'stop'}
+             ]},
             6: { name:'Route 6: QC Hall to Gilmore', corridor:'East Ave / E. Rodriguez', waypoints:[
                 {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
                 {name:'East Ave.', lat:14.6445, lng:121.0508, type:'turn'},
