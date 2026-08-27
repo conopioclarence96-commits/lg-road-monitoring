@@ -3621,7 +3621,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var QC_CENTER = [14.651417, 121.04917];
         // Full 8 routes — Route 1 detailed per official QC Gov map, others via official keyStops
         var ROUTE1_STOPS = [
-            {name:'Quezon City Hall Materials Recovery Facility (Gate 3 - Simula)', lat:14.6500, lng:121.0500, type:'stop'},
+            {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6479, lng:121.0518, type:'stop'},
             {name:'Masigla & Kalayaan Avenue', lat:14.6395, lng:121.0560, type:'stop'},
             {name:'Bus Stop - Route 3 - Kalayaan Ave cor. Kamias', lat:14.6360, lng:121.0605, type:'stop'},
             {name:'Barangay Silangan Hall', lat:14.6255, lng:121.0600, type:'stop'},
