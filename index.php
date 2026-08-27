@@ -2379,12 +2379,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .view-route1-stop .dot.start { background:#10b981; }
         .view-route1-stop .dot.end { background:#dc2626; }
         .view-route1-arrow { color:#94a3b8; font-size:10px; }
-        /* Bus-only main-road highlight legend */
-        .view-route-legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; font-size:10px; font-weight:700; color:#334155; }
-        .view-route-legend span { display:inline-flex; align-items:center; gap:5px; background:#fff; border:1px solid #e2e8f0; border-radius:20px; padding:3px 8px; }
-        .view-route-legend .swatch { width:14px; height:6px; border-radius:3px; display:inline-block; border:1px solid rgba(0,0,0,0.08); }
-        .view-route-legend .swatch.main { background:#f59e0b; opacity:0.9; }
-        .view-route-legend .swatch.bus { background:#115272; }
         @media (max-width: 768px) {
             #viewRouteGisMap { height: 320px; min-height: 260px; }
             .view-route1-map-overlay { left:8px; right:8px; bottom:12px; padding:8px 10px; }
@@ -3003,10 +2997,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             </div>
                             <div id="viewRouteOverlayCorridor" style="color:#64748b; font-size:10px;"><i class="far fa-clock me-1"></i>Kalayaan Ave. via 15th Ave → Aurora Blvd • Based on official QC Gov Route 1 map</div>
                             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; font-size:9px; font-weight:600;"><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#115272;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Stop</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> Start</span><span style="display:inline-flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;border-radius:50%;background:#dc2626;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);display:inline-block;"></span> End</span></div>
-                            <div class="view-route-legend"><span><span class="swatch main"></span> Main road (bus-only corridor)</span><span><span class="swatch bus"></span> Bus route (road-following)</span></div>
-                            <div style="color:#64748b; font-size:10px; margin-top:4px;"><i class="fas fa-bus me-1" style="color:#b45309;"></i>Amber = main road bus-only corridor (Kalayaan → 15th → Aurora) • Blue = live road-following bus path</div>
+                            <div style="color:#64748b; font-size:10px; margin-top:4px;"><i class="fas fa-route me-1" style="color:#115272;"></i>Point-to-point at every turn • Follows lanes (no bypass) • Official QC Gov</div>
                         </div>
-                        <small class="text-muted text-center d-block"><i class="fas fa-info-circle me-1"></i> Modal-sized GIS — amber highlights the main road buses use; blue is the snapped route.</small>
+                        <small class="text-muted text-center d-block"><i class="fas fa-info-circle me-1"></i> Modal-sized GIS — same layers as Live Road Map, constrained to modal.</small>
                     </div>
                 </div>
             </div>
@@ -3625,17 +3618,22 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var vrMap = null, vrTrafficLayer = null, vrMapInited = false;
         var vrRouteLayer = null, vrRouteMarkers = null;
         var vrRoute1Layer = null, vrRoute1Markers = null; // legacy aliases
-        var vrMainRoadLayer = null;
         var QC_CENTER = [14.651417, 121.04917];
         // Full 8 routes — Route 1 detailed per official QC Gov map, others via official keyStops
-        // Official Q City Bus Route 1 — 6 stops as requested (plotted sequentially, road-following via TomTom)
         var ROUTE1_STOPS = [
-            {name:'Quezon City Hall Gate 3 (Kalayaan Ave.)', lat:14.6479, lng:121.0518, type:'stop'},
-            {name:'Kalayaan Avenue cor. Masigla St.', lat:14.6459, lng:121.0538, type:'stop'},
-            {name:'Kalayaan Avenue cor. Kamias Rd. Interchange', lat:14.6432, lng:121.0549, type:'stop'},
-            {name:'Barangay Silangan Hall', lat:14.6368, lng:121.0599, type:'stop'},
-            {name:'15th Avenue cor. Aurora Boulevard', lat:14.6256, lng:121.0598, type:'stop'},
-            {name:'Cubao (Araneta City / Ali Mall area)', lat:14.6197, lng:121.0526, type:'stop'}
+            {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6479, lng:121.0518, type:'stop'},
+            {name:'Kalayaan Ave. cor. Masigla St.', lat:14.6459, lng:121.0538, type:'stop'},
+            {name:'Kalayaan Ave. — mid-block to Kamias', lat:14.6447, lng:121.0545, type:'turn'},
+            {name:'Kalayaan Ave. cor. Kamias Rd. Interchange', lat:14.6432, lng:121.0549, type:'stop'},
+            {name:'Kalayaan Ave. cor. Anonas St.', lat:14.6415, lng:121.0572, type:'turn'},
+            {name:'Kalayaan Ave. cor. Ermin Garcia St.', lat:14.6395, lng:121.0595, type:'turn'},
+            {name:'Barangay Silangan Hall', lat:14.6378, lng:121.0602, type:'stop'},
+            {name:'Turn: Kalayaan → 15th Ave. (south)', lat:14.6355, lng:121.0606, type:'turn'},
+            {name:'15th Ave. mid-block', lat:14.6320, lng:121.0603, type:'turn'},
+            {name:'15th Ave. cor. Aurora Blvd.', lat:14.6256, lng:121.0598, type:'stop'},
+            {name:'Aurora Blvd. mid (Stanford)', lat:14.6232, lng:121.0575, type:'turn'},
+            {name:'Aurora Blvd. approach to Cubao', lat:14.6210, lng:121.0548, type:'turn'},
+            {name:'Cubao (Araneta City) — Terminal', lat:14.6197, lng:121.0526, type:'stop'}
         ];
         var BUS_GIS_ROUTES = {
             1: { name:'Route 1: QC Hall to Cubao — Kalayaan Ave.', corridor:'Kalayaan Ave. via 15th Ave → Aurora Blvd', waypoints: ROUTE1_STOPS },
@@ -3728,8 +3726,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             if(!window.TomTomServices || !window.TomTomServices.calculateRoute){
                 return Promise.resolve([[from.lat, from.lng],[to.lat, to.lng]]);
             }
-            // fastest prefers main corridors — prevents shortcut through subdivision streets
-            return window.TomTomServices.calculateRoute(from.lat, from.lng, to.lat, to.lng, { routeType:'fast', traffic:'true', vehicleCommercial:'false' }).then(function(data){
+            return window.TomTomServices.calculateRoute(from.lat, from.lng, to.lat, to.lng).then(function(data){
                 if(!data || !data.success || !data.data) return [[from.lat, from.lng],[to.lat, to.lng]];
                 var pts = extractRoutePoints(data.data);
                 return pts.length ? pts : [[from.lat, from.lng],[to.lat, to.lng]];
@@ -3758,23 +3755,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         function clearRoute(){
             if(vrRouteLayer && vrMap){ vrMap.removeLayer(vrRouteLayer); vrRouteLayer=null; }
             if(vrRouteMarkers && vrMap){ vrMap.removeLayer(vrRouteMarkers); vrRouteMarkers=null; }
-            if(vrMainRoadLayer && vrMap){ vrMap.removeLayer(vrMainRoadLayer); vrMainRoadLayer=null; }
             // legacy
             if(vrRoute1Layer && vrMap){ vrMap.removeLayer(vrRoute1Layer); vrRoute1Layer=null; }
             if(vrRoute1Markers && vrMap){ vrMap.removeLayer(vrRoute1Markers); vrRoute1Markers=null; }
-        }
-        function addMainRoadHighlight(waypoints){
-            if(!vrMap || !waypoints || !waypoints.length) return;
-            var mainPts = waypoints.map(function(s){ return [s.lat, s.lng]; });
-            vrMainRoadLayer = L.layerGroup().addTo(vrMap);
-            L.polyline(mainPts, {color:'#f59e0b', weight:14, opacity:0.22, lineCap:'round', lineJoin:'round'}).addTo(vrMainRoadLayer);
-            L.polyline(mainPts, {color:'#b45309', weight:3, opacity:0.35, dashArray:'10 12', lineCap:'round', lineJoin:'round'}).addTo(vrMainRoadLayer);
-            var mid = waypoints[Math.floor(waypoints.length/2)];
-            if(mid){
-                L.marker([mid.lat, mid.lng], {
-                    icon: L.divIcon({html:'<div style="background:#fffbeb;border:1px solid #f59e0b;color:#92400e;font-size:8px;font-weight:800;padding:2px 6px;border-radius:20px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.15);"><i class="fas fa-bus" style="margin-right:3px;"></i>MAIN ROAD — BUS ONLY</div>', className:'', iconSize:[110,18], iconAnchor:[55,9]})
-                }).addTo(vrMainRoadLayer);
-            }
         }
         function showRouteIndication(routeId){
             routeId = parseInt(routeId,10) || 1;
@@ -3793,7 +3776,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             if(!vrMap) return;
             clearRoute();
             var waypoints = BUS_GIS_ROUTES[routeId].waypoints;
-            addMainRoadHighlight(waypoints);
             vrRouteMarkers = L.layerGroup().addTo(vrMap);
             vrRoute1Markers = vrRouteMarkers; // alias
             // only stops are drawn — turn waypoints are kept for road-following routing but no yellow icon
@@ -3904,7 +3886,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 modalEl.addEventListener('hide.bs.modal', function(){ hideRoute1Indication(); });
             }
             // QC Bus Routes modal GIS (first changes visible on localhost)
-            var qcMap = null, qcRouteLayer = null, qcRouteMarkers = null, qcMainRoadLayer = null, qcMapInited = false;
+            var qcMap = null, qcRouteLayer = null, qcRouteMarkers = null, qcMapInited = false;
             function initQcBusMap(){
                 if(qcMapInited || typeof L === 'undefined') return;
                 var el = document.getElementById('qcBusRoutesGisMap');
@@ -3919,14 +3901,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             function clearQcBusRoute(){
                 if(qcRouteLayer && qcMap){ qcMap.removeLayer(qcRouteLayer); qcRouteLayer=null; }
                 if(qcRouteMarkers && qcMap){ qcMap.removeLayer(qcRouteMarkers); qcRouteMarkers=null; }
-                if(qcMainRoadLayer && qcMap){ qcMap.removeLayer(qcMainRoadLayer); qcMainRoadLayer=null; }
-            }
-            function addQcMainRoadHighlight(waypoints){
-                if(!qcMap || !waypoints) return;
-                var pts = waypoints.map(function(s){ return [s.lat, s.lng]; });
-                qcMainRoadLayer = L.layerGroup().addTo(qcMap);
-                L.polyline(pts, {color:'#f59e0b', weight:12, opacity:0.22, lineCap:'round', lineJoin:'round'}).addTo(qcMainRoadLayer);
-                L.polyline(pts, {color:'#b45309', weight:2.5, opacity:0.35, dashArray:'10 12', lineCap:'round'}).addTo(qcMainRoadLayer);
             }
             function showQcBusRoute(routeId){
                 routeId = parseInt(routeId,10)||1;
@@ -3935,7 +3909,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 if(!qcMap) return;
                 clearQcBusRoute();
                 var waypoints = BUS_GIS_ROUTES[routeId].waypoints;
-                addQcMainRoadHighlight(waypoints);
                 qcRouteMarkers = L.layerGroup().addTo(qcMap);
                 var qcStopIdx = 0;
                 var qcStopsOnly = waypoints.filter(function(w){ return w.type !== 'turn'; });
