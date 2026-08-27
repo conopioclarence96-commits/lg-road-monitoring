@@ -3688,12 +3688,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                  {name:'Mindanao Ave. — Congressional Ave.', lat:14.6697, lng:121.0326, type:'stop'},
                  {name:'Mindanao Ave. — Quirino Hwy. (Terminal)', lat:14.6904, lng:121.0284, type:'stop'}
              ]},
-            6: { name:'Route 6: QC Hall to Gilmore', corridor:'East Ave / E. Rodriguez', waypoints:[
-                {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
-                {name:'East Ave.', lat:14.6445, lng:121.0508, type:'turn'},
-                {name:'E. Rodriguez Sr. Ave.', lat:14.6225, lng:121.0455, type:'turn'},
-                {name:'Gilmore (Terminal)', lat:14.6255, lng:121.0520, type:'stop'}
-            ]},
+             6: { name:'Route 6: QC Hall to Robinsons Magnolia', corridor:'Quezon Ave / E. Rodriguez', waypoints:[
+                 {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6494, lng:121.0518, type:'stop'},
+                 {name:'Quezon Ave. — Dr. Jose Fabella Hospital', lat:14.6479, lng:121.0430, type:'stop'},
+                 {name:'Quezon Ave. — EDSA', lat:14.6438, lng:121.0364, type:'stop'},
+                 {name:'Quezon Ave. — Examiner Street', lat:14.6412, lng:121.0323, type:'stop'},
+                 {name:'Quezon Ave. — Delta', lat:14.6364, lng:121.0282, type:'stop'},
+                 {name:'Tomas Morato Ave. — Scout Castor', lat:14.6294, lng:121.0309, type:'stop'},
+                 {name:'E. Rodriguez Sr. Ave. — Gilmore Interchange', lat:14.6237, lng:121.0300, type:'stop'},
+                 {name:'Robinsons Magnolia — Doña Hemady (Terminal)', lat:14.6137, lng:121.0379, type:'stop'}
+             ]},
             7: { name:'Route 7: QC Hall to C5 / Ortigas Ave. Ext.', corridor:'C-5 Road', waypoints:[
                 {name:'QC Hall Gate 3', lat:14.6479, lng:121.0518, type:'stop'},
                 {name:'C-5 Road — Libis', lat:14.6250, lng:121.0700, type:'turn'},
