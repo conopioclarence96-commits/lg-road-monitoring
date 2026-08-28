@@ -3183,10 +3183,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                 <div class="jeepney-route-corridor" id="jeepneyRouteDetailCorridor"></div>
                                 <div class="jeepney-route-meta-row" id="jeepneyRouteDetailMeta"></div>
                                 <ul class="jeepney-route-stops" id="jeepneyRouteDetailStops"></ul>
-                                <div class="jeepney-route-list mt-3" style="border-top:1px dashed #fde68a; padding-top:14px;">
-                                    <h6 style="font-weight:700; color:#92400e; font-size:0.8rem; margin-bottom:12px;"><i class="fas fa-info-circle me-1"></i> Route Details</h6>
-                                    <div id="jeepneyRouteDetailCards"></div>
-                                </div>
+                                <div id="jeepneyRouteDetailCards"></div>
                             </div>
                             <div id="jeepneyRoutesGisMap" role="region" aria-label="Jeepney Rationalization GIS Map"></div>
                         </div>
@@ -4192,15 +4189,18 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 return '<li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><span style="'+weight+'">'+w.name+'</span></li>';
             }).join('');
             var connNote = routeId === 3 ? '<div class="small text-muted"><i class="fas fa-arrows-alt-h me-1"></i>Connects to LRT-2 Anonas &amp; MRT-3 Cubao</div>' : '';
-            return '<div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">'+
-                '<div class="d-flex align-items-center gap-2 mb-1">'+
-                    '<span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">'+route.code+'</span>'+
-                    '<span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>'+
+            return '<div style="border-top:1px dashed #fde68a; padding-top:14px; margin-top:14px;">'+
+                '<h6 style="font-weight:700; color:#92400e; font-size:0.8rem; margin-bottom:12px;"><i class="fas fa-info-circle me-1"></i> Route Details</h6>'+
+                '<div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">'+
+                    '<div class="d-flex align-items-center gap-2 mb-1">'+
+                        '<span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">'+route.code+'</span>'+
+                        '<span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>'+
+                    '</div>'+
+                    '<h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">'+lineName+'</h6>'+
+                    '<div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> '+meta.terminal+' • '+route.corridor+'</div>'+
+                    '<ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">'+stopsList+'</ul>'+
+                    connNote+
                 '</div>'+
-                '<h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">'+lineName+'</h6>'+
-                '<div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> '+meta.terminal+' • '+route.corridor+'</div>'+
-                '<ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">'+stopsList+'</ul>'+
-                connNote+
             '</div>';
         }
         function renderJeepneyRouteDetail(routeId){
