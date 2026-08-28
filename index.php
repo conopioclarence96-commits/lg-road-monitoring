@@ -2310,6 +2310,47 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-stop-dot {
             background: #93c5fd !important;
         }
+        html.dark-mode #qcBusRoutesModal .qc-bus-summary-bar {
+            background: linear-gradient(180deg, #0f1d2e 0%, #0c1220 100%) !important;
+            border-bottom-color: #1e3a5a !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-summary-bar * {
+            color: #cbd5e1 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-summary-bar i {
+            color: #93c5fd !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-summary-bar .col-md-4 {
+            background: #162032 !important;
+            border-color: #1e2e46 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-gis-section {
+            background: #0f141c !important;
+            border-bottom-color: #1e2e46 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-gis-section .text-muted {
+            color: #94a3b8 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-info-section {
+            background: #0c1220 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-info-section .small,
+        html.dark-mode #qcBusRoutesModal .qc-bus-info-section p {
+            color: #94a3b8 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .view-route-dropdown-bar {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35) !important;
+        }
+        html.dark-mode #qcBusRoutesModal .view-route-dropdown-bar label {
+            color: #e2e8f0 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .view-route-dropdown-bar #qcBusRoutesDropdown {
+            background: #1e2229 !important;
+            border-color: #334155 !important;
+            color: #e4e6ea !important;
+        }
     </style>
     <style>
         /* View Route Map Modal — GIS sized for modal only (not fullscreen like .public-gis-dialog) */
@@ -2417,6 +2458,25 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         @media (max-width: 768px) {
             .qc-route-detail-wrap { flex-direction: column; }
             .qc-route-detail-panel { flex: 1 1 auto; max-height: none; }
+        }
+        .qc-bus-summary-bar {
+            background: var(--qc-primary-50);
+            border-bottom: 1px solid var(--qc-card-border);
+            padding: 16px 20px;
+        }
+        .qc-bus-summary-bar .col-md-4 {
+            border: 1px solid var(--qc-card-border);
+            border-radius: 10px;
+            padding: 12px;
+            background: #fff;
+        }
+        .qc-bus-gis-section {
+            background: #f7f5f0;
+            border-bottom: 1px solid var(--qc-card-border);
+            padding: 16px 20px;
+        }
+        .qc-bus-info-section {
+            padding: 16px 20px;
         }
         .view-route-dropdown-bar {
             display: flex;
@@ -2855,7 +2915,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 </div>
                 <div class="modal-body p-0">
                     <!-- Summary header — background edges exact to row -->
-                    <div style="background: var(--qc-primary-50); border-bottom:1px solid var(--qc-card-border);">
+                     <div class="qc-bus-summary-bar">
                         <div class="row g-3 small p-3 p-md-4 mx-0">
                             <div class="col-md-4 d-flex gap-2"><i class="fas fa-clock mt-1" style="color:var(--qc-primary-700)"></i><div><strong>Operating Hours</strong><br><span class="text-muted">5:00 AM – 9:00 PM Daily<br>Mon–Sat full service • Sun/Holiday 6:00 AM – 8:00 PM</span></div></div>
                             <div class="col-md-4 d-flex gap-2"><i class="fas fa-stopwatch mt-1" style="color:var(--qc-primary-700)"></i><div><strong>Intervals</strong><br><span class="text-muted">Every <strong>10–15 mins</strong> (peak 6–9 AM, 5–8 PM)<br>Every <strong>20 mins</strong> off-peak</span></div></div>
@@ -2864,7 +2924,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     </div>
 
                      <!-- GIS Map — Libreng Sakay routes dropdown (UI changed to GIS) -->
-                     <div style="background:#f7f5f0; border-bottom:1px solid var(--qc-card-border);">
+                      <div class="qc-bus-gis-section">
                          <div class="view-route-dropdown-bar">
                              <label for="qcBusRoutesDropdown"><i class="fas fa-bus me-1" style="color:var(--qc-primary-700)"></i> Select Libreng Sakay Route:</label>
                              <select id="qcBusRoutesDropdown" aria-label="Select Libreng Sakay route">
@@ -2890,9 +2950,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                          <small class="text-muted text-center d-block mt-2"><i class="fas fa-info-circle me-1"></i> GIS preview — select a Libreng Sakay route to see its stops and lane-following path on the map.</small>
                      </div>
 
-                    <div class="p-3 p-md-4">
+                     <div class="qc-bus-info-section">
 
-                        <!-- QCitizen note -->
+                         <!-- QCitizen note -->
                         <div class="mt-4 p-3" style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px;">
                             <h6 class="mb-2" style="font-weight:800; color:#9a3412; font-size:0.9rem;"><i class="fas fa-id-badge me-2"></i>QCitizen ID Requirement</h6>
                             <p class="small mb-2" style="color:#7c2d12; line-height:1.6;">
