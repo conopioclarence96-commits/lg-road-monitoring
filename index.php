@@ -2541,6 +2541,122 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             #viewRouteGisMap { height: 320px; min-height: 260px; }
             .view-route1-map-overlay { left:8px; right:8px; bottom:12px; padding:8px 10px; }
         }
+        /* Jeepney Rationalization GIS section */
+        .jeepney-gis-section {
+            background: #fffbeb;
+            border-bottom: 1px solid #fde68a;
+            padding: 16px 20px;
+        }
+        .jeepney-route-detail-wrap {
+            display: flex;
+            gap: 14px;
+            align-items: stretch;
+        }
+        .jeepney-route-detail-panel {
+            flex: 0 0 280px;
+            background: #fff;
+            border: 1px solid #fde68a;
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: 0 2px 8px rgba(146,64,14,0.06);
+            display: none;
+            overflow-y: auto;
+            max-height: 360px;
+        }
+        .jeepney-route-detail-panel.is-visible { display: block; }
+        .jeepney-route-detail-panel .jeepney-route-title {
+            font-weight: 800;
+            color: #78350f;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+            line-height: 1.3;
+        }
+        .jeepney-route-detail-panel .jeepney-route-corridor {
+            font-size: 0.8rem;
+            color: #92400e;
+            margin-bottom: 10px;
+        }
+        .jeepney-route-detail-panel .jeepney-route-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .jeepney-route-detail-panel .jeepney-route-meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #fef3c7;
+            border: 1px solid #fde68a;
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #92400e;
+        }
+        .jeepney-route-detail-panel .jeepney-route-stops {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .jeepney-route-detail-panel .jeepney-route-stops li {
+            font-size: 0.82rem;
+            color: #3e454c;
+            padding: 5px 0;
+            border-bottom: 1px solid #fef3c7;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .jeepney-route-detail-panel .jeepney-route-stops li:last-child { border-bottom: none; }
+        .jeepney-route-detail-panel .jeepney-route-stop-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #d97706;
+            flex-shrink: 0;
+        }
+        .jeepney-route-detail-panel .jeepney-route-stop-dot.start { background: #10b981; }
+        .jeepney-route-detail-panel .jeepney-route-stop-dot.end { background: #dc2626; }
+        .jeepney-route-detail-wrap #jeepneyRoutesGisMap { flex: 1; min-width: 0; }
+        #jeepneyRoutesGisMap {
+            width: 100%;
+            height: 360px;
+            min-height: 280px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #fde68a;
+            background: #fffbeb;
+            z-index: 1;
+        }
+        @media (max-width: 768px) {
+            .jeepney-route-detail-wrap { flex-direction: column; }
+            .jeepney-route-detail-panel { flex: 1 1 auto; max-height: none; }
+        }
+        #jeepneyRoutesDropdown {
+            flex: 1;
+            min-width: 220px;
+            max-width: 420px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #fde68a;
+            border-radius: 8px;
+            padding: 6px 10px;
+            background: #fff;
+            color: #78350f;
+        }
+        #jeepneyRoutesDropdown:focus {
+            border-color: #d97706;
+            box-shadow: 0 0 0 3px rgba(217,119,6,0.15);
+            outline: none;
+        }
+        html.dark-mode .jeepney-gis-section { background: #2a1f0e; border-bottom-color: #4a3510; }
+        html.dark-mode .jeepney-route-detail-panel { background: #1e1e1e; border-color: #4a3510; }
+        html.dark-mode .jeepney-route-detail-panel .jeepney-route-title { color: #fde68a; }
+        html.dark-mode .jeepney-route-detail-panel .jeepney-route-corridor { color: #fbbf24; }
+        html.dark-mode .jeepney-route-detail-panel .jeepney-route-meta-badge { background: #3d2a10; border-color: #4a3510; color: #fde68a; }
+        html.dark-mode .jeepney-route-detail-panel .jeepney-route-stops li { color: #e0e0e0; border-bottom-color: #2a2520; }
+        html.dark-mode #jeepneyRoutesDropdown { background: #1e1e1e; border-color: #4a3510; color: #fde68a; }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
@@ -3048,6 +3164,29 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             <div class="col-md-4 d-flex gap-2"><i class="fas fa-warehouse mt-1" style="color:#92400e"></i><div><strong>Dispatch Terminals</strong><br><span class="text-muted">QC EDSA Carousel • Litex • Anonas<br>Welcome Rotonda Terminal</span></div></div>
                             <div class="col-md-4 d-flex gap-2"><i class="fas fa-clock mt-1" style="color:#92400e"></i><div><strong>Operations</strong><br><span class="text-muted">5:00 AM – 10:00 PM Daily<br><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:20px;font-weight:700;font-size:0.72rem;">CONSOLIDATED</span></span></div></div>
                         </div>
+                    </div>
+
+                    <!-- GIS Map — Jeepney Rationalization route selector -->
+                    <div class="jeepney-gis-section">
+                        <div class="view-route-dropdown-bar">
+                            <label for="jeepneyRoutesDropdown"><i class="fas fa-shuttle-van me-1" style="color:#92400e"></i> Select Jeepney Route:</label>
+                            <select id="jeepneyRoutesDropdown" aria-label="Select jeepney rationalization route">
+                                <option value="1" selected>JR-01: QC Hall to Philcoa / SM North — Elliptical Rd.</option>
+                                <option value="2">JR-02: Litex to Fairview Center Mall — Commonwealth Ave</option>
+                                <option value="3">JR-03: Project 2 &amp; 3 to Cubao / Anonas — Aurora Blvd</option>
+                                <option value="4">JR-04: Welcome Rotonda to E. Rodriguez / España</option>
+                            </select>
+                        </div>
+                        <div class="jeepney-route-detail-wrap">
+                            <div id="jeepneyRouteDetailPanel" class="jeepney-route-detail-panel" aria-live="polite">
+                                <div class="jeepney-route-title" id="jeepneyRouteDetailTitle">Select a route</div>
+                                <div class="jeepney-route-corridor" id="jeepneyRouteDetailCorridor"></div>
+                                <div class="jeepney-route-meta-row" id="jeepneyRouteDetailMeta"></div>
+                                <ul class="jeepney-route-stops" id="jeepneyRouteDetailStops"></ul>
+                            </div>
+                            <div id="jeepneyRoutesGisMap" role="region" aria-label="Jeepney Rationalization GIS Map"></div>
+                        </div>
+                        <small class="text-muted text-center d-block mt-2"><i class="fas fa-info-circle me-1"></i> GIS preview — select a rationalized jeepney route to see its designated stops and lane-following path on the map.</small>
                     </div>
 
                     <div class="p-3 p-md-4">
@@ -4027,6 +4166,206 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         qcMap.invalidateSize();
                         var rid = qcDropdown ? parseInt(qcDropdown.value,10)||1 : 1;
                         showQcBusRoute(rid);
+                    }, 220);
+                });
+            }
+        });
+    })();
+    </script>
+
+    <!-- Jeepney Rationalization GIS Map — road-following route indication for consolidated jeepney lines -->
+    <script>
+    (function(){
+        'use strict';
+        var jpMap = null, jpRouteLayer = null, jpRouteMarkers = null, jpMapInited = false;
+        var QC_CENTER = [14.651417, 121.04917];
+        var JEEPNEY_GIS_ROUTES = {
+            1: { code:'JR-01', name:'JR-01: QC Hall to Philcoa / SM North', corridor:'Elliptical Road / NDSB / Agham Rd', waypoints:[
+                {name:'QC Hall Gate 3 (Start)', lat:14.6479, lng:121.0518, type:'stop'},
+                {name:'Elliptical Road — Philippine Statistics Authority', lat:14.6445, lng:121.0480, type:'turn'},
+                {name:'Elliptical Road — East Avenue Interchange', lat:14.6420, lng:121.0440, type:'turn'},
+                {name:'North Avenue — Elliptical Rd. Interchange', lat:14.6530, lng:121.0370, type:'turn'},
+                {name:'NDSB Corridor — Philcoa Terminal', lat:14.6580, lng:121.0320, type:'turn'},
+                {name:'SM North EDSA — Terminal (Dulo)', lat:14.6570, lng:121.0300, type:'stop'}
+            ]},
+            2: { code:'JR-02', name:'JR-02: Litex to Fairview Center Mall', corridor:'Commonwealth Avenue', waypoints:[
+                {name:'Litex Market Terminal (Start)', lat:14.7002, lng:121.0876, type:'stop'},
+                {name:'Commonwealth Avenue — IBP Road Interchange', lat:14.6950, lng:121.0860, type:'turn'},
+                {name:'Commonwealth Avenue — Batasan Access', lat:14.6900, lng:121.0840, type:'turn'},
+                {name:'Commonwealth Avenue — Tandang Sora Overpass', lat:14.6800, lng:121.0800, type:'turn'},
+                {name:'Commonwealth Avenue — Fairview Interchange', lat:14.7050, lng:121.0720, type:'turn'},
+                {name:'Fairview Center Mall — Terminal (Dulo)', lat:14.7210, lng:121.0660, type:'stop'}
+            ]},
+            3: { code:'JR-03', name:'JR-03: Project 2 & 3 to Cubao / Anonas', corridor:'Aurora Boulevard / Katipunan', waypoints:[
+                {name:'Project 2 & 3 Barangay Hall (Start)', lat:14.6320, lng:121.0630, type:'stop'},
+                {name:'Aurora Boulevard — Anonas Interchange', lat:14.6280, lng:121.0647, type:'turn'},
+                {name:'Aurora Boulevard — LRT-2 Anonas Station', lat:14.6285, lng:121.0650, type:'turn'},
+                {name:'Aurora Boulevard — Gilmore Interchange', lat:14.6237, lng:121.0300, type:'turn'},
+                {name:'Aurora Boulevard — Araneta City', lat:14.6198, lng:121.0566, type:'turn'},
+                {name:'Cubao — Ali Mall Terminal (Dulo)', lat:14.6180, lng:121.0550, type:'stop'}
+            ]},
+            4: { code:'JR-04', name:'JR-04: Welcome Rotonda to E. Rodriguez / España', corridor:'España / E. Rodriguez Sr. Ave', waypoints:[
+                {name:'Welcome Rotonda Terminal (Start)', lat:14.6178, lng:121.0017, type:'stop'},
+                {name:'España Boulevard — Blumentritt Interchange', lat:14.6180, lng:121.0080, type:'turn'},
+                {name:'España Boulevard — E. Rodriguez Sr. Interchange', lat:14.6185, lng:121.0180, type:'turn'},
+                {name:'E. Rodriguez Sr. Avenue — Gilmore Interchange', lat:14.6225, lng:121.0330, type:'turn'},
+                {name:'E. Rodriguez Sr. Avenue — Interterminal Stop (Dulo)', lat:14.6230, lng:121.0340, type:'stop'}
+            ]}
+        };
+        var JEEPNEY_ROUTE_META = {
+            1: {operatingHours:'5AM–10PM', interval:'5–10 min', terminal:'QC EDSA Terminal'},
+            2: {operatingHours:'5AM–10PM', interval:'5–10 min', terminal:'Litex Terminal'},
+            3: {operatingHours:'5AM–10PM', interval:'5–10 min', terminal:'Anonas Terminal'},
+            4: {operatingHours:'5AM–10PM', interval:'5–10 min', terminal:'Welcome Rotonda Terminal'}
+        };
+        function getTomTomKey(){ return (window.LG_ASSET_CONFIG && window.LG_ASSET_CONFIG.TOMTOM_API_KEY) || window.TOMTOM_API_KEY || ''; }
+        function extractRoutePoints(routeData){
+            var pts = [];
+            try{
+                var legs = routeData.routes && routeData.routes[0] && routeData.routes[0].legs;
+                if(legs){
+                    legs.forEach(function(leg){
+                        if(leg.path && leg.path.coordinates){
+                            leg.path.coordinates.forEach(function(c){ pts.push([c[1], c[0]]); });
+                        } else if(leg.points){
+                            leg.points.forEach(function(p){ pts.push([p.latitude, p.longitude]); });
+                        }
+                    });
+                }
+                if(!pts.length && routeData.routes && routeData.routes[0] && routeData.routes[0].path && routeData.routes[0].path.coordinates){
+                    routeData.routes[0].path.coordinates.forEach(function(c){ pts.push([c[1], c[0]]); });
+                }
+                if(!pts.length && routeData.path && routeData.path.coordinates){
+                    routeData.path.coordinates.forEach(function(c){ pts.push([c[1], c[0]]); });
+                }
+            }catch(e){}
+            return pts;
+        }
+        function fetchSegmentRoad(from, to){
+            if(!window.TomTomServices || !window.TomTomServices.calculateRoute){
+                return Promise.resolve([[from.lat, from.lng],[to.lat, to.lng]]);
+            }
+            return window.TomTomServices.calculateRoute(from.lat, from.lng, to.lat, to.lng).then(function(data){
+                if(!data || !data.success || !data.data) return [[from.lat, from.lng],[to.lat, to.lng]];
+                var pts = extractRoutePoints(data.data);
+                return pts.length ? pts : [[from.lat, from.lng],[to.lat, to.lng]];
+            }).catch(function(){ return [[from.lat, from.lng],[to.lat, to.lng]]; });
+        }
+        function initJeepneyMap(){
+            if(jpMapInited || typeof L === 'undefined') return;
+            var el = document.getElementById('jeepneyRoutesGisMap');
+            if(!el) return;
+            var key = getTomTomKey();
+            jpMap = L.map('jeepneyRoutesGisMap', { zoomControl: true }).setView(QC_CENTER, 13);
+            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + key, { attribution: '\u00A9 TomTom', maxZoom: 18 }).addTo(jpMap);
+            L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + key, { attribution: '\u00A9 TomTom Traffic', opacity: 0.7, maxZoom: 18 }).addTo(jpMap);
+            jpMapInited = true;
+            setTimeout(function(){ if(jpMap) jpMap.invalidateSize(); }, 100);
+        }
+        function clearJeepneyRoute(){
+            if(jpRouteLayer && jpMap){ jpMap.removeLayer(jpRouteLayer); jpRouteLayer=null; }
+            if(jpRouteMarkers && jpMap){ jpMap.removeLayer(jpRouteMarkers); jpRouteMarkers=null; }
+        }
+        function renderJeepneyRouteDetail(routeId){
+            routeId = parseInt(routeId,10)||1;
+            var route = JEEPNEY_GIS_ROUTES[routeId];
+            var panel = document.getElementById('jeepneyRouteDetailPanel');
+            var titleEl = document.getElementById('jeepneyRouteDetailTitle');
+            var corridorEl = document.getElementById('jeepneyRouteDetailCorridor');
+            var metaEl = document.getElementById('jeepneyRouteDetailMeta');
+            var stopsEl = document.getElementById('jeepneyRouteDetailStops');
+            if(!route || !panel) return;
+            if(titleEl) titleEl.textContent = route.name;
+            if(corridorEl) corridorEl.textContent = route.corridor;
+            var meta = JEEPNEY_ROUTE_META[routeId] || {};
+            if(metaEl){
+                metaEl.innerHTML = '';
+                var opsBadge = document.createElement('span');
+                opsBadge.className = 'jeepney-route-meta-badge';
+                opsBadge.innerHTML = '<i class="far fa-clock"></i> ' + (meta.operatingHours || '');
+                metaEl.appendChild(opsBadge);
+                var intBadge = document.createElement('span');
+                intBadge.className = 'jeepney-route-meta-badge';
+                intBadge.innerHTML = '<i class="fas fa-sync-alt"></i> ' + (meta.interval || '');
+                metaEl.appendChild(intBadge);
+                var termBadge = document.createElement('span');
+                termBadge.className = 'jeepney-route-meta-badge';
+                termBadge.innerHTML = '<i class="fas fa-warehouse"></i> ' + (meta.terminal || '');
+                metaEl.appendChild(termBadge);
+            }
+            if(stopsEl){
+                var stops = route.waypoints.filter(function(w){ return w.type==='stop'; });
+                stopsEl.innerHTML = stops.map(function(s, idx){
+                    var isStart = idx===0, isEnd = idx===stops.length-1;
+                    var dotCls = isStart ? 'start' : (isEnd ? 'end' : '');
+                    return '<li><span class="jeepney-route-stop-dot '+dotCls+'"></span> '+s.name+'</li>';
+                }).join('');
+            }
+            panel.classList.add('is-visible');
+        }
+        function showJeepneyRoute(routeId){
+            routeId = parseInt(routeId,10)||1;
+            if(!JEEPNEY_GIS_ROUTES[routeId]) routeId=1;
+            renderJeepneyRouteDetail(routeId);
+            var dropdown = document.getElementById('jeepneyRoutesDropdown');
+            if(dropdown) dropdown.value = String(routeId);
+            if(!jpMap) return;
+            clearJeepneyRoute();
+            var waypoints = JEEPNEY_GIS_ROUTES[routeId].waypoints;
+            jpRouteMarkers = L.layerGroup().addTo(jpMap);
+            waypoints.forEach(function(s, idx){
+                var isStart = idx===0, isEnd = idx===waypoints.length-1;
+                var isTurn = s.type === 'turn';
+                var bg = isTurn ? '#f59e0b' : (isStart ? '#10b981' : (isEnd ? '#dc2626' : '#d97706'));
+                var size = isTurn ? 16 : 20;
+                var iconInner = isTurn ? '<i class="fas fa-share" style="font-size:7px;"></i>' : (idx+1);
+                var label = isTurn ? 'Turn' : 'Stop';
+                var html = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:'+(isTurn?'6px':'8px')+';font-weight:800;" title="'+s.name+'">'+iconInner+'</div>';
+                var icon = L.divIcon({html:html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2]});
+                var popup = '<strong style="font-size:12px;">'+s.name+'</strong><br><small style="color:'+(isTurn?'#f59e0b':'#92400e')+';font-weight:600;">'+label+' '+(idx+1)+'/'+waypoints.length+' • '+(isTurn?'Follow lane':'Designated stop')+'</small>';
+                if(isTurn) popup += '<br><small style="color:#64748b;">Point-to-point turn — stays on road</small>';
+                L.marker([s.lat, s.lng], {icon:icon}).bindPopup(popup).addTo(jpRouteMarkers);
+            });
+            var promises = [];
+            for(var i=0;i<waypoints.length-1;i++) promises.push(fetchSegmentRoad(waypoints[i], waypoints[i+1]));
+            Promise.all(promises).then(function(segments){
+                if(!jpMap) return;
+                var all=[];
+                segments.forEach(function(seg){
+                    if(!seg||!seg.length) return;
+                    if(all.length && seg.length){
+                        var last=all[all.length-1], first=seg[0];
+                        if(last[0]===first[0] && last[1]===first[1]) seg=seg.slice(1);
+                    }
+                    all=all.concat(seg);
+                });
+                if(!all.length) all=waypoints.map(function(s){return [s.lat,s.lng];});
+                if(jpRouteLayer && jpMap) jpMap.removeLayer(jpRouteLayer);
+                jpRouteLayer = L.polyline(all, {color:'#d97706', weight:4, opacity:0.92, lineCap:'round', lineJoin:'round'}).addTo(jpMap);
+                L.polyline(all, {color:'#ffffff', weight:1.2, opacity:0.35, lineCap:'round', lineJoin:'round'}).addTo(jpRouteMarkers);
+                try{ jpMap.fitBounds(jpRouteLayer.getBounds().pad(0.14)); }catch(e){}
+                if(jpRouteMarkers) jpRouteMarkers.bringToFront();
+            });
+        }
+        window.JEEPNEY_GIS_ROUTES = JEEPNEY_GIS_ROUTES;
+        window.showJeepneyRoute = showJeepneyRoute;
+        document.addEventListener('DOMContentLoaded', function(){
+            var jpModalEl = document.getElementById('jeepneyRoutesModal');
+            var jpDropdown = document.getElementById('jeepneyRoutesDropdown');
+            if(jpDropdown){
+                jpDropdown.addEventListener('change', function(){
+                    var rid = parseInt(this.value,10)||1;
+                    showJeepneyRoute(rid);
+                });
+            }
+            if(jpModalEl){
+                jpModalEl.addEventListener('shown.bs.modal', function(){
+                    initJeepneyMap();
+                    if(!jpMap) return;
+                    setTimeout(function(){
+                        jpMap.invalidateSize();
+                        var rid = jpDropdown ? parseInt(jpDropdown.value,10)||1 : 1;
+                        showJeepneyRoute(rid);
                     }, 220);
                 });
             }
