@@ -2153,13 +2153,13 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }
         /* Card hover premium */
         #qcBusRoutesModal .row.g-3 > div > div,
-        #jeepneyRoutesModal .row.g-3 > div > div,
-        #bikeLaneModal .row.g-3 > div > div {
+        #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list > div,
+        #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 {
             transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
         }
         #qcBusRoutesModal .row.g-3 > div > div:hover,
-        #jeepneyRoutesModal .row.g-3 > div > div:hover,
-        #bikeLaneModal .row.g-3 > div > div:hover {
+        #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list > div:hover,
+        #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 24px rgba(15,23,42,0.08);
         }
@@ -2208,41 +2208,41 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         }
         /* Row cards — override inline background:#fff / border */
         html.dark-mode #qcBusRoutesModal .row.g-3 > div > div,
-        html.dark-mode #jeepneyRoutesModal .row.g-3 > div > div,
-        html.dark-mode #bikeLaneModal .row.g-3 > div > div {
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list > div,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 {
             background: #162032 !important;
             border-color: #1e2e46 !important;
             box-shadow: 0 8px 20px rgba(0,0,0,0.35) !important;
         }
         /* Jeepney amber left-border stays but slightly muted in dark */
-        html.dark-mode #jeepneyRoutesModal .row.g-3 > div > div[style*="border-left"] {
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list > div[style*="border-left"] {
             border-left-color: #b45309 !important;
         }
-        html.dark-mode #bikeLaneModal .row.g-3 > div > div[style*="border-left"] {
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3[style*="border-left"] {
             border-left-color: #16a34a !important;
         }
         /* Text & list items inside cards */
         html.dark-mode #qcBusRoutesModal .row.g-3 h6,
-        html.dark-mode #jeepneyRoutesModal .row.g-3 h6,
-        html.dark-mode #bikeLaneModal .row.g-3 h6 {
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list h6,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 h6 {
             color: #e2e8f0 !important;
         }
         html.dark-mode #qcBusRoutesModal .row.g-3 ul,
         html.dark-mode #qcBusRoutesModal .row.g-3 li,
-        html.dark-mode #jeepneyRoutesModal .row.g-3 ul,
-        html.dark-mode #jeepneyRoutesModal .row.g-3 li,
-        html.dark-mode #bikeLaneModal .row.g-3 ul,
-        html.dark-mode #bikeLaneModal .row.g-3 li {
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list ul,
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list li,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 ul,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 li {
             color: #cbd5e1 !important;
         }
         html.dark-mode #qcBusRoutesModal .row.g-3 .small,
-        html.dark-mode #jeepneyRoutesModal .row.g-3 .small,
-        html.dark-mode #bikeLaneModal .row.g-3 .small {
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list .small,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 .small {
             color: #94a3b8 !important;
         }
         html.dark-mode #qcBusRoutesModal .row.g-3 strong,
-        html.dark-mode #jeepneyRoutesModal .row.g-3 strong,
-        html.dark-mode #bikeLaneModal .row.g-3 strong {
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list strong,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 strong {
             color: #e0f2fe !important;
         }
         /* Badges inside cards — subtle dark variant */
@@ -2553,15 +2553,15 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             align-items: stretch;
         }
         .jeepney-route-detail-panel {
-            flex: 0 0 280px;
+            flex: 0 0 340px;
             background: #fff;
             border: 1px solid #fde68a;
             border-radius: 12px;
             padding: 18px;
             box-shadow: 0 2px 8px rgba(146,64,14,0.06);
-            display: none;
+            display: block;
             overflow-y: auto;
-            max-height: 360px;
+            max-height: 420px;
         }
         .jeepney-route-detail-panel.is-visible { display: block; }
         .jeepney-route-detail-panel .jeepney-route-title {
@@ -3178,11 +3178,71 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             </select>
                         </div>
                         <div class="jeepney-route-detail-wrap">
-                            <div id="jeepneyRouteDetailPanel" class="jeepney-route-detail-panel" aria-live="polite">
+                            <div id="jeepneyRouteDetailPanel" class="jeepney-route-detail-panel is-visible" aria-live="polite">
                                 <div class="jeepney-route-title" id="jeepneyRouteDetailTitle">Select a route</div>
                                 <div class="jeepney-route-corridor" id="jeepneyRouteDetailCorridor"></div>
                                 <div class="jeepney-route-meta-row" id="jeepneyRouteDetailMeta"></div>
                                 <ul class="jeepney-route-stops" id="jeepneyRouteDetailStops"></ul>
+                                <div class="jeepney-route-list mt-3" style="border-top:1px dashed #fde68a; padding-top:14px;">
+                                    <h6 style="font-weight:700; color:#92400e; font-size:0.8rem; margin-bottom:12px;"><i class="fas fa-info-circle me-1"></i> Route Details</h6>
+                                    <div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-01</span>
+                                            <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
+                                        </div>
+                                        <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">QC Hall to Philcoa / SM North</h6>
+                                        <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> QC EDSA Terminal • Elliptical Rd. corridor</div>
+                                        <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>QC Hall Gate 3 — Kalayaan Ave. (Start)</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Elliptical Road — PSA / Kalayaan</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Philcoa Terminal — Masaya St.</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>SM North EDSA — Jeepney Terminal (Dulo)</strong></li>
+                                        </ul>
+                                    </div>
+                                    <div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-02</span>
+                                            <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
+                                        </div>
+                                        <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Litex to Fairview Center Mall</h6>
+                                        <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Litex Terminal • Commonwealth Ave corridor</div>
+                                        <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Litex Jeepney Terminal (Start)</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Commonwealth — IBP Road / Batasan</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Commonwealth — Tandang Sora</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>Fairview Center Mall — Terminal (Dulo)</strong></li>
+                                        </ul>
+                                    </div>
+                                    <div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-03</span>
+                                            <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
+                                        </div>
+                                        <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Project 2 &amp; 3 to Cubao / Anonas</h6>
+                                        <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Anonas Terminal • Aurora Blvd corridor</div>
+                                        <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Project 2 &amp; 3 — Anonas St. (Start)</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Aurora Blvd — LRT-2 Anonas Station</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Aurora Blvd — Gilmore Interchange</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>Cubao — Ali Mall Jeepney Terminal (Dulo)</strong></li>
+                                        </ul>
+                                        <div class="small text-muted"><i class="fas fa-arrows-alt-h me-1"></i>Connects to LRT-2 Anonas &amp; MRT-3 Cubao</div>
+                                    </div>
+                                    <div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
+                                        <div class="d-flex align-items-center gap-2 mb-1">
+                                            <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-04</span>
+                                            <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
+                                        </div>
+                                        <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Welcome Rotonda to E. Rodriguez / España</h6>
+                                        <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Welcome Rotonda Terminal • España / E. Rodriguez</div>
+                                        <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Welcome Rotonda — Mabuhay Rotonda (Start)</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>España Blvd — Blumentritt Interchange</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>E. Rodriguez Sr. Ave — Quezon Institute</li>
+                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>E. Rodriguez Sr. Ave — Interterminal (Dulo)</strong></li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                             <div id="jeepneyRoutesGisMap" role="region" aria-label="Jeepney Rationalization GIS Map"></div>
                         </div>
@@ -3190,78 +3250,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     </div>
 
                     <div class="p-3 p-md-4">
-                        <div class="row g-3 g-md-4">
-                            <!-- JR-01 -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-01</span>
-                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
-                                    </div>
-                                    <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">QC Hall to Philcoa / SM North</h6>
-                                    <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> QC EDSA Terminal • Elliptical Rd. corridor</div>
-                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>QC Hall Gate 3 — Kalayaan Ave. (Start)</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Elliptical Road — PSA / Kalayaan</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Philcoa Terminal — Masaya St.</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>SM North EDSA — Jeepney Terminal (Dulo)</strong></li>
-                                    </ul>
-                                </div>
-                            </div>
-                            <!-- JR-02 -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-02</span>
-                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
-                                    </div>
-                                    <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Litex to Fairview Center Mall</h6>
-                                    <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Litex Terminal • Commonwealth Ave corridor</div>
-                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Litex Jeepney Terminal (Start)</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Commonwealth — IBP Road / Batasan</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Commonwealth — Tandang Sora</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>Fairview Center Mall — Terminal (Dulo)</strong></li>
-                                    </ul>
-                                </div>
-                            </div>
-                            <!-- JR-03 -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-03</span>
-                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
-                                    </div>
-                                    <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Project 2 &amp; 3 to Cubao / Anonas</h6>
-                                    <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Anonas Terminal • Aurora Blvd corridor</div>
-                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Project 2 &amp; 3 — Anonas St. (Start)</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Aurora Blvd — LRT-2 Anonas Station</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Aurora Blvd — Gilmore Interchange</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>Cubao — Ali Mall Jeepney Terminal (Dulo)</strong></li>
-                                    </ul>
-                                    <div class="small text-muted"><i class="fas fa-arrows-alt-h me-1"></i>Connects to LRT-2 Anonas &amp; MRT-3 Cubao</div>
-                                </div>
-                            </div>
-                            <!-- JR-04 -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-04</span>
-                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
-                                    </div>
-                                    <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Welcome Rotonda to E. Rodriguez / España</h6>
-                                    <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Welcome Rotonda Terminal • España / E. Rodriguez</div>
-                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Welcome Rotonda — Mabuhay Rotonda (Start)</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>España Blvd — Blumentritt Interchange</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>E. Rodriguez Sr. Ave — Quezon Institute</li>
-                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>E. Rodriguez Sr. Ave — Interterminal (Dulo)</strong></li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
                         <!-- Operational note -->
                         <div class="mt-4 p-3" style="background:#f8fafc; border:1px solid var(--qc-card-border); border-radius:10px;">
                             <h6 class="mb-2" style="font-weight:800; color:var(--qc-primary-900); font-size:0.88rem;"><i class="fas fa-info-circle me-2" style="color:var(--qc-primary-700)"></i>How to ride the rationalized lines</h6>
@@ -3310,100 +3298,86 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     </div>
 
                     <div class="p-3 p-md-4">
-                        <div class="row g-3 g-md-4">
-                            <!-- BK-01 -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-01</span>
-                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Bike Lane</span>
-                                    </div>
-                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Elliptical Road &amp; Quezon Memorial Circle</h6>
-                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> QMC core loop — green-paved premier corridor</div>
-                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>Green-paved lanes</li>
-                                        <li>Concrete plant box barriers</li>
-                                        <li>Access to QMC Underpass bike ramp</li>
-                                    </ul>
-                                </div>
+                        <!-- BK-01 -->
+                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-01</span>
+                                <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Bike Lane</span>
                             </div>
-                            <!-- BK-02 -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-02</span>
-                                        <span style="background:#fef3c7;color:#92400e;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected &amp; Shared Network</span>
-                                    </div>
-                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Commonwealth Avenue</h6>
-                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Longest QC corridor — Tandang Sora to Fairview</div>
-                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>Physical bollards and plant box separators</li>
-                                        <li>Footbridge bike ramps (Philcoa &amp; UP AIT)</li>
-                                    </ul>
-                                </div>
+                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Elliptical Road &amp; Quezon Memorial Circle</h6>
+                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> QMC core loop — green-paved premier corridor</div>
+                            <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                <li>Green-paved lanes</li>
+                                <li>Concrete plant box barriers</li>
+                                <li>Access to QMC Underpass bike ramp</li>
+                            </ul>
+                        </div>
+                        <!-- BK-02 -->
+                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-02</span>
+                                <span style="background:#fef3c7;color:#92400e;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected &amp; Shared Network</span>
                             </div>
-                            <!-- BK-03 -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-03</span>
-                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Lane</span>
-                                    </div>
-                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">East Avenue</h6>
-                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Government &amp; medical district spine</div>
-                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>Connected to major QC government offices and hospital zones</li>
-                                        <li>Clear road markings</li>
-                                    </ul>
-                                    <div class="small text-muted"><i class="fas fa-hospital me-1"></i> Links QC Hall • East Ave Medical • Heart Center</div>
-                                </div>
+                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Commonwealth Avenue</h6>
+                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Longest QC corridor — Tandang Sora to Fairview</div>
+                            <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                <li>Physical bollards and plant box separators</li>
+                                <li>Footbridge bike ramps (Philcoa &amp; UP AIT)</li>
+                            </ul>
+                        </div>
+                        <!-- BK-03 -->
+                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-03</span>
+                                <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Lane</span>
                             </div>
-                            <!-- BK-04 -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-04</span>
-                                        <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Lane</span>
-                                    </div>
-                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Quezon Avenue</h6>
-                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Central QC — Welcome Rotonda to EDSA</div>
-                                    <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>NAPWC footbridge bike ramps</li>
-                                        <li>Seamless transit convergence points</li>
-                                    </ul>
-                                    <div class="small text-muted"><i class="fas fa-exchange-alt me-1"></i> Interchanges with MRT-3 &amp; QC Bus</div>
-                                </div>
+                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">East Avenue</h6>
+                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Government &amp; medical district spine</div>
+                            <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                <li>Connected to major QC government offices and hospital zones</li>
+                                <li>Clear road markings</li>
+                            </ul>
+                            <div class="small text-muted"><i class="fas fa-hospital me-1"></i> Links QC Hall • East Ave Medical • Heart Center</div>
+                        </div>
+                        <!-- BK-04 -->
+                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-04</span>
+                                <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Lane</span>
                             </div>
-                            <!-- BK-05 -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-05</span>
-                                        <span style="background:#a7f3d0;color:#065f46;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Buffered &amp; Protected Lane</span>
-                                    </div>
-                                    <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Katipunan Avenue</h6>
-                                    <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> University corridor — Ateneo to UP</div>
-                                    <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>UP Town Center footbridge bike ramp</li>
-                                        <li>University corridor connections</li>
-                                    </ul>
-                                </div>
+                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Quezon Avenue</h6>
+                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Central QC — Welcome Rotonda to EDSA</div>
+                            <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
+                                <li>NAPWC footbridge bike ramps</li>
+                                <li>Seamless transit convergence points</li>
+                            </ul>
+                            <div class="small text-muted"><i class="fas fa-exchange-alt me-1"></i> Interchanges with MRT-3 &amp; QC Bus</div>
+                        </div>
+                        <!-- BK-05 -->
+                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-05</span>
+                                <span style="background:#a7f3d0;color:#065f46;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Buffered &amp; Protected Lane</span>
                             </div>
-                            <!-- Amenities card -->
-                            <div class="col-md-6">
-                                <div class="h-100" style="border:1px dashed #86efac; border-radius:12px; padding:16px; background:#f0fdf4;">
-                                    <h6 class="mb-2" style="font-weight:800; color:#065f46; font-size:0.9rem;"><i class="fas fa-parking me-2"></i>Corridor Amenities</h6>
-                                    <ul class="small mb-2 ps-3" style="color:#065f46; line-height:1.7;">
-                                        <li><strong>Secure racks</strong> — QC Hall, QMC, SM North, Anonas, Philcoa terminals</li>
-                                        <li><strong>Repair stations</strong> — Elliptical, Commonwealth, Katipunan (pump &amp; tools)</li>
-                                        <li><strong>Park-and-ride links</strong> — Bike → QC Bus /MRT-3 seamless transfer at Philcoa, SM North, Cubao, Anonas</li>
-                                        <li><strong>Safety</strong> — Solar studs, green paint at intersections, 30 kph shared-zone markings</li>
-                                    </ul>
-                                    <p class="small mb-0" style="color:#047857;">
-                                        <i class="fas fa-bicycle me-1"></i> Tip: Use the <a href="#" onclick="(bootstrap.Modal.getInstance(document.getElementById('bikeLaneModal'))||bootstrap.Modal.getOrCreateInstance(document.getElementById('bikeLaneModal'))).hide(); setTimeout(()=>document.getElementById('publicGisFab')?.click(), 300); return false;" style="color:#065f46; font-weight:700; text-decoration:underline;">Live Road Map FAB → Search “bike”</a> to locate the nearest ramp or rack.
-                                    </p>
-                                </div>
-                            </div>
+                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Katipunan Avenue</h6>
+                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> University corridor — Ateneo to UP</div>
+                            <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
+                                <li>UP Town Center footbridge bike ramp</li>
+                                <li>University corridor connections</li>
+                            </ul>
+                        </div>
+                        <!-- Amenities card -->
+                        <div class="mb-3" style="border:1px dashed #86efac; border-radius:12px; padding:16px; background:#f0fdf4;">
+                            <h6 class="mb-2" style="font-weight:800; color:#065f46; font-size:0.9rem;"><i class="fas fa-parking me-2"></i>Corridor Amenities</h6>
+                            <ul class="small mb-2 ps-3" style="color:#065f46; line-height:1.7;">
+                                <li><strong>Secure racks</strong> — QC Hall, QMC, SM North, Anonas, Philcoa terminals</li>
+                                <li><strong>Repair stations</strong> — Elliptical, Commonwealth, Katipunan (pump &amp; tools)</li>
+                                <li><strong>Park-and-ride links</strong> — Bike → QC Bus /MRT-3 seamless transfer at Philcoa, SM North, Cubao, Anonas</li>
+                                <li><strong>Safety</strong> — Solar studs, green paint at intersections, 30 kph shared-zone markings</li>
+                            </ul>
+                            <p class="small mb-0" style="color:#047857;">
+                                <i class="fas fa-bicycle me-1"></i> Tip: Use the <a href="#" onclick="(bootstrap.Modal.getInstance(document.getElementById('bikeLaneModal'))||bootstrap.Modal.getOrCreateInstance(document.getElementById('bikeLaneModal'))).hide(); setTimeout(()=>document.getElementById('publicGisFab')?.click(), 300); return false;" style="color:#065f46; font-weight:700; text-decoration:underline;">Live Road Map FAB → Search “bike”</a> to locate the nearest ramp or rack.
+                            </p>
                         </div>
 
                         <p class="small text-muted text-center mt-3 mb-0"><i class="fas fa-exclamation-circle me-1"></i> Network expands quarterly — 90+ km as of 2026. Lane types and footbridge access may shift during road works — check the Live Road Map for closures and safe detours.</p>
