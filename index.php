@@ -2864,7 +2864,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     </div>
 
                      <!-- GIS Map — Libreng Sakay routes dropdown (UI changed to GIS) -->
-                     <div class="p-3 p-md-4" style="background:#f7f5f0; border-bottom:1px solid var(--qc-card-border);">
+                     <div style="background:#f7f5f0; border-bottom:1px solid var(--qc-card-border);">
                          <div class="view-route-dropdown-bar">
                              <label for="qcBusRoutesDropdown"><i class="fas fa-bus me-1" style="color:var(--qc-primary-700)"></i> Select Libreng Sakay Route:</label>
                              <select id="qcBusRoutesDropdown" aria-label="Select Libreng Sakay route">
