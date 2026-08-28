@@ -3201,10 +3201,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">QC Hall to Philcoa / SM North</h6>
                                     <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> QC EDSA Terminal • Elliptical Rd. corridor</div>
                                     <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>QC Hall</li>
-                                        <li>Elliptical Road</li>
-                                        <li>Philcoa</li>
-                                        <li><strong>SM North EDSA (Terminal)</strong></li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>QC Hall Gate 3 — Kalayaan Ave. (Start)</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Elliptical Road — PSA / Kalayaan</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Philcoa Terminal — Masaya St.</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>SM North EDSA — Jeepney Terminal (Dulo)</strong></li>
                                     </ul>
                                 </div>
                             </div>
@@ -3218,9 +3218,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Litex to Fairview Center Mall</h6>
                                     <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Litex Terminal • Commonwealth Ave corridor</div>
                                     <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>Litex</li>
-                                        <li>Commonwealth Avenue</li>
-                                        <li><strong>Fairview Center Mall (Terminal)</strong></li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Litex Jeepney Terminal (Start)</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Commonwealth — IBP Road / Batasan</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Commonwealth — Tandang Sora</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>Fairview Center Mall — Terminal (Dulo)</strong></li>
                                     </ul>
                                 </div>
                             </div>
@@ -3234,10 +3235,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Project 2 &amp; 3 to Cubao / Anonas</h6>
                                     <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Anonas Terminal • Aurora Blvd corridor</div>
                                     <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>Project 2 &amp; 3</li>
-                                        <li>Aurora Boulevard</li>
-                                        <li>Anonas</li>
-                                        <li><strong>Cubao (Terminal)</strong></li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Project 2 &amp; 3 — Anonas St. (Start)</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Aurora Blvd — LRT-2 Anonas Station</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Aurora Blvd — Gilmore Interchange</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>Cubao — Ali Mall Jeepney Terminal (Dulo)</strong></li>
                                     </ul>
                                     <div class="small text-muted"><i class="fas fa-arrows-alt-h me-1"></i>Connects to LRT-2 Anonas &amp; MRT-3 Cubao</div>
                                 </div>
@@ -3252,9 +3253,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                     <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Welcome Rotonda to E. Rodriguez / España</h6>
                                     <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Welcome Rotonda Terminal • España / E. Rodriguez</div>
                                     <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                        <li>Welcome Rotonda</li>
-                                        <li>E. Rodriguez Sr. Avenue</li>
-                                        <li><strong>España Boulevard (Terminal)</strong></li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Welcome Rotonda — Mabuhay Rotonda (Start)</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>España Blvd — Blumentritt Interchange</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>E. Rodriguez Sr. Ave — Quezon Institute</li>
+                                        <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>E. Rodriguez Sr. Ave — Interterminal (Dulo)</strong></li>
                                     </ul>
                                 </div>
                             </div>
@@ -3264,9 +3266,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <div class="mt-4 p-3" style="background:#f8fafc; border:1px solid var(--qc-card-border); border-radius:10px;">
                             <h6 class="mb-2" style="font-weight:800; color:var(--qc-primary-900); font-size:0.88rem;"><i class="fas fa-info-circle me-2" style="color:var(--qc-primary-700)"></i>How to ride the rationalized lines</h6>
                             <ul class="small mb-2 ps-3" style="color:#3e454c; line-height:1.7;">
-                                <li><strong>Board only at designated stops &amp; terminals</strong> — QC EDSA Carousel, Litex, Anonas, Welcome Rotonda. No flag-down outside stops.</li>
+                                <li><strong>Board only at designated stops with waiting sheds</strong> — look for the marked jeepney stop signage. No flag-down outside stops.</li>
                                 <li>Units are <strong>consolidated cooperatives</strong> with dispatch intervals <strong>every 5–10 minutes</strong> peak. GPS-tracked, PWD-friendly for newer modern units.</li>
-                                <li>Fare matrix per LTFRB • Pay via cash or Beep in modern units. Keep queueig at terminals during rush hour.</li>
+                                <li>Fare matrix per LTFRB • Pay via cash or Beep in modern units. Keep queuing at terminals during rush hour.</li>
                             </ul>
                             <p class="small mb-0" style="color:var(--qc-shades-500);">
                                 <i class="fas fa-map-marked-alt me-1"></i> Need exact stop location? Tap the <a href="#" onclick="(bootstrap.Modal.getInstance(document.getElementById('jeepneyRoutesModal'))||bootstrap.Modal.getOrCreateInstance(document.getElementById('jeepneyRoutesModal'))).hide(); setTimeout(()=>document.getElementById('publicGisFab')?.click(), 300); return false;" style="color:var(--qc-primary-700); font-weight:700; text-decoration:underline;">Live Road Map FAB → Search</a> and type the terminal name.
@@ -3280,10 +3282,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         </div>
     </div>
     <script type="application/json" id="jeepneyRoutesData">[
-  { "routeCode": "JR-01", "lineName": "QC Hall to Philcoa / SM North", "terminal": "QC EDSA Terminal", "status": "Rationalized & Consolidated", "keyStops": ["QC Hall", "Elliptical Road", "Philcoa", "SM North EDSA"] },
-  { "routeCode": "JR-02", "lineName": "Litex to Fairview Center Mall", "terminal": "Litex Terminal", "status": "Rationalized & Consolidated", "keyStops": ["Litex", "Commonwealth Avenue", "Fairview Center Mall"] },
-  { "routeCode": "JR-03", "lineName": "Project 2 & 3 to Cubao / Anonas", "terminal": "Anonas Terminal", "status": "Rationalized & Consolidated", "keyStops": ["Project 2 & 3", "Aurora Boulevard", "Anonas", "Cubao"] },
-  { "routeCode": "JR-04", "lineName": "Welcome Rotonda to E. Rodriguez / España", "terminal": "Welcome Rotonda Terminal", "status": "Rationalized & Consolidated", "keyStops": ["Welcome Rotonda", "E. Rodriguez Sr. Avenue", "España Boulevard"] }
+  { "routeCode": "JR-01", "lineName": "QC Hall to Philcoa / SM North", "terminal": "QC EDSA Terminal", "status": "Rationalized & Consolidated", "keyStops": ["QC Hall Gate 3 — Kalayaan Ave.", "Elliptical Road — PSA / Kalayaan", "Philcoa Terminal — Masaya St.", "SM North EDSA — Jeepney Terminal"] },
+  { "routeCode": "JR-02", "lineName": "Litex to Fairview Center Mall", "terminal": "Litex Terminal", "status": "Rationalized & Consolidated", "keyStops": ["Litex Jeepney Terminal", "Commonwealth — IBP Road / Batasan", "Commonwealth — Tandang Sora", "Fairview Center Mall — Terminal"] },
+  { "routeCode": "JR-03", "lineName": "Project 2 & 3 to Cubao / Anonas", "terminal": "Anonas Terminal", "status": "Rationalized & Consolidated", "keyStops": ["Project 2 & 3 — Anonas St.", "Aurora Blvd — LRT-2 Anonas Station", "Aurora Blvd — Gilmore Interchange", "Cubao — Ali Mall Jeepney Terminal"] },
+  { "routeCode": "JR-04", "lineName": "Welcome Rotonda to E. Rodriguez / España", "terminal": "Welcome Rotonda Terminal", "status": "Rationalized & Consolidated", "keyStops": ["Welcome Rotonda — Mabuhay Rotonda", "España Blvd — Blumentritt Interchange", "E. Rodriguez Sr. Ave — Quezon Institute", "E. Rodriguez Sr. Ave — Interterminal"] }
 ]</script>
 
     <!-- Bike Lane Network Modal — 90+ km QC protected & shared network -->
@@ -4180,34 +4182,35 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var jpMap = null, jpRouteLayer = null, jpRouteMarkers = null, jpMapInited = false;
         var QC_CENTER = [14.651417, 121.04917];
         var JEEPNEY_GIS_ROUTES = {
-            1: { code:'JR-01', name:'JR-01: QC Hall to Philcoa / SM North', corridor:'Elliptical Road / NDSB / Agham Rd', waypoints:[
-                {name:'QC Hall Gate 3 (Start)', lat:14.6479, lng:121.0518, type:'stop'},
-                {name:'Elliptical Road — Philippine Statistics Authority', lat:14.6445, lng:121.0480, type:'turn'},
-                {name:'Elliptical Road — East Avenue Interchange', lat:14.6420, lng:121.0440, type:'turn'},
-                {name:'North Avenue — Elliptical Rd. Interchange', lat:14.6530, lng:121.0370, type:'turn'},
-                {name:'NDSB Corridor — Philcoa Terminal', lat:14.6580, lng:121.0320, type:'turn'},
-                {name:'SM North EDSA — Terminal (Dulo)', lat:14.6570, lng:121.0300, type:'stop'}
+            1: { code:'JR-01', name:'JR-01: QC Hall to Philcoa / SM North', corridor:'Elliptical Road / North Ave / Agham Rd', waypoints:[
+                {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6479, lng:121.0518, type:'stop'},
+                {name:'Elliptical Road — PSA / Kalayaan Interchange', lat:14.6460, lng:121.0500, type:'turn'},
+                {name:'Elliptical Road — East Avenue Interchange', lat:14.6438, lng:121.0464, type:'turn'},
+                {name:'North Avenue — Elliptical Rd. / VMMC', lat:14.6537, lng:121.0391, type:'turn'},
+                {name:'Philcoa Terminal — Masaya St. (Designated Stop)', lat:14.6530, lng:121.0528, type:'stop'},
+                {name:'SM North EDSA — Jeepney Terminal (Dulo)', lat:14.6570, lng:121.0304, type:'stop'}
             ]},
             2: { code:'JR-02', name:'JR-02: Litex to Fairview Center Mall', corridor:'Commonwealth Avenue', waypoints:[
-                {name:'Litex Market Terminal (Start)', lat:14.7002, lng:121.0876, type:'stop'},
-                {name:'Commonwealth Avenue — IBP Road Interchange', lat:14.6950, lng:121.0860, type:'turn'},
-                {name:'Commonwealth Avenue — Batasan Access', lat:14.6900, lng:121.0840, type:'turn'},
-                {name:'Commonwealth Avenue — Tandang Sora Overpass', lat:14.6800, lng:121.0800, type:'turn'},
-                {name:'Commonwealth Avenue — Fairview Interchange', lat:14.7050, lng:121.0720, type:'turn'},
-                {name:'Fairview Center Mall — Terminal (Dulo)', lat:14.7210, lng:121.0660, type:'stop'}
+                {name:'Litex Jeepney Terminal — Commonwealth Ave (Start)', lat:14.7014, lng:121.0869, type:'stop'},
+                {name:'Commonwealth Avenue — IBP Road Interchange', lat:14.6900, lng:121.0840, type:'turn'},
+                {name:'Commonwealth Avenue — Batasan / QCU', lat:14.6861, lng:121.0891, type:'turn'},
+                {name:'Commonwealth Avenue — Tandang Sora Overpass', lat:14.6734, lng:121.0320, type:'turn'},
+                {name:'Commonwealth Avenue — Regalado Interchange', lat:14.7050, lng:121.0720, type:'turn'},
+                {name:'Fairview Center Mall — Terminal (Dulo)', lat:14.6925, lng:121.0684, type:'stop'}
             ]},
             3: { code:'JR-03', name:'JR-03: Project 2 & 3 to Cubao / Anonas', corridor:'Aurora Boulevard / Katipunan', waypoints:[
-                {name:'Project 2 & 3 Barangay Hall (Start)', lat:14.6320, lng:121.0630, type:'stop'},
-                {name:'Aurora Boulevard — Anonas Interchange', lat:14.6280, lng:121.0647, type:'turn'},
-                {name:'Aurora Boulevard — LRT-2 Anonas Station', lat:14.6285, lng:121.0650, type:'turn'},
+                {name:'Project 2 & 3 — Anonas Street (Start)', lat:14.6304, lng:121.0614, type:'stop'},
+                {name:'Aurora Boulevard — Anonas / Molave Interchange', lat:14.6280, lng:121.0647, type:'turn'},
+                {name:'Aurora Boulevard — LRT-2 Anonas Station', lat:14.6280, lng:121.0647, type:'stop'},
                 {name:'Aurora Boulevard — Gilmore Interchange', lat:14.6237, lng:121.0300, type:'turn'},
-                {name:'Aurora Boulevard — Araneta City', lat:14.6198, lng:121.0566, type:'turn'},
-                {name:'Cubao — Ali Mall Terminal (Dulo)', lat:14.6180, lng:121.0550, type:'stop'}
+                {name:'Aurora Boulevard — Araneta City / Gateway Mall', lat:14.6198, lng:121.0566, type:'turn'},
+                {name:'Cubao — Ali Mall Jeepney Terminal (Dulo)', lat:14.6180, lng:121.0550, type:'stop'}
             ]},
-            4: { code:'JR-04', name:'JR-04: Welcome Rotonda to E. Rodriguez / España', corridor:'España / E. Rodriguez Sr. Ave', waypoints:[
-                {name:'Welcome Rotonda Terminal (Start)', lat:14.6178, lng:121.0017, type:'stop'},
+            4: { code:'JR-04', name:'JR-04: Welcome Rotonda to E. Rodriguez / España', corridor:'España Blvd / E. Rodriguez Sr. Ave', waypoints:[
+                {name:'Welcome Rotonda — Mabuhay Rotonda (Start)', lat:14.6178, lng:121.0017, type:'stop'},
                 {name:'España Boulevard — Blumentritt Interchange', lat:14.6180, lng:121.0080, type:'turn'},
-                {name:'España Boulevard — E. Rodriguez Sr. Interchange', lat:14.6185, lng:121.0180, type:'turn'},
+                {name:'España Boulevard — E. Rodriguez Interchange', lat:14.6185, lng:121.0180, type:'turn'},
+                {name:'E. Rodriguez Sr. Avenue — Quezon Institute', lat:14.6185, lng:121.0180, type:'stop'},
                 {name:'E. Rodriguez Sr. Avenue — Gilmore Interchange', lat:14.6225, lng:121.0330, type:'turn'},
                 {name:'E. Rodriguez Sr. Avenue — Interterminal Stop (Dulo)', lat:14.6230, lng:121.0340, type:'stop'}
             ]}
