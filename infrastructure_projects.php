@@ -479,11 +479,21 @@ function infra_progress_color($progress) {
 
         .infra-projects-grid {
             display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            grid-auto-rows: min-content;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            grid-auto-rows: auto;
             gap: 20px;
             padding: 24px 30px 30px;
-            align-items: start;
+            align-items: stretch;
+        }
+        @media (max-width: 1199.98px) {
+            .infra-projects-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            }
+        }
+        @media (max-width: 991.98px) {
+            .infra-projects-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
         }
         @media (max-width: 767.98px) {
             .infra-projects-grid {
@@ -530,10 +540,12 @@ function infra_progress_color($progress) {
             border-radius: 12px;
             overflow: hidden;
             min-height: 0;
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+            min-width: 0;
+            height: 100%;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         .infra-project-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-4px);
             box-shadow: 0 12px 28px rgba(17, 82, 114, 0.12);
         }
         .infra-project-header {
@@ -1427,6 +1439,7 @@ function infra_progress_color($progress) {
                 <div class="infra-grid-scroll" id="infraGridScroll">
                 <div class="infra-projects-grid" id="infraProjectsGrid">
                     <?php if (!empty($infra_reports)): ?>
+                        <?php $modal_templates = ''; ?>
                         <?php foreach ($infra_reports as $idx => $ir):
                             $norm_status = strtolower(str_replace(' ', '-', $ir['status'] ?? ''));
                             $slabel = ucfirst(str_replace('-', ' ', $norm_status));
@@ -1482,7 +1495,7 @@ function infra_progress_color($progress) {
 
                             $modal_html .= '<div class="detail-section"><div class="detail-section-title"><span class="icon-badge"><i class="fas fa-bullhorn"></i></span> Feedback</div><div class="detail-feedback-text">Have concerns about this project?</div><div class="detail-feedback-actions"><a href="contact.php?ref=' . urlencode($report_id) . '" class="detail-feedback-btn detail-feedback-primary"><i class="fas fa-envelope"></i> Contact Us</a><a href="contact.php?ref=' . urlencode($report_id) . '&type=report" class="detail-feedback-btn detail-feedback-danger"><i class="fas fa-flag"></i> Report Issue</a></div></div>';
                         ?>
-                        <div class="infra-project-card" data-title="<?php echo strtolower($title); ?>" data-location="<?php echo strtolower($loc); ?>" data-department="<?php echo strtolower($dept); ?>" data-created="<?php echo strtotime($created ?? '') ?: 0; ?>">
+                        <div class="infra-project-card" data-modal-id="infra_modal_<?php echo $idx; ?>" data-title="<?php echo strtolower($title); ?>" data-location="<?php echo strtolower($loc); ?>" data-department="<?php echo strtolower($dept); ?>" data-created="<?php echo strtotime($created ?? '') ?: 0; ?>">
                             <div class="infra-project-header">
                                 <div class="title-wrap">
                                     <div class="type"><?php echo $src === 'ipms' ? 'IPMS Project' : 'Department Record'; ?></div>
@@ -1523,12 +1536,13 @@ function infra_progress_color($progress) {
                                 <a href="https://www.google.com/maps?q=<?php echo $lat . ',' . $lng; ?>" target="_blank" rel="noopener" class="btn btn-outline-qc"><i class="fas fa-map-marker-alt"></i> View on Map</a>
                                 <?php endif; ?>
                             </div>
-                            <div class="infra-modal-source"><?php echo $modal_html; ?></div>
                         </div>
+                        <?php $modal_templates .= '<div id="infra_modal_' . $idx . '" class="infra-modal-source">' . $modal_html . '</div>'; ?>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
                 </div>
+                <div id="infraModalTemplates" aria-hidden="true" style="display:none;"><?php echo $modal_templates; ?></div>
                 <?php if (count($infra_reports) > 2): ?>
                 <button type="button" class="infra-scroll-more" id="infraScrollMoreBtn" onclick="toggleInfraGridExpand()">
                     <span>View All Projects</span>
@@ -1652,7 +1666,8 @@ function infra_progress_color($progress) {
         function openInfraModal(btn) {
             var card = btn.closest('.infra-project-card');
             if (!card) return;
-            var source = card.querySelector('.infra-modal-source');
+            var source = document.getElementById(card.dataset.modalId);
+            if (!source) source = card.querySelector('.infra-modal-source');
             if (!source) return;
             var title = card.querySelector('.title');
             var report = card.querySelector('.report');
