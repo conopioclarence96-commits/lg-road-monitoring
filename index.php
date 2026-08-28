@@ -4189,28 +4189,22 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 {name:'SM North EDSA — Jeepney Terminal (Dulo)', lat:14.6557190, lng:121.0313460, type:'stop'}
             ]},
             2: { code:'JR-02', name:'JR-02: Litex to Fairview Center Mall', corridor:'Commonwealth Avenue', waypoints:[
-                {name:'Litex Jeepney Terminal — Commonwealth Ave (Start)', lat:14.7014, lng:121.0869, type:'stop'},
-                {name:'Commonwealth Avenue — IBP Road Interchange', lat:14.6900, lng:121.0840, type:'turn'},
-                {name:'Commonwealth Avenue — Batasan / QCU', lat:14.6861, lng:121.0891, type:'turn'},
-                {name:'Commonwealth Avenue — Tandang Sora Overpass', lat:14.6734, lng:121.0320, type:'turn'},
-                {name:'Commonwealth Avenue — Regalado Interchange', lat:14.7050, lng:121.0720, type:'turn'},
-                {name:'Fairview Center Mall — Terminal (Dulo)', lat:14.6925, lng:121.0684, type:'stop'}
+                {name:'Lupang Pangako Jeep Terminal — Litex (Start)', lat:14.7000384, lng:121.0879920, type:'stop'},
+                {name:'Commonwealth — IBP Road / Batasan Junction', lat:14.6870982, lng:121.0871249, type:'turn'},
+                {name:'Commonwealth — Tandang Sora Intersection', lat:14.7064314, lng:121.0672109, type:'turn'},
+                {name:'Fairview Center Mall (Dulo)', lat:14.7061080, lng:121.0690234, type:'stop'}
             ]},
             3: { code:'JR-03', name:'JR-03: Project 2 & 3 to Cubao / Anonas', corridor:'Aurora Boulevard / Katipunan', waypoints:[
-                {name:'Project 2 & 3 — Anonas Street (Start)', lat:14.6304, lng:121.0614, type:'stop'},
-                {name:'Aurora Boulevard — Anonas / Molave Interchange', lat:14.6280, lng:121.0647, type:'turn'},
-                {name:'Aurora Boulevard — LRT-2 Anonas Station', lat:14.6280, lng:121.0647, type:'stop'},
-                {name:'Aurora Boulevard — Gilmore Interchange', lat:14.6237, lng:121.0300, type:'turn'},
-                {name:'Aurora Boulevard — Araneta City / Gateway Mall', lat:14.6198, lng:121.0566, type:'turn'},
-                {name:'Cubao — Ali Mall Jeepney Terminal (Dulo)', lat:14.6180, lng:121.0550, type:'stop'}
+                {name:'Project 2 & 3 — Iglesia Ni Cristo Central (Start)', lat:14.6315761, lng:121.0595770, type:'stop'},
+                {name:'LRT-2 Anonas Station — Aurora Blvd', lat:14.6279459, lng:121.0647051, type:'stop'},
+                {name:'Gilmore Station — Aurora Blvd', lat:14.6135308, lng:121.0341755, type:'turn'},
+                {name:'Ali Mall Jeepney Terminal — Cubao (Dulo)', lat:14.6207949, lng:121.0555045, type:'stop'}
             ]},
             4: { code:'JR-04', name:'JR-04: Welcome Rotonda to E. Rodriguez / España', corridor:'España Blvd / E. Rodriguez Sr. Ave', waypoints:[
-                {name:'Welcome Rotonda — Mabuhay Rotonda (Start)', lat:14.6178, lng:121.0017, type:'stop'},
-                {name:'España Boulevard — Blumentritt Interchange', lat:14.6180, lng:121.0080, type:'turn'},
-                {name:'España Boulevard — E. Rodriguez Interchange', lat:14.6185, lng:121.0180, type:'turn'},
-                {name:'E. Rodriguez Sr. Avenue — Quezon Institute', lat:14.6185, lng:121.0180, type:'stop'},
-                {name:'E. Rodriguez Sr. Avenue — Gilmore Interchange', lat:14.6225, lng:121.0330, type:'turn'},
-                {name:'E. Rodriguez Sr. Avenue — Interterminal Stop (Dulo)', lat:14.6230, lng:121.0340, type:'stop'}
+                {name:'Mabuhay Rotonda — Welcome Rotonda (Start)', lat:14.6176688, lng:121.0018259, type:'stop'},
+                {name:'Blumentritt / España Intersection', lat:14.6225882, lng:120.9835000, type:'turn'},
+                {name:'E. Rodriguez Sr. Ave — Total Area Checkpoint', lat:14.6243800, lng:121.0354403, type:'turn'},
+                {name:'Quezon Institute — E. Rodriguez Sr. Ave (Dulo)', lat:14.6166085, lng:121.0125770, type:'stop'}
             ]}
         };
         var JEEPNEY_ROUTE_META = {
