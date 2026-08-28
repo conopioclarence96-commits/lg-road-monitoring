@@ -4183,12 +4183,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var QC_CENTER = [14.651417, 121.04917];
         var JEEPNEY_GIS_ROUTES = {
             1: { code:'JR-01', name:'JR-01: QC Hall to Philcoa / SM North', corridor:'Elliptical Road / North Ave / Agham Rd', waypoints:[
-                {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6479, lng:121.0518, type:'stop'},
-                {name:'Elliptical Road — PSA / Kalayaan Interchange', lat:14.6460, lng:121.0500, type:'turn'},
-                {name:'Elliptical Road — East Avenue Interchange', lat:14.6438, lng:121.0464, type:'turn'},
-                {name:'North Avenue — Elliptical Rd. / VMMC', lat:14.6537, lng:121.0391, type:'turn'},
-                {name:'Philcoa Terminal — Masaya St. (Designated Stop)', lat:14.6530, lng:121.0528, type:'stop'},
-                {name:'SM North EDSA — Jeepney Terminal (Dulo)', lat:14.6570, lng:121.0304, type:'stop'}
+                {name:'QC Hall Gate 3 — Kalayaan Ave. (Start)', lat:14.6475549, lng:121.0508894, type:'stop'},
+                {name:'Elliptical Road — PSA / Kalayaan', lat:14.6539530, lng:121.0529190, type:'turn'},
+                {name:'Philcoa Terminal — Masaya St.', lat:14.6539530, lng:121.0529190, type:'stop'},
+                {name:'SM North EDSA — Jeepney Terminal (Dulo)', lat:14.6557190, lng:121.0313460, type:'stop'}
             ]},
             2: { code:'JR-02', name:'JR-02: Litex to Fairview Center Mall', corridor:'Commonwealth Avenue', waypoints:[
                 {name:'Litex Jeepney Terminal — Commonwealth Ave (Start)', lat:14.7014, lng:121.0869, type:'stop'},
