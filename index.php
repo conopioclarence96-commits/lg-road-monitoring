@@ -2288,6 +2288,28 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode #qcBusRoutesModal .modal-body::-webkit-scrollbar-thumb,
         html.dark-mode #jeepneyRoutesModal .modal-body::-webkit-scrollbar-thumb,
         html.dark-mode #bikeLaneModal .modal-body::-webkit-scrollbar-thumb { background: #334155; }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel {
+            background: #162032 !important;
+            border-color: #1e2e46 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-title {
+            color: #e2e8f0 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-corridor {
+            color: #93c5fd !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-meta-badge {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+            color: #93c5fd !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-stops li {
+            color: #cbd5e1 !important;
+            border-bottom-color: #1e293b !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-stop-dot {
+            background: #93c5fd !important;
+        }
     </style>
     <style>
         /* View Route Map Modal — GIS sized for modal only (not fullscreen like .public-gis-dialog) */
@@ -2319,6 +2341,82 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             flex-direction: column;
             gap: 10px;
             position: relative;
+        }
+        .qc-route-detail-wrap {
+            display: flex;
+            gap: 14px;
+            align-items: stretch;
+        }
+        .qc-route-detail-panel {
+            flex: 0 0 280px;
+            background: #fff;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: 0 2px 8px rgba(17,82,114,0.06);
+            display: none;
+            overflow-y: auto;
+            max-height: 360px;
+        }
+        .qc-route-detail-panel.is-visible { display: block; }
+        .qc-route-detail-panel .qc-route-title {
+            font-weight: 800;
+            color: var(--qc-primary-900);
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+            line-height: 1.3;
+        }
+        .qc-route-detail-panel .qc-route-corridor {
+            font-size: 0.8rem;
+            color: var(--qc-shades-500);
+            margin-bottom: 10px;
+        }
+        .qc-route-detail-panel .qc-route-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .qc-route-detail-panel .qc-route-meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #f1f9fe;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--qc-primary-800);
+        }
+        .qc-route-detail-panel .qc-route-stops {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .qc-route-detail-panel .qc-route-stops li {
+            font-size: 0.82rem;
+            color: #3e454c;
+            padding: 5px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .qc-route-detail-panel .qc-route-stops li:last-child { border-bottom: none; }
+        .qc-route-detail-panel .qc-route-stop-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--qc-primary-600);
+            flex-shrink: 0;
+        }
+        .qc-route-detail-panel .qc-route-stop-dot.start { background: #10b981; }
+        .qc-route-detail-panel .qc-route-stop-dot.end { background: #dc2626; }
+        .qc-route-detail-wrap #qcBusRoutesGisMap { flex: 1; min-width: 0; }
+        @media (max-width: 768px) {
+            .qc-route-detail-wrap { flex-direction: column; }
+            .qc-route-detail-panel { flex: 1 1 auto; max-height: none; }
         }
         .view-route-dropdown-bar {
             display: flex;
@@ -2765,24 +2863,32 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         </div>
                     </div>
 
-                    <!-- GIS Map — Libreng Sakay routes dropdown (UI changed to GIS) -->
-                    <div class="p-3 p-md-4" style="background:#f7f5f0; border-bottom:1px solid var(--qc-card-border);">
-                        <div class="view-route-dropdown-bar">
-                            <label for="qcBusRoutesDropdown"><i class="fas fa-bus me-1" style="color:var(--qc-primary-700)"></i> Select Libreng Sakay Route:</label>
-                            <select id="qcBusRoutesDropdown" aria-label="Select Libreng Sakay route">
-                                <option value="1" selected>Route 1: QC Hall to Cubao — Kalayaan Ave.</option>
-                                <option value="2">Route 2: QC Hall to Litex / IBP Road — Commonwealth Ave</option>
-                                <option value="3">Route 3: Welcome Rotonda to Aurora-Katipunan — E. Rodriguez / Aurora</option>
-                                <option value="4">Route 4: QC Hall to General Luis — Mindanao / Quirino Hwy</option>
-                                <option value="5">Route 5: QC Hall to Mindanao Ave. via Visayas Ave.</option>
-                                <option value="6">Route 6: QC Hall to Gilmore — East Ave / E. Rodriguez</option>
-                                <option value="7">Route 7: QC Hall to C5 / Ortigas Ave. Ext. — C-5</option>
-                                <option value="8">Route 8: QC Hall to Muñoz — North Ave / Roosevelt</option>
-                            </select>
-                        </div>
-                        <div id="qcBusRoutesGisMap" role="region" aria-label="QC City Bus GIS Map" style="margin-top:12px;"></div>
-                        <small class="text-muted text-center d-block mt-2"><i class="fas fa-info-circle me-1"></i> GIS preview — select a Libreng Sakay route to see its stops and lane-following path on the map.</small>
-                    </div>
+                     <!-- GIS Map — Libreng Sakay routes dropdown (UI changed to GIS) -->
+                     <div class="p-3 p-md-4" style="background:#f7f5f0; border-bottom:1px solid var(--qc-card-border);">
+                         <div class="view-route-dropdown-bar">
+                             <label for="qcBusRoutesDropdown"><i class="fas fa-bus me-1" style="color:var(--qc-primary-700)"></i> Select Libreng Sakay Route:</label>
+                             <select id="qcBusRoutesDropdown" aria-label="Select Libreng Sakay route">
+                                 <option value="1" selected>Route 1: QC Hall to Cubao — Kalayaan Ave.</option>
+                                 <option value="2">Route 2: QC Hall to Litex / IBP Road — Commonwealth Ave</option>
+                                 <option value="3">Route 3: Welcome Rotonda to Aurora-Katipunan — E. Rodriguez / Aurora</option>
+                                 <option value="4">Route 4: QC Hall to General Luis — Mindanao / Quirino Hwy</option>
+                                 <option value="5">Route 5: QC Hall to Mindanao Ave. via Visayas Ave.</option>
+                                 <option value="6">Route 6: QC Hall to Gilmore — East Ave / E. Rodriguez</option>
+                                 <option value="7">Route 7: QC Hall to C5 / Ortigas Ave. Ext. — C-5</option>
+                                 <option value="8">Route 8: QC Hall to Muñoz — North Ave / Roosevelt</option>
+                             </select>
+                         </div>
+                         <div class="qc-route-detail-wrap">
+                             <div id="qcRouteDetailPanel" class="qc-route-detail-panel" aria-live="polite">
+                                 <div class="qc-route-title" id="qcRouteDetailTitle">Select a route</div>
+                                 <div class="qc-route-corridor" id="qcRouteDetailCorridor"></div>
+                                 <div class="qc-route-meta-row" id="qcRouteDetailMeta"></div>
+                                 <ul class="qc-route-stops" id="qcRouteDetailStops"></ul>
+                             </div>
+                             <div id="qcBusRoutesGisMap" role="region" aria-label="QC City Bus GIS Map"></div>
+                         </div>
+                         <small class="text-muted text-center d-block mt-2"><i class="fas fa-info-circle me-1"></i> GIS preview — select a Libreng Sakay route to see its stops and lane-following path on the map.</small>
+                     </div>
 
                     <div class="p-3 p-md-4">
                         <div class="row g-3 g-md-4">
@@ -3717,6 +3823,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                  {name:'Congressional Avenue — Abra Street (Muñoz Terminal)', lat:14.6594, lng:121.0200, type:'stop'}
              ]},
         };
+        var ROUTE_META = {
+            1: {operatingHours:'5AM–9PM', interval:'10–15 min'},
+            2: {operatingHours:'5AM–9PM', interval:'10–15 min'},
+            3: {operatingHours:'5AM–9PM', interval:'15–20 min'},
+            4: {operatingHours:'5AM–9PM', interval:'15–20 min'},
+            5: {operatingHours:'5AM–9PM', interval:'15–20 min'},
+            6: {operatingHours:'5AM–9PM', interval:'15 min'},
+            7: {operatingHours:'5AM–9PM', interval:'20 min'},
+            8: {operatingHours:'5AM–9PM', interval:'15 min'}
+        };
         // keep alias for external
         var currentRouteId = 1;
         function getTomTomKey(){ return (window.LG_ASSET_CONFIG && window.LG_ASSET_CONFIG.TOMTOM_API_KEY) || window.TOMTOM_API_KEY || ''; }
@@ -3933,10 +4049,45 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 if(qcRouteLayer && qcMap){ qcMap.removeLayer(qcRouteLayer); qcRouteLayer=null; }
                 if(qcRouteMarkers && qcMap){ qcMap.removeLayer(qcRouteMarkers); qcRouteMarkers=null; }
             }
+            function renderQcRouteDetail(routeId){
+                routeId = parseInt(routeId,10)||1;
+                var route = BUS_GIS_ROUTES[routeId];
+                var panel = document.getElementById('qcRouteDetailPanel');
+                var titleEl = document.getElementById('qcRouteDetailTitle');
+                var corridorEl = document.getElementById('qcRouteDetailCorridor');
+                var metaEl = document.getElementById('qcRouteDetailMeta');
+                var stopsEl = document.getElementById('qcRouteDetailStops');
+                if(!route || !panel) return;
+                if(titleEl) titleEl.textContent = route.name;
+                if(corridorEl) corridorEl.textContent = route.corridor;
+                var meta = ROUTE_META[routeId] || {};
+                if(metaEl){
+                    metaEl.innerHTML = '';
+                    var opsBadge = document.createElement('span');
+                    opsBadge.className = 'qc-route-meta-badge';
+                    opsBadge.innerHTML = '<i class="far fa-clock"></i> ' + (meta.operatingHours || '');
+                    metaEl.appendChild(opsBadge);
+                    var intBadge = document.createElement('span');
+                    intBadge.className = 'qc-route-meta-badge';
+                    intBadge.innerHTML = '<i class="fas fa-sync-alt"></i> ' + (meta.interval || '');
+                    metaEl.appendChild(intBadge);
+                }
+                if(stopsEl){
+                    var stops = route.waypoints.filter(function(w){ return w.type==='stop'; });
+                    stopsEl.innerHTML = stops.map(function(s, idx){
+                        var isStart = idx===0, isEnd = idx===stops.length-1;
+                        var dotCls = isStart ? 'start' : (isEnd ? 'end' : '');
+                        var label = s.name.replace(' — Terminal','').replace(' (Terminal)','').replace(' QC Hall Gate 3','Gate 3');
+                        return '<li><span class="qc-route-stop-dot '+dotCls+'"></span> '+label+'</li>';
+                    }).join('');
+                }
+                panel.classList.add('is-visible');
+            }
             function showQcBusRoute(routeId){
                 routeId = parseInt(routeId,10)||1;
                 if(!BUS_GIS_ROUTES[routeId]) routeId=1;
                 syncDropdowns(routeId);
+                renderQcRouteDetail(routeId);
                 if(!qcMap) return;
                 clearQcBusRoute();
                 var waypoints = BUS_GIS_ROUTES[routeId].waypoints;
