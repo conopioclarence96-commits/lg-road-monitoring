@@ -3185,63 +3185,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                 <ul class="jeepney-route-stops" id="jeepneyRouteDetailStops"></ul>
                                 <div class="jeepney-route-list mt-3" style="border-top:1px dashed #fde68a; padding-top:14px;">
                                     <h6 style="font-weight:700; color:#92400e; font-size:0.8rem; margin-bottom:12px;"><i class="fas fa-info-circle me-1"></i> Route Details</h6>
-                                    <div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-01</span>
-                                            <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
-                                        </div>
-                                        <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">QC Hall to Philcoa / SM North</h6>
-                                        <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> QC EDSA Terminal • Elliptical Rd. corridor</div>
-                                        <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>QC Hall Gate 3 — Kalayaan Ave. (Start)</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Elliptical Road — PSA / Kalayaan</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Philcoa Terminal — Masaya St.</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>SM North EDSA — Jeepney Terminal (Dulo)</strong></li>
-                                        </ul>
-                                    </div>
-                                    <div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-02</span>
-                                            <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
-                                        </div>
-                                        <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Litex to Fairview Center Mall</h6>
-                                        <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Litex Terminal • Commonwealth Ave corridor</div>
-                                        <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Litex Jeepney Terminal (Start)</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Commonwealth — IBP Road / Batasan</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Commonwealth — Tandang Sora</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>Fairview Center Mall — Terminal (Dulo)</strong></li>
-                                        </ul>
-                                    </div>
-                                    <div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-03</span>
-                                            <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
-                                        </div>
-                                        <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Project 2 &amp; 3 to Cubao / Anonas</h6>
-                                        <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Anonas Terminal • Aurora Blvd corridor</div>
-                                        <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Project 2 &amp; 3 — Anonas St. (Start)</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Aurora Blvd — LRT-2 Anonas Station</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Aurora Blvd — Gilmore Interchange</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>Cubao — Ali Mall Jeepney Terminal (Dulo)</strong></li>
-                                        </ul>
-                                        <div class="small text-muted"><i class="fas fa-arrows-alt-h me-1"></i>Connects to LRT-2 Anonas &amp; MRT-3 Cubao</div>
-                                    </div>
-                                    <div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">JR-04</span>
-                                            <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>
-                                        </div>
-                                        <h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">Welcome Rotonda to E. Rodriguez / España</h6>
-                                        <div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> Welcome Rotonda Terminal • España / E. Rodriguez</div>
-                                        <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>Welcome Rotonda — Mabuhay Rotonda (Start)</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>España Blvd — Blumentritt Interchange</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i>E. Rodriguez Sr. Ave — Quezon Institute</li>
-                                            <li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><strong>E. Rodriguez Sr. Ave — Interterminal (Dulo)</strong></li>
-                                        </ul>
-                                    </div>
+                                    <div id="jeepneyRouteDetailCards"></div>
                                 </div>
                             </div>
                             <div id="jeepneyRoutesGisMap" role="region" aria-label="Jeepney Rationalization GIS Map"></div>
@@ -4235,6 +4179,30 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             if(jpRouteLayer && jpMap){ jpMap.removeLayer(jpRouteLayer); jpRouteLayer=null; }
             if(jpRouteMarkers && jpMap){ jpMap.removeLayer(jpRouteMarkers); jpRouteMarkers=null; }
         }
+        function buildJeepneyRouteCard(routeId){
+            var route = JEEPNEY_GIS_ROUTES[routeId];
+            if(!route) return '';
+            var meta = JEEPNEY_ROUTE_META[routeId] || {};
+            var lineName = route.name;
+            var codeMatch = lineName.match(/^([A-Z]{2}-\d{2}):\s*/);
+            if(codeMatch) lineName = lineName.slice(codeMatch[0].length);
+            var stopsList = route.waypoints.map(function(w, idx){
+                var isStart = idx===0, isEnd = idx===route.waypoints.length-1;
+                var weight = (isStart || isEnd) ? 'font-weight:800;' : '';
+                return '<li><i class="fas fa-warehouse me-1" style="color:#92400e;font-size:0.7rem;"></i><span style="'+weight+'">'+w.name+'</span></li>';
+            }).join('');
+            var connNote = routeId === 3 ? '<div class="small text-muted"><i class="fas fa-arrows-alt-h me-1"></i>Connects to LRT-2 Anonas &amp; MRT-3 Cubao</div>' : '';
+            return '<div class="mb-3" style="border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:12px; padding:16px; background:#fff;">'+
+                '<div class="d-flex align-items-center gap-2 mb-1">'+
+                    '<span style="background:#92400e;color:#fff;font-weight:800;font-size:0.7rem;padding:4px 8px;border-radius:20px;">'+route.code+'</span>'+
+                    '<span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;"><i class="fas fa-check-circle me-1"></i>Rationalized &amp; Consolidated</span>'+
+                '</div>'+
+                '<h6 class="mb-1" style="font-weight:800; color:#78350f; font-size:0.95rem;">'+lineName+'</h6>'+
+                '<div class="small mb-2" style="color:#92400e;"><i class="fas fa-map-pin me-1"></i> '+meta.terminal+' • '+route.corridor+'</div>'+
+                '<ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">'+stopsList+'</ul>'+
+                connNote+
+            '</div>';
+        }
         function renderJeepneyRouteDetail(routeId){
             routeId = parseInt(routeId,10)||1;
             var route = JEEPNEY_GIS_ROUTES[routeId];
@@ -4243,6 +4211,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             var corridorEl = document.getElementById('jeepneyRouteDetailCorridor');
             var metaEl = document.getElementById('jeepneyRouteDetailMeta');
             var stopsEl = document.getElementById('jeepneyRouteDetailStops');
+            var cardsEl = document.getElementById('jeepneyRouteDetailCards');
             if(!route || !panel) return;
             if(titleEl) titleEl.textContent = route.name;
             if(corridorEl) corridorEl.textContent = route.corridor;
@@ -4269,6 +4238,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     var dotCls = isStart ? 'start' : (isEnd ? 'end' : '');
                     return '<li><span class="jeepney-route-stop-dot '+dotCls+'"></span> '+s.name+'</li>';
                 }).join('');
+            }
+            if(cardsEl){
+                cardsEl.innerHTML = buildJeepneyRouteCard(routeId);
             }
             panel.classList.add('is-visible');
         }
