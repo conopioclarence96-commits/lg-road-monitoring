@@ -3431,6 +3431,30 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             border-color: #334155 !important;
             color: #e4e6ea !important;
         }
+        /* Jeepney Rationalization — dark mode for the route selector bar
+           (select itself is already dark-overridden above; bar + label were missing) */
+        html.dark-mode #jeepneyRoutesModal .view-route-dropdown-bar {
+            background: #1e1e1e !important;
+            border-color: #4a3510 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35) !important;
+        }
+        html.dark-mode #jeepneyRoutesModal .view-route-dropdown-bar label {
+            color: #fde68a !important;
+        }
+        /* View Route on Map modal — same bar component was missing a dark override */
+        html.dark-mode #viewRouteMapModal .view-route-dropdown-bar {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35) !important;
+        }
+        html.dark-mode #viewRouteMapModal .view-route-dropdown-bar label {
+            color: #e2e8f0 !important;
+        }
+        html.dark-mode #viewRouteMapModal .view-route-dropdown-bar #viewRouteDropdown {
+            background: #1e2229 !important;
+            border-color: #334155 !important;
+            color: #e4e6ea !important;
+        }
 
         /* 12. Footer */
         html.dark-mode footer.qc-footer {
