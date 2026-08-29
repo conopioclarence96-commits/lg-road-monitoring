@@ -2810,6 +2810,27 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             border-color: #143a24 !important;
             color: #86efac !important;
         }
+
+        .bike-wayfinding-sign {
+            background: #16a34a;
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .bike-wayfinding-sign i { font-size: 14px; }
+        html.dark-mode .bike-wayfinding-sign {
+            background: #15803d;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
@@ -3437,9 +3458,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     </div>
     <script type="application/json" id="bikeLaneRoutesData">[
   { "sectionId": "bk-01", "name": "BK-01: Elliptical Road & Quezon Memorial Circle", "corridor": "Quezon Memorial Circle core loop", "type": "Protected Bike Lane", "features": ["Green-paved lanes", "Concrete plant box barriers", "Access to QMC Underpass bike ramp"], "waypoints": [
-    { "name": "Elliptical Road — Roundabout Center", "lat": 14.651489, "lng": 121.049309, "type": "stop" },
-    { "name": "Quezon Memorial Circle — Shrine", "lat": 14.651400, "lng": 121.049300, "type": "turn" },
-    { "name": "East Avenue Junction", "lat": 14.648000, "lng": 121.049500, "type": "stop" }
+    { "name": "Elliptical Road — Roundabout Center", "lat": 14.651489, "lng": 121.049309, "type": "wayfinding", "sign": "TO QMC" },
+    { "name": "Quezon Memorial Circle — Shrine", "lat": 14.651400, "lng": 121.049300, "type": "wayfinding", "sign": "QMC SHRINE" },
+    { "name": "Elliptical — East Ave Junction", "lat": 14.648000, "lng": 121.049500, "type": "turn" },
+    { "name": "East Ave — Medical Center", "lat": 14.647000, "lng": 121.048500, "type": "stop" }
   ]},
   { "sectionId": "bk-02", "name": "BK-02: Commonwealth Avenue", "corridor": "Tandang Sora to Fairview", "type": "Protected & Shared Network", "features": ["Physical bollards and plant box separators", "Footbridge bike ramps (Philcoa & UP AIT)"], "waypoints": [
     { "name": "Commonwealth — Tandang Sora (Start)", "lat": 14.7064314, "lng": 121.0672109, "type": "stop" },
@@ -4528,15 +4550,23 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             var waypoints = route.waypoints || [];
             bkRouteMarkers = L.layerGroup().addTo(bkMap);
             waypoints.forEach(function(s, idx){
-                var isStart = idx===0, isEnd = idx===waypoints.length-1;
-                var isTurn = s.type === 'turn';
-                var bg = isTurn ? '#f59e0b' : (isStart ? '#10b981' : (isEnd ? '#dc2626' : '#16a34a'));
-                var size = isTurn ? 16 : 20;
-                var iconInner = isTurn ? '<i class="fas fa-share" style="font-size:7px;"></i>' : (idx+1);
-                var label = isTurn ? 'Turn' : 'Point';
-                var html = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:'+(isTurn?'6px':'8px')+';font-weight:800;" title="'+s.name+'">'+iconInner+'</div>';
-                var icon = L.divIcon({html:html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2]});
-                L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>'+(isTurn?'Turn':'Point')+' '+(idx+1)+'/'+waypoints.length+'</small>').addTo(bkRouteMarkers);
+                var isWayfinding = s.type === 'wayfinding';
+                if(isWayfinding){
+                    var signText = (s.sign || 'WAYFINDING').toUpperCase();
+                    var signHtml = '<div class="bike-wayfinding-sign"><i class="fas fa-bicycle"></i> ' + signText + '</div>';
+                    var signIcon = L.divIcon({html:signHtml, className:'', iconSize:[120,28], iconAnchor:[60,14]});
+                    L.marker([s.lat, s.lng], {icon:signIcon, interactive:true}).bindPopup('<strong>'+s.name+'</strong><br><small>Wayfinding sign</small>').addTo(bkRouteMarkers);
+                } else {
+                    var isStart = idx===0, isEnd = idx===waypoints.length-1;
+                    var isTurn = s.type === 'turn';
+                    var bg = isTurn ? '#f59e0b' : (isStart ? '#10b981' : (isEnd ? '#dc2626' : '#16a34a'));
+                    var size = isTurn ? 16 : 20;
+                    var iconInner = isTurn ? '<i class="fas fa-share" style="font-size:7px;"></i>' : (idx+1);
+                    var label = isTurn ? 'Turn' : 'Point';
+                    var html = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:'+(isTurn?'6px':'8px')+';font-weight:800;" title="'+s.name+'">'+iconInner+'</div>';
+                    var icon = L.divIcon({html:html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2]});
+                    L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>'+(isTurn?'Turn':'Point')+' '+(idx+1)+'/'+waypoints.length+'</small>').addTo(bkRouteMarkers);
+                }
             });
             var promises = [];
             for(var i=0;i<waypoints.length-1;i++) promises.push(fetchSegmentRoad(waypoints[i], waypoints[i+1]));
