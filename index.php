@@ -2902,7 +2902,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         elseif (strpos($rt, 'pothole') !== false || strpos($ttl, 'pothole') !== false) $filterCat = 'pothole';
                         else $filterCat = 'other';
                     ?>
-                        <div class="col-md-4 road-update-item" data-category="<?php echo htmlspecialchars($filterCat); ?>">
+                        <div class="col-md-6 road-update-item" data-category="<?php echo htmlspecialchars($filterCat); ?>">
                             <div class="card update-card">
                                 <div class="card-header position-relative">
                                     <?php echo htmlspecialchars($update['title'] ?? 'Road Update'); ?>
@@ -2990,7 +2990,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             <h2 class="section-title">Public Transportation Hub</h2>
             <p class="section-subtitle">Plan your commute with official Quezon City mobility services — bus, jeepney, and bike infrastructure at a glance</p>
             <div class="row g-4">
-                <div class="col-lg-4 col-md-6">
+                <div class="col-lg-6 col-md-6">
                     <div class="transport-card">
                         <span class="transport-badge badge-bus"><i class="fas fa-check-circle me-1"></i> Free Ride</span>
                         <div class="transport-icon"><i class="fas fa-bus"></i></div>
@@ -2999,7 +2999,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <button type="button" class="transport-card-link" data-bs-toggle="modal" data-bs-target="#qcBusRoutesModal" aria-label="View QC Bus Routes details"><i class="fas fa-bus"></i> View QC Bus Routes</button>
                     </div>
                 </div>
-                <div class="col-lg-4 col-md-6">
+                <div class="col-lg-6 col-md-6">
                     <div class="transport-card">
                         <span class="transport-badge badge-jeep"><i class="fas fa-route me-1"></i> Rationalized</span>
                         <div class="transport-icon"><i class="fas fa-shuttle-van"></i></div>
