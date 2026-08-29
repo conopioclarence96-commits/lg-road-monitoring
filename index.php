@@ -3437,9 +3437,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     </div>
     <script type="application/json" id="bikeLaneRoutesData">[
   { "sectionId": "bk-01", "name": "BK-01: Elliptical Road & Quezon Memorial Circle", "corridor": "Quezon Memorial Circle core loop", "type": "Protected Bike Lane", "features": ["Green-paved lanes", "Concrete plant box barriers", "Access to QMC Underpass bike ramp"], "waypoints": [
-    { "name": "Elliptical Road — Kalayaan Entry", "lat": 14.6539530, "lng": 121.0529190, "type": "stop" },
-    { "name": "Quezon Memorial Circle", "lat": 14.6525000, "lng": 121.0530000, "type": "turn" },
-    { "name": "East Avenue Junction", "lat": 14.6545000, "lng": 121.0550000, "type": "stop" }
+    { "name": "Elliptical Road — Roundabout Center", "lat": 14.651489, "lng": 121.049309, "type": "stop" },
+    { "name": "Quezon Memorial Circle — Shrine", "lat": 14.651400, "lng": 121.049300, "type": "turn" },
+    { "name": "East Avenue Junction", "lat": 14.648000, "lng": 121.049500, "type": "stop" }
   ]},
   { "sectionId": "bk-02", "name": "BK-02: Commonwealth Avenue", "corridor": "Tandang Sora to Fairview", "type": "Protected & Shared Network", "features": ["Physical bollards and plant box separators", "Footbridge bike ramps (Philcoa & UP AIT)"], "waypoints": [
     { "name": "Commonwealth — Tandang Sora (Start)", "lat": 14.7064314, "lng": 121.0672109, "type": "stop" },
@@ -4572,8 +4572,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         var id = parseInt(item.sectionId.replace('bk-',''),10);
                         if(!id) return;
                         BIKE_GIS_ROUTES[id] = {
-                            name: item.corridorName,
-                            corridor: item.corridorName + (' — ' + (item.type || '')),
+                            name: item.name,
+                            corridor: item.corridor,
                             waypoints: item.waypoints || []
                         };
                         BIKE_ROUTE_META[id] = {
