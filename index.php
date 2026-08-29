@@ -2377,6 +2377,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             box-shadow: 0 24px 64px rgba(0,0,0,0.35);
         }
         #viewRouteMapModal .modal-body { background: #f7f5f0; }
+        #bikeLaneModal .modal-content {
+            background: #f7f5f0;
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        #bikeLaneModal .modal-body { background: #f7f5f0; }
         .view-route-gis-wrap {
             display: flex;
             flex-direction: column;
@@ -2657,6 +2662,154 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .jeepney-route-detail-panel .jeepney-route-meta-badge { background: #3d2a10; border-color: #4a3510; color: #fde68a; }
         html.dark-mode .jeepney-route-detail-panel .jeepney-route-stops li { color: #e0e0e0; border-bottom-color: #2a2520; }
         html.dark-mode #jeepneyRoutesDropdown { background: #1e1e1e; border-color: #4a3510; color: #fde68a; }
+
+        /* ============================================================
+           BIKE LANE GIS section — landing page only
+           ============================================================ */
+        .bike-lane-gis-section {
+            background: #f0fdf4;
+            border-bottom: 1px solid #bbf7d0;
+            padding: 16px 20px;
+        }
+        .bike-route-detail-wrap {
+            display: flex;
+            gap: 14px;
+            align-items: stretch;
+        }
+        .bike-route-detail-panel {
+            flex: 0 0 340px;
+            background: #fff;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: 0 2px 8px rgba(6,95,70,0.06);
+            display: block;
+            overflow-y: auto;
+            max-height: 420px;
+        }
+        .bike-route-detail-panel.is-visible { display: block; }
+        .bike-route-detail-panel .bike-route-title {
+            font-weight: 800;
+            color: #064e3b;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+            line-height: 1.3;
+        }
+        .bike-route-detail-panel .bike-route-corridor {
+            font-size: 0.8rem;
+            color: #065f46;
+            margin-bottom: 10px;
+        }
+        .bike-route-detail-panel .bike-route-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .bike-route-detail-panel .bike-route-meta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #dcfce7;
+            border: 1px solid #bbf7d0;
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #166534;
+        }
+        .bike-route-detail-panel .bike-route-stops {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .bike-route-detail-panel .bike-route-stops li {
+            font-size: 0.82rem;
+            color: #3e454c;
+            padding: 5px 0;
+            border-bottom: 1px solid #dcfce7;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .bike-route-detail-panel .bike-route-stops li:last-child { border-bottom: none; }
+        .bike-route-detail-panel .bike-route-stop-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #16a34a;
+            flex-shrink: 0;
+        }
+        .bike-route-detail-panel .bike-route-stop-dot.start { background: #10b981; }
+        .bike-route-detail-panel .bike-route-stop-dot.end { background: #dc2626; }
+        .bike-route-detail-wrap #bikeLaneRoutesGisMap { flex: 1; min-width: 0; }
+        #bikeLaneRoutesGisMap {
+            width: 100%;
+            height: 360px;
+            min-height: 280px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #bbf7d0;
+            background: #f0fdf4;
+            z-index: 1;
+        }
+        @media (max-width: 768px) {
+            .bike-route-detail-wrap { flex-direction: column; }
+            .bike-route-detail-panel { flex: 1 1 auto; max-height: none; }
+        }
+        #bikeLaneRoutesDropdown {
+            flex: 1;
+            min-width: 220px;
+            max-width: 420px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 6px 10px;
+            background: #fff;
+            color: #065f46;
+        }
+        #bikeLaneRoutesDropdown:focus {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22,163,74,0.15);
+            outline: none;
+        }
+
+        /* Dark mode — bike lane GIS */
+        html.dark-mode #bikeLaneModal .bike-lane-gis-section {
+            background: #071a10;
+            border-bottom-color: #143a24;
+        }
+        html.dark-mode #bikeLaneModal .bike-lane-gis-section .text-muted {
+            color: #94a3b8 !important;
+        }
+        html.dark-mode #bikeLaneModal .bike-route-detail-panel {
+            background: #0f1d14 !important;
+            border-color: #143a24 !important;
+        }
+        html.dark-mode #bikeLaneModal .bike-route-detail-panel .bike-route-title {
+            color: #dcfce7 !important;
+        }
+        html.dark-mode #bikeLaneModal .bike-route-detail-panel .bike-route-corridor {
+            color: #86efac !important;
+        }
+        html.dark-mode #bikeLaneModal .bike-route-detail-panel .bike-route-meta-badge {
+            background: #1a2e1f !important;
+            border-color: #143a24 !important;
+            color: #86efac !important;
+        }
+        html.dark-mode #bikeLaneModal .bike-route-detail-panel .bike-route-stops li {
+            color: #cbd5e1 !important;
+            border-bottom-color: #1a2e1f !important;
+        }
+        html.dark-mode #bikeLaneModal .bike-route-detail-panel .bike-route-stop-dot {
+            background: #86efac !important;
+        }
+        html.dark-mode #bikeLaneRoutesDropdown {
+            background: #1e2229 !important;
+            border-color: #143a24 !important;
+            color: #86efac !important;
+        }
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
@@ -3238,74 +3391,30 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                     </div>
 
                     <div class="p-3 p-md-4">
-                        <!-- BK-01 -->
-                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-01</span>
-                                <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Bike Lane</span>
+                        <!-- GIS Map — Bike Lane Network section selector -->
+                        <div class="bike-lane-gis-section">
+                            <div class="view-route-dropdown-bar">
+                                <label for="bikeLaneRoutesDropdown"><i class="fas fa-bicycle me-1" style="color:#065f46"></i> Select Bike Lane Section:</label>
+                                <select id="bikeLaneRoutesDropdown" aria-label="Select bike lane section">
+                                    <option value="1" selected>BK-01: Elliptical Road &amp; Quezon Memorial Circle</option>
+                                    <option value="2">BK-02: Commonwealth Avenue</option>
+                                    <option value="3">BK-03: East Avenue</option>
+                                    <option value="4">BK-04: Quezon Avenue</option>
+                                    <option value="5">BK-05: Katipunan Avenue</option>
+                                </select>
                             </div>
-                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Elliptical Road &amp; Quezon Memorial Circle</h6>
-                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> QMC core loop — green-paved premier corridor</div>
-                            <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                <li>Green-paved lanes</li>
-                                <li>Concrete plant box barriers</li>
-                                <li>Access to QMC Underpass bike ramp</li>
-                            </ul>
-                        </div>
-                        <!-- BK-02 -->
-                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-02</span>
-                                <span style="background:#fef3c7;color:#92400e;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected &amp; Shared Network</span>
+                            <div class="bike-route-detail-wrap">
+                                <div id="bikeRouteDetailPanel" class="bike-route-detail-panel is-visible" aria-live="polite">
+                                    <div class="bike-route-title" id="bikeRouteDetailTitle">Select a section</div>
+                                    <div class="bike-route-corridor" id="bikeRouteDetailCorridor"></div>
+                                    <div class="bike-route-meta-row" id="bikeRouteDetailMeta"></div>
+                                    <ul class="bike-route-stops" id="bikeRouteDetailStops"></ul>
+                                </div>
+                                <div id="bikeLaneRoutesGisMap" role="region" aria-label="Bike Lane Network GIS Map"></div>
                             </div>
-                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Commonwealth Avenue</h6>
-                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Longest QC corridor — Tandang Sora to Fairview</div>
-                            <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                <li>Physical bollards and plant box separators</li>
-                                <li>Footbridge bike ramps (Philcoa &amp; UP AIT)</li>
-                            </ul>
+                            <small class="text-muted text-center d-block mt-2"><i class="fas fa-info-circle me-1"></i> GIS preview — select a bike lane section to see its corridor and amenities on the map.</small>
                         </div>
-                        <!-- BK-03 -->
-                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-03</span>
-                                <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Lane</span>
-                            </div>
-                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">East Avenue</h6>
-                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Government &amp; medical district spine</div>
-                            <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                <li>Connected to major QC government offices and hospital zones</li>
-                                <li>Clear road markings</li>
-                            </ul>
-                            <div class="small text-muted"><i class="fas fa-hospital me-1"></i> Links QC Hall • East Ave Medical • Heart Center</div>
-                        </div>
-                        <!-- BK-04 -->
-                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-04</span>
-                                <span style="background:#dcfce7;color:#166534;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Protected Lane</span>
-                            </div>
-                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Quezon Avenue</h6>
-                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> Central QC — Welcome Rotonda to EDSA</div>
-                            <ul class="small mb-2 ps-3" style="line-height:1.7; color:#3e454c;">
-                                <li>NAPWC footbridge bike ramps</li>
-                                <li>Seamless transit convergence points</li>
-                            </ul>
-                            <div class="small text-muted"><i class="fas fa-exchange-alt me-1"></i> Interchanges with MRT-3 &amp; QC Bus</div>
-                        </div>
-                        <!-- BK-05 -->
-                        <div class="mb-3" style="border:1px solid #bbf7d0; border-left:4px solid #16a34a; border-radius:12px; padding:16px; background:#fff;">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <span style="background:#065f46;color:#fff;font-weight:800;font-size:0.68rem;padding:4px 8px;border-radius:20px;">BK-05</span>
-                                <span style="background:#a7f3d0;color:#065f46;font-weight:700;font-size:0.62rem;padding:3px 7px;border-radius:20px;letter-spacing:0.3px;">Buffered &amp; Protected Lane</span>
-                            </div>
-                            <h6 class="mb-1" style="font-weight:800; color:#064e3b; font-size:0.95rem;">Katipunan Avenue</h6>
-                            <div class="small mb-2" style="color:#065f46;"><i class="fas fa-map-pin me-1"></i> University corridor — Ateneo to UP</div>
-                            <ul class="small mb-0 ps-3" style="line-height:1.7; color:#3e454c;">
-                                <li>UP Town Center footbridge bike ramp</li>
-                                <li>University corridor connections</li>
-                            </ul>
-                        </div>
+
                         <!-- Amenities card -->
                         <div class="mb-3" style="border:1px dashed #86efac; border-radius:12px; padding:16px; background:#f0fdf4;">
                             <h6 class="mb-2" style="font-weight:800; color:#065f46; font-size:0.9rem;"><i class="fas fa-parking me-2"></i>Corridor Amenities</h6>
@@ -3326,12 +3435,36 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             </div>
         </div>
     </div>
-    <script type="application/json" id="bikeLaneData">[
-  { "sectionId": "bk-01", "corridorName": "Elliptical Road & Quezon Memorial Circle", "type": "Protected Bike Lane", "features": ["Green-paved lanes", "Concrete plant box barriers", "Access to QMC Underpass bike ramp"] },
-  { "sectionId": "bk-02", "corridorName": "Commonwealth Avenue", "type": "Protected & Shared Network", "features": ["Physical bollards and plant box separators", "Footbridge bike ramps (Philcoa & UP AIT)"] },
-  { "sectionId": "bk-03", "corridorName": "East Avenue", "type": "Protected Lane", "features": ["Connected to major QC government offices and hospital zones", "Clear road markings"] },
-  { "sectionId": "bk-04", "corridorName": "Quezon Avenue", "type": "Protected Lane", "features": ["NAPWC footbridge bike ramps", "Seamless transit convergence points"] },
-  { "sectionId": "bk-05", "corridorName": "Katipunan Avenue", "type": "Buffered & Protected Lane", "features": ["UP Town Center footbridge bike ramp", "University corridor connections"] }
+    <script type="application/json" id="bikeLaneRoutesData">[
+  { "sectionId": "bk-01", "name": "BK-01: Elliptical Road & Quezon Memorial Circle", "corridor": "Quezon Memorial Circle core loop", "type": "Protected Bike Lane", "features": ["Green-paved lanes", "Concrete plant box barriers", "Access to QMC Underpass bike ramp"], "waypoints": [
+    { "name": "Elliptical Road — Kalayaan Entry", "lat": 14.6539530, "lng": 121.0529190, "type": "stop" },
+    { "name": "Quezon Memorial Circle", "lat": 14.6525000, "lng": 121.0530000, "type": "turn" },
+    { "name": "East Avenue Junction", "lat": 14.6545000, "lng": 121.0550000, "type": "stop" }
+  ]},
+  { "sectionId": "bk-02", "name": "BK-02: Commonwealth Avenue", "corridor": "Tandang Sora to Fairview", "type": "Protected & Shared Network", "features": ["Physical bollards and plant box separators", "Footbridge bike ramps (Philcoa & UP AIT)"], "waypoints": [
+    { "name": "Commonwealth — Tandang Sora (Start)", "lat": 14.7064314, "lng": 121.0672109, "type": "stop" },
+    { "name": "Commonwealth — IBP Road Junction", "lat": 14.6870982, "lng": 121.0871249, "type": "turn" },
+    { "name": "Commonwealth — Philcoa Junction", "lat": 14.6960000, "lng": 121.0800000, "type": "turn" },
+    { "name": "Fairview Center Mall (Dulo)", "lat": 14.7061080, "lng": 121.0690234, "type": "stop" }
+  ]},
+  { "sectionId": "bk-03", "name": "BK-03: East Avenue", "corridor": "Government & medical district spine", "type": "Protected Lane", "features": ["Connected to major QC government offices and hospital zones", "Clear road markings"], "waypoints": [
+    { "name": "QC Hall Gate 3 — Kalayaan Ave. (Start)", "lat": 14.6475549, "lng": 121.0508894, "type": "stop" },
+    { "name": "East Avenue — Medical Center", "lat": 14.6480000, "lng": 121.0495000, "type": "turn" },
+    { "name": "East Avenue — Quezon Ave Junction", "lat": 14.6490000, "lng": 121.0485000, "type": "turn" },
+    { "name": "V. Luna / East Ave Medical", "lat": 14.6470000, "lng": 121.0475000, "type": "stop" }
+  ]},
+  { "sectionId": "bk-04", "name": "BK-04: Quezon Avenue", "corridor": "Welcome Rotonda to EDSA", "type": "Protected Lane", "features": ["NAPWC footbridge bike ramps", "Seamless transit convergence points"], "waypoints": [
+    { "name": "Welcome Rotonda — Quezon Ave (Start)", "lat": 14.6176688, "lng": 121.0018259, "type": "stop" },
+    { "name": "Quezon Ave — E. Rodriguez", "lat": 14.6270000, "lng": 121.0100000, "type": "turn" },
+    { "name": "Quezon Ave — G. Araneta", "lat": 14.6330000, "lng": 121.0190000, "type": "turn" },
+    { "name": "Quezon Ave — EDSA (Dulo)", "lat": 14.6350000, "lng": 121.0360000, "type": "stop" }
+  ]},
+  { "sectionId": "bk-05", "name": "BK-05: Katipunan Avenue", "corridor": "University corridor — Ateneo to UP", "type": "Buffered & Protected Lane", "features": ["UP Town Center footbridge bike ramp", "University corridor connections"], "waypoints": [
+    { "name": "Katipunan — Ateneo (Start)", "lat": 14.6315761, "lng": 121.0595770, "type": "stop" },
+    { "name": "Katipunan — LRT-2 Anonas", "lat": 14.6279459, "lng": 121.0647051, "type": "turn" },
+    { "name": "Katipunan — UP Town Center", "lat": 14.6290000, "lng": 121.0660000, "type": "turn" },
+    { "name": "Katipunan — UP Diliman (Dulo)", "lat": 14.6300000, "lng": 121.0680000, "type": "stop" }
+  ]}
 ]</script>
 
     <!-- 2. Live Traffic (now via FAB) — inline map removed; use the floating Live Road Map button -->
@@ -4275,6 +4408,195 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         jpMap.invalidateSize();
                         var rid = jpDropdown ? parseInt(jpDropdown.value,10)||1 : 1;
                         showJeepneyRoute(rid);
+                    }, 220);
+                });
+            }
+        });
+    })();
+    </script>
+
+    <!-- Bike Lane Network GIS Map — section selector with map preview -->
+    <script>
+    (function(){
+        'use strict';
+        var bkMap = null, bkRouteLayer = null, bkRouteMarkers = null, bkMapInited = false;
+        var QC_CENTER = [14.651417, 121.04917];
+        var BIKE_GIS_ROUTES = {};
+        var BIKE_ROUTE_META = {};
+        function getTomTomKey(){ return (window.LG_ASSET_CONFIG && window.LG_ASSET_CONFIG.TOMTOM_API_KEY) || window.TOMTOM_API_KEY || ''; }
+        function extractRoutePoints(routeData){
+            var pts = [];
+            try{
+                var legs = routeData.routes && routeData.routes[0] && routeData.routes[0].legs;
+                if(legs){
+                    legs.forEach(function(leg){
+                        if(leg.path && leg.path.coordinates){
+                            leg.path.coordinates.forEach(function(c){ pts.push([c[1], c[0]]); });
+                        } else if(leg.points){
+                            leg.points.forEach(function(p){ pts.push([p.latitude, p.longitude]); });
+                        }
+                    });
+                }
+                if(!pts.length && routeData.routes && routeData.routes[0] && routeData.routes[0].path && routeData.routes[0].path.coordinates){
+                    routeData.routes[0].path.coordinates.forEach(function(c){ pts.push([c[1], c[0]]); });
+                }
+                if(!pts.length && routeData.path && routeData.path.coordinates){
+                    routeData.path.coordinates.forEach(function(c){ pts.push([c[1], c[0]]); });
+                }
+            }catch(e){}
+            return pts;
+        }
+        function fetchSegmentRoad(from, to){
+            if(!window.TomTomServices || !window.TomTomServices.calculateRoute){
+                return Promise.resolve([[from.lat, from.lng],[to.lat, to.lng]]);
+            }
+            return window.TomTomServices.calculateRoute(from.lat, from.lng, to.lat, to.lng).then(function(data){
+                if(!data || !data.success || !data.data) return [[from.lat, from.lng],[to.lat, to.lng]];
+                var pts = extractRoutePoints(data.data);
+                return pts.length ? pts : [[from.lat, from.lng],[to.lat, to.lng]];
+            }).catch(function(){ return [[from.lat, from.lng],[to.lat, to.lng]]; });
+        }
+        function initBikeLaneMap(){
+            if(bkMapInited || typeof L === 'undefined') return;
+            var el = document.getElementById('bikeLaneRoutesGisMap');
+            if(!el) return;
+            var key = getTomTomKey();
+            bkMap = L.map('bikeLaneRoutesGisMap', { zoomControl: true }).setView(QC_CENTER, 13);
+            L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?view=Unified&key=' + key, { attribution: '\u00A9 TomTom', maxZoom: 18 }).addTo(bkMap);
+            L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?view=Unified&key=' + key, { attribution: '\u00A9 TomTom Traffic', opacity: 0.7, maxZoom: 18 }).addTo(bkMap);
+            bkMapInited = true;
+            setTimeout(function(){ if(bkMap) bkMap.invalidateSize(); }, 100);
+        }
+        function clearBikeLaneRoute(){
+            if(bkRouteLayer && bkMap){ bkMap.removeLayer(bkRouteLayer); bkRouteLayer=null; }
+            if(bkRouteMarkers && bkMap){ bkMap.removeLayer(bkRouteMarkers); bkRouteMarkers=null; }
+        }
+        function renderBikeLaneRouteDetail(routeId){
+            routeId = parseInt(routeId,10)||1;
+            var route = BIKE_GIS_ROUTES[routeId];
+            var panel = document.getElementById('bikeRouteDetailPanel');
+            var titleEl = document.getElementById('bikeRouteDetailTitle');
+            var corridorEl = document.getElementById('bikeRouteDetailCorridor');
+            var metaEl = document.getElementById('bikeRouteDetailMeta');
+            var stopsEl = document.getElementById('bikeRouteDetailStops');
+            if(!route || !panel) return;
+            if(titleEl) titleEl.textContent = route.name;
+            if(corridorEl) corridorEl.textContent = route.corridor;
+            var meta = BIKE_ROUTE_META[routeId] || {};
+            if(metaEl){
+                metaEl.innerHTML = '';
+                if(meta.type){
+                    var typeBadge = document.createElement('span');
+                    typeBadge.className = 'bike-route-meta-badge';
+                    typeBadge.innerHTML = '<i class="fas fa-road"></i> ' + meta.type;
+                    metaEl.appendChild(typeBadge);
+                }
+                if(meta.features && meta.features.length){
+                    var featBadge = document.createElement('span');
+                    featBadge.className = 'bike-route-meta-badge';
+                    featBadge.innerHTML = '<i class="fas fa-list-ul"></i> ' + meta.features.length + ' features';
+                    metaEl.appendChild(featBadge);
+                }
+            }
+            if(stopsEl){
+                var waypoints = route.waypoints || [];
+                var stops = waypoints.filter(function(w){ return w.type==='stop'; });
+                stopsEl.innerHTML = stops.map(function(s, idx){
+                    var isStart = idx===0, isEnd = idx===stops.length-1;
+                    var dotCls = isStart ? 'start' : (isEnd ? 'end' : '');
+                    return '<li><span class="bike-route-stop-dot '+dotCls+'"></span> '+s.name+'</li>';
+                }).join('');
+                if(!stops.length && waypoints.length){
+                    stopsEl.innerHTML = waypoints.map(function(s, idx){
+                        var isStart = idx===0, isEnd = idx===waypoints.length-1;
+                        var dotCls = isStart ? 'start' : (isEnd ? 'end' : '');
+                        return '<li><span class="bike-route-stop-dot '+dotCls+'"></span> '+s.name+'</li>';
+                    }).join('');
+                }
+            }
+            panel.classList.add('is-visible');
+        }
+        function showBikeLaneRoute(routeId){
+            routeId = parseInt(routeId,10)||1;
+            if(!BIKE_GIS_ROUTES[routeId]) routeId=1;
+            renderBikeLaneRouteDetail(routeId);
+            var dropdown = document.getElementById('bikeLaneRoutesDropdown');
+            if(dropdown) dropdown.value = String(routeId);
+            if(!bkMap) return;
+            clearBikeLaneRoute();
+            var route = BIKE_GIS_ROUTES[routeId];
+            var waypoints = route.waypoints || [];
+            bkRouteMarkers = L.layerGroup().addTo(bkMap);
+            waypoints.forEach(function(s, idx){
+                var isStart = idx===0, isEnd = idx===waypoints.length-1;
+                var isTurn = s.type === 'turn';
+                var bg = isTurn ? '#f59e0b' : (isStart ? '#10b981' : (isEnd ? '#dc2626' : '#16a34a'));
+                var size = isTurn ? 16 : 20;
+                var iconInner = isTurn ? '<i class="fas fa-share" style="font-size:7px;"></i>' : (idx+1);
+                var label = isTurn ? 'Turn' : 'Point';
+                var html = '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+bg+';border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:'+(isTurn?'6px':'8px')+';font-weight:800;" title="'+s.name+'">'+iconInner+'</div>';
+                var icon = L.divIcon({html:html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2]});
+                L.marker([s.lat, s.lng], {icon:icon}).bindPopup('<strong>'+s.name+'</strong><br><small>'+(isTurn?'Turn':'Point')+' '+(idx+1)+'/'+waypoints.length+'</small>').addTo(bkRouteMarkers);
+            });
+            var promises = [];
+            for(var i=0;i<waypoints.length-1;i++) promises.push(fetchSegmentRoad(waypoints[i], waypoints[i+1]));
+            Promise.all(promises).then(function(segments){
+                if(!bkMap) return;
+                var all=[];
+                segments.forEach(function(seg){
+                    if(!seg||!seg.length) return;
+                    if(all.length && seg.length){
+                        var last=all[all.length-1], first=seg[0];
+                        if(last[0]===first[0] && last[1]===first[1]) seg=seg.slice(1);
+                    }
+                    all=all.concat(seg);
+                });
+                if(!all.length) all=waypoints.map(function(s){return [s.lat,s.lng];});
+                if(bkRouteLayer && bkMap) bkMap.removeLayer(bkRouteLayer);
+                bkRouteLayer = L.polyline(all, {color:'#16a34a', weight:4, opacity:0.92, lineCap:'round', lineJoin:'round'}).addTo(bkMap);
+                L.polyline(all, {color:'#ffffff', weight:1.2, opacity:0.35, lineCap:'round', lineJoin:'round'}).addTo(bkRouteMarkers);
+                try{ bkMap.fitBounds(bkRouteLayer.getBounds().pad(0.14)); }catch(e){}
+                if(bkRouteMarkers) bkRouteMarkers.bringToFront();
+            });
+        }
+        window.BIKE_GIS_ROUTES = BIKE_GIS_ROUTES;
+        window.showBikeLaneRoute = showBikeLaneRoute;
+        document.addEventListener('DOMContentLoaded', function(){
+            var dataEl = document.getElementById('bikeLaneData');
+            var bkModalEl = document.getElementById('bikeLaneModal');
+            var bkDropdown = document.getElementById('bikeLaneRoutesDropdown');
+            if(dataEl){
+                try {
+                    var data = JSON.parse(dataEl.textContent || '[]');
+                    data.forEach(function(item){
+                        var id = parseInt(item.sectionId.replace('bk-',''),10);
+                        if(!id) return;
+                        BIKE_GIS_ROUTES[id] = {
+                            name: item.corridorName,
+                            corridor: item.corridorName + (' — ' + (item.type || '')),
+                            waypoints: item.waypoints || []
+                        };
+                        BIKE_ROUTE_META[id] = {
+                            type: item.type || '',
+                            features: item.features || []
+                        };
+                    });
+                } catch(e){}
+            }
+            if(bkDropdown){
+                bkDropdown.addEventListener('change', function(){
+                    var rid = parseInt(this.value,10)||1;
+                    showBikeLaneRoute(rid);
+                });
+            }
+            if(bkModalEl){
+                bkModalEl.addEventListener('shown.bs.modal', function(){
+                    initBikeLaneMap();
+                    if(!bkMap) return;
+                    setTimeout(function(){
+                        bkMap.invalidateSize();
+                        var rid = bkDropdown ? parseInt(bkDropdown.value,10)||1 : 1;
+                        showBikeLaneRoute(rid);
                     }, 220);
                 });
             }
