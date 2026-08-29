@@ -2666,6 +2666,1093 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
+    <style>
+        /* ============================================================
+           MIDNIGHT BLUE DARK MODE THEME
+           Deep, layered, atmospheric dark mode for index.php.
+           Loads last so it overrides all existing dark-mode rules.
+           ============================================================ */
+
+        /* 1. Design tokens */
+        html.dark-mode {
+            --dm-base: #090d16;
+            --dm-surface-1: #0f1420;
+            --dm-surface-2: #141a2a;
+            --dm-surface-3: #1b2337;
+            --dm-elevated: #1e293b;
+            --dm-elevated-hover: #222d45;
+            --dm-navbar: #0d1322;
+            --dm-footer: #0c1220;
+            --dm-border: rgba(47, 66, 98, 0.45);
+            --dm-border-strong: rgba(60, 90, 120, 0.55);
+            --dm-text-primary: #f1f5f9;
+            --dm-text-body: #cbd5e1;
+            --dm-text-secondary: #94a3b8;
+            --dm-text-tertiary: #64748b;
+            --dm-accent: #21a1d6;
+            --dm-accent-hover: #49b9e7;
+            --dm-accent-strong: #1381b6;
+            --dm-accent-focus: rgba(33, 161, 214, 0.35);
+            --dm-accent-glow: rgba(33, 161, 214, 0.55);
+            --dm-shadow-sm: 0 2px 6px rgba(9, 13, 22, 0.35);
+            --dm-shadow-base: 0 4px 12px rgba(9, 13, 22, 0.45);
+            --dm-shadow-elevated: 0 8px 24px rgba(9, 13, 22, 0.55);
+            --dm-shadow-strong: 0 20px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(60, 90, 120, 0.2);
+            --dm-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            --dm-glow-hover: 0 0 0 1px var(--dm-accent-focus), 0 6px 20px rgba(9, 13, 22, 0.5);
+            --dm-icon-gradient: linear-gradient(135deg, rgba(33, 161, 214, 0.2) 0%, rgba(17, 82, 114, 0.35) 50%, rgba(55, 98, 200, 0.22) 100%);
+            --dm-icon-border: rgba(33, 161, 214, 0.3);
+            --dm-icon-glow: 0 0 10px var(--dm-accent-glow);
+        }
+
+        /* 2. Base surfaces */
+        html.dark-mode {
+            background: var(--dm-base) !important;
+            color: var(--dm-text-body) !important;
+        }
+        html.dark-mode body {
+            background: var(--dm-base);
+            color: var(--dm-text-body);
+            transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        html.dark-mode .section,
+        html.dark-mode .announcements-public-section,
+        html.dark-mode .contact-section,
+        html.dark-mode .qc-quick-section {
+            background: var(--dm-base);
+            color: var(--dm-text-body);
+        }
+
+        /* 3. Typography hierarchy */
+        html.dark-mode h1,
+        html.dark-mode h2,
+        html.dark-mode h3,
+        html.dark-mode h4,
+        html.dark-mode h5,
+        html.dark-mode h6,
+        html.dark-mode .section-title {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode p,
+        html.dark-mode .card-text,
+        html.dark-mode .stat-label,
+        html.dark-mode .transport-card p,
+        html.dark-mode .announcement-public-message,
+        html.dark-mode .lead {
+            color: var(--dm-text-body) !important;
+        }
+        html.dark-mode .text-muted {
+            color: var(--dm-text-secondary) !important;
+        }
+        html.dark-mode small,
+        html.dark-mode .announcement-public-date,
+        html.dark-mode .contact-info p,
+        html.dark-mode .faq-accordion .accordion-body {
+            color: var(--dm-text-tertiary) !important;
+        }
+        html.dark-mode #public-transport .text-muted {
+            color: var(--dm-text-secondary) !important;
+        }
+        html.dark-mode a {
+            color: var(--dm-accent);
+        }
+        html.dark-mode a:hover {
+            color: var(--dm-accent-hover);
+        }
+
+        /* 4. Navbar */
+        html.dark-mode .qc-navbar {
+            background: var(--dm-navbar) !important;
+            border-bottom: 1px solid var(--dm-border) !important;
+            box-shadow: var(--dm-shadow-base);
+        }
+        html.dark-mode .qc-navbar.scrolled {
+            box-shadow: var(--dm-shadow-strong);
+        }
+        html.dark-mode .qc-brand-text strong {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .qc-brand-text small {
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .qc-nav-links .nav-link {
+            color: var(--dm-text-body) !important;
+            transition: color 0.2s ease, background-color 0.2s ease;
+        }
+        html.dark-mode .qc-nav-links .nav-link:hover,
+        html.dark-mode .qc-nav-links .nav-link.active {
+            color: var(--dm-text-primary) !important;
+            background-color: var(--dm-accent-focus);
+        }
+        html.dark-mode .qc-services-dropdown .dropdown-toggle,
+        html.dark-mode .qc-programs-dropdown .dropdown-toggle {
+            color: var(--dm-text-primary) !important;
+            border-color: rgba(255, 255, 255, 0.35) !important;
+        }
+        html.dark-mode .qc-services-dropdown .dropdown-toggle:hover,
+        html.dark-mode .qc-services-dropdown .dropdown-toggle:focus,
+        html.dark-mode .qc-programs-dropdown .dropdown-toggle:hover,
+        html.dark-mode .qc-programs-dropdown .dropdown-toggle:focus {
+            background: rgba(255, 255, 255, 0.08) !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .qc-search-input {
+            color: var(--dm-text-primary) !important;
+            border-color: rgba(255, 255, 255, 0.35) !important;
+            background: var(--dm-surface-1) !important;
+        }
+        html.dark-mode .qc-search-input:focus {
+            background: var(--dm-surface-2) !important;
+            border-color: var(--dm-accent) !important;
+            box-shadow: 0 0 0 3px var(--dm-accent-focus) !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .qc-search-input::placeholder {
+            color: #7f8b99 !important;
+        }
+        html.dark-mode .qc-search-results {
+            background: var(--dm-surface-1) !important;
+            border-color: var(--dm-border-strong) !important;
+            box-shadow: var(--dm-shadow-strong) !important;
+        }
+        html.dark-mode .qc-search-item {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .qc-search-item:hover {
+            background: var(--dm-elevated) !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .qc-search-item small {
+            color: var(--dm-text-tertiary) !important;
+        }
+        html.dark-mode .qc-search-group-title,
+        html.dark-mode .qc-search-empty,
+        html.dark-mode .qc-search-loading {
+            color: var(--dm-text-secondary) !important;
+        }
+
+        /* Hamburger */
+        html.dark-mode .hamburger-btn {
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+        }
+        html.dark-mode .hamburger-btn .bar {
+            background: #fff !important;
+        }
+        html.dark-mode .hamburger-btn:hover {
+            background: rgba(255, 255, 255, 0.15) !important;
+        }
+
+        /* 5. Hero section */
+        html.dark-mode section.hero {
+            background:
+                linear-gradient(115deg, rgba(9, 13, 22, 0.92) 0%, rgba(11, 42, 62, 0.88) 55%, rgba(17, 82, 114, 0.82) 100%),
+                url('assets/img/cityhall.jpeg') center/cover no-repeat !important;
+        }
+        html.dark-mode .hero-eyebrow {
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .hero h1 {
+            color: var(--dm-text-primary) !important;
+            text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+        }
+        html.dark-mode .hero p.lead {
+            color: #cbd5e1 !important;
+        }
+
+        /* 6. Buttons */
+        html.dark-mode .btn-primary-hero {
+            background: var(--dm-accent) !important;
+            border: none !important;
+            color: var(--dm-base) !important;
+        }
+        html.dark-mode .btn-primary-hero:hover {
+            background: var(--dm-accent-hover) !important;
+            box-shadow: var(--dm-glow-hover) !important;
+            color: var(--dm-base) !important;
+        }
+        html.dark-mode .btn-secondary-hero {
+            background: transparent !important;
+            border: 2px solid rgba(255, 255, 255, 0.85) !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .btn-secondary-hero:hover {
+            background: var(--dm-text-primary) !important;
+            color: var(--dm-base) !important;
+        }
+        html.dark-mode #makeReportBtn.btn-hero {
+            background: #d93939 !important;
+            border: none !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode #makeReportBtn.btn-hero:hover {
+            background: #c02a2a !important;
+            box-shadow: var(--dm-glow-hover) !important;
+        }
+        html.dark-mode .btn-login,
+        html.dark-mode .qc-login-btn {
+            background: var(--dm-accent-strong) !important;
+            color: #fff !important;
+        }
+        html.dark-mode .btn-login:hover,
+        html.dark-mode .qc-login-btn:hover {
+            background: var(--dm-accent) !important;
+            box-shadow: var(--dm-glow-hover) !important;
+            color: #fff !important;
+        }
+        html.dark-mode .cr-btn-primary {
+            background: var(--dm-accent) !important;
+            color: var(--dm-base) !important;
+        }
+        html.dark-mode .cr-btn-primary:hover {
+            background: var(--dm-accent-hover) !important;
+            color: var(--dm-base) !important;
+            box-shadow: var(--dm-glow-hover) !important;
+        }
+        html.dark-mode .cr-btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: none !important;
+        }
+        html.dark-mode .cr-btn-secondary {
+            background: var(--dm-surface-3) !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .cr-btn-secondary:hover {
+            background: var(--dm-border-strong) !important;
+        }
+        html.dark-mode .cr-btn-success {
+            background: #10b981 !important;
+            color: var(--dm-base) !important;
+        }
+        html.dark-mode .cr-btn-success:hover {
+            background: #059669 !important;
+        }
+        html.dark-mode .cr-btn-outline {
+            background: transparent !important;
+            border: 2px solid var(--dm-accent) !important;
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .cr-btn-outline:hover {
+            background: var(--dm-accent) !important;
+            color: var(--dm-base) !important;
+        }
+        html.dark-mode .btn-qc-primary {
+            background: var(--dm-accent-strong) !important;
+            border: 1px solid var(--dm-accent-strong) !important;
+            color: #fff !important;
+        }
+        html.dark-mode .btn-qc-primary:hover {
+            background: var(--dm-accent) !important;
+            border-color: var(--dm-accent) !important;
+            box-shadow: var(--dm-glow-hover) !important;
+        }
+        html.dark-mode .btn-qc-outline {
+            background: transparent !important;
+            border: 2px solid #fff !important;
+            color: #fff !important;
+        }
+        html.dark-mode .btn-qc-outline:hover {
+            background: #fff !important;
+            color: var(--dm-base) !important;
+        }
+        html.dark-mode .btn-outline-dark {
+            color: #c8cdd4 !important;
+            border-color: #6b7280 !important;
+        }
+        html.dark-mode .btn-outline-dark:hover,
+        html.dark-mode .btn-check:checked + .btn-outline-dark {
+            background: #343a40 !important;
+            color: #fff !important;
+            border-color: #343a40 !important;
+        }
+        html.dark-mode .btn-outline-secondary {
+            color: #a6adb5 !important;
+            border-color: #6b7280 !important;
+        }
+        html.dark-mode .btn-outline-secondary:hover,
+        html.dark-mode .btn-check:checked + .btn-outline-secondary {
+            background: #6b7280 !important;
+            color: #fff !important;
+            border-color: #6b7280 !important;
+        }
+
+        /* 7. Cards & surfaces */
+        html.dark-mode .update-card {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border) !important;
+            border-radius: 12px;
+            box-shadow: var(--dm-shadow-base);
+            transition: transform 0.22s ease, box-shadow 0.22s ease;
+        }
+        html.dark-mode .update-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--dm-glow-hover);
+        }
+        html.dark-mode .update-card .card-header {
+            background: var(--dm-surface-2) !important;
+            border-bottom: 1px solid var(--dm-border) !important;
+            color: var(--dm-text-primary) !important;
+            border-radius: 12px 12px 0 0;
+        }
+        html.dark-mode .update-card .card-text {
+            color: var(--dm-text-secondary);
+        }
+
+        html.dark-mode .stat-card {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border) !important;
+            border-radius: 12px;
+            box-shadow: var(--dm-shadow-base);
+            transition: transform 0.22s ease, box-shadow 0.22s ease;
+        }
+        html.dark-mode .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--dm-glow-hover);
+        }
+        html.dark-mode .stat-number {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .stat-label {
+            color: var(--dm-text-secondary) !important;
+        }
+
+        html.dark-mode .service-card {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border) !important;
+            border-radius: 12px;
+            box-shadow: var(--dm-shadow-base);
+            transition: transform 0.22s ease, box-shadow 0.22s ease;
+        }
+        html.dark-mode .service-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--dm-glow-hover);
+        }
+        html.dark-mode .service-title {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .service-card p,
+        html.dark-mode .service-desc {
+            color: var(--dm-text-secondary);
+        }
+        html.dark-mode .qc-service-more { background: var(--dm-surface-3); }
+        html.dark-mode .qc-service-more .service-icon {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        html.dark-mode .qc-service-more .service-icon i { color: var(--dm-text-primary); }
+        html.dark-mode .qc-service-more .service-title { color: var(--dm-text-primary); }
+
+        html.dark-mode .transport-card {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border) !important;
+            border-radius: 14px;
+            box-shadow: var(--dm-shadow-base);
+            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+        }
+        html.dark-mode .transport-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--dm-glow-hover);
+            border-color: rgba(33, 161, 214, 0.4) !important;
+        }
+        html.dark-mode .transport-card h5 {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .transport-card p {
+            color: var(--dm-text-secondary) !important;
+        }
+        html.dark-mode .transport-card-link {
+            border-color: var(--dm-border-strong) !important;
+            color: var(--dm-accent) !important;
+            background: var(--dm-surface-1) !important;
+        }
+        html.dark-mode .transport-card-link:hover {
+            background: var(--dm-accent) !important;
+            color: var(--dm-base) !important;
+            border-color: var(--dm-accent) !important;
+        }
+
+        html.dark-mode .report-form {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border) !important;
+            border-radius: 12px;
+            box-shadow: var(--dm-shadow-elevated);
+        }
+        html.dark-mode .announcement-public-card {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border) !important;
+            border-radius: 14px;
+            box-shadow: var(--dm-shadow-base);
+            transition: transform 0.22s ease, box-shadow 0.22s ease;
+        }
+        html.dark-mode .announcement-public-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--dm-glow-hover);
+        }
+        html.dark-mode .announcement-public-photo {
+            background: var(--dm-surface-2);
+        }
+        html.dark-mode .announcement-public-body h3 {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .announcement-public-message {
+            color: var(--dm-text-secondary);
+        }
+        html.dark-mode .announcement-public-date {
+            color: var(--dm-text-tertiary) !important;
+        }
+        html.dark-mode .announcement-public-empty {
+            color: var(--dm-text-tertiary);
+        }
+        html.dark-mode .announcement-public-empty i {
+            color: var(--dm-accent);
+            opacity: 0.6;
+        }
+
+        /* 8. Icon containers — gradient backdrop + glowing accent */
+        html.dark-mode .stat-icon,
+        html.dark-mode .service-icon,
+        html.dark-mode .contact-icon,
+        html.dark-mode .transport-icon,
+        html.dark-mode .faq-icon {
+            background: var(--dm-icon-gradient) !important;
+            border: 1px solid var(--dm-icon-border) !important;
+            box-shadow: var(--dm-shadow-inset), var(--dm-icon-glow);
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .stat-icon i,
+        html.dark-mode .service-icon i,
+        html.dark-mode .contact-icon i,
+        html.dark-mode .transport-icon i,
+        html.dark-mode .faq-icon i {
+            color: var(--dm-accent) !important;
+            filter: drop-shadow(0 0 6px var(--dm-accent-glow));
+        }
+
+        /* 9. Badges */
+        html.dark-mode .badge-maintenance { background: #4a3f13 !important; color: #fde68a !important; }
+        html.dark-mode .badge-advisory { background: #123044 !important; color: #93c5fd !important; }
+        html.dark-mode .badge-closure { background: #3f1d1d !important; color: #fca5a5 !important; }
+        html.dark-mode .badge-bus { background: #1e3a5f !important; color: #93c5fd !important; }
+        html.dark-mode .badge-jeep { background: #3d2a10 !important; color: #fbbf24 !important; }
+        html.dark-mode .badge-bike { background: #13251a !important; color: #6ee7b7 !important; }
+
+        /* 10. Forms & inputs */
+        html.dark-mode .form-control,
+        html.dark-mode .form-select,
+        html.dark-mode input,
+        html.dark-mode select,
+        html.dark-mode textarea {
+            background: var(--dm-surface-1) !important;
+            color: var(--dm-text-primary) !important;
+            border: 1px solid var(--dm-border-strong) !important;
+            border-radius: 8px;
+            transition: all 0.25s ease;
+        }
+        html.dark-mode .form-control:focus,
+        html.dark-mode .form-select:focus,
+        html.dark-mode input:focus,
+        html.dark-mode select:focus,
+        html.dark-mode textarea:focus {
+            background: var(--dm-surface-2) !important;
+            border-color: var(--dm-accent) !important;
+            box-shadow: 0 0 0 3px var(--dm-accent-focus) !important;
+            color: var(--dm-text-primary) !important;
+            outline: none;
+        }
+        html.dark-mode .form-control::placeholder,
+        html.dark-mode input::placeholder,
+        html.dark-mode textarea::placeholder {
+            color: var(--dm-text-tertiary) !important;
+        }
+
+        /* Citizen Report Form */
+        html.dark-mode .cr-form-group select,
+        html.dark-mode .cr-form-group input,
+        html.dark-mode .cr-form-group textarea,
+        html.dark-mode .cr-otp-row input {
+            background: var(--dm-surface-1) !important;
+            color: var(--dm-text-primary) !important;
+            border-color: var(--dm-border-strong) !important;
+            border-radius: 8px;
+            transition: all 0.25s ease;
+        }
+        html.dark-mode .cr-form-group select:focus,
+        html.dark-mode .cr-form-group input:focus,
+        html.dark-mode .cr-form-group textarea:focus {
+            background: var(--dm-surface-2) !important;
+            border-color: var(--dm-accent) !important;
+            box-shadow: 0 0 0 3px var(--dm-accent-focus) !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .cr-form-group label {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .cr-form-group .field-error {
+            color: #fca5a5 !important;
+        }
+        html.dark-mode .cr-form-group input.error,
+        html.dark-mode .cr-form-group select.error,
+        html.dark-mode .cr-form-group textarea.error {
+            border-color: #f87171 !important;
+        }
+        html.dark-mode .cr-form-group input.error:focus,
+        html.dark-mode .cr-form-group select.error:focus,
+        html.dark-mode .cr-form-group textarea.error:focus {
+            border-color: #f87171 !important;
+            box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.3) !important;
+        }
+        html.dark-mode .cr-verification-box {
+            background: var(--dm-surface-1) !important;
+            border: 1px solid var(--dm-border-strong) !important;
+            border-radius: 12px;
+        }
+        html.dark-mode .cr-status.success { background: #13251a !important; color: #6ee7b7 !important; border-color: #1f4d33 !important; }
+        html.dark-mode .cr-status.error { background: #2a1416 !important; color: #fda4af !important; border-color: #5c2228 !important; }
+        html.dark-mode .cr-status.info { background: #0e2430 !important; color: #7dd3fc !important; border-color: #1f4a5e !important; }
+
+        /* File upload */
+        html.dark-mode .file-upload-area input[type="file"] { /* keep hidden */ }
+        html.dark-mode .file-upload-label {
+            background: var(--dm-surface-1) !important;
+            border: 2px dashed var(--dm-border-strong) !important;
+            border-radius: 12px;
+            color: var(--dm-text-secondary);
+            transition: all 0.3s ease;
+        }
+        html.dark-mode .file-upload-label:hover {
+            border-color: var(--dm-accent) !important;
+            background: var(--dm-surface-2) !important;
+        }
+        html.dark-mode .file-upload-label i {
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .file-upload-text {
+            color: var(--dm-accent) !important;
+            font-weight: 600;
+        }
+        html.dark-mode .file-upload-hint {
+            color: var(--dm-text-tertiary) !important;
+        }
+        html.dark-mode .file-count {
+            color: var(--dm-text-secondary) !important;
+        }
+        html.dark-mode .photo-preview-item {
+            border-color: var(--dm-border-strong) !important;
+            box-shadow: var(--dm-shadow-sm);
+        }
+        html.dark-mode .file-upload-label.has-error {
+            border-color: #f87171 !important;
+            background: #2a1416 !important;
+        }
+        html.dark-mode .file-upload-label.has-error i {
+            color: #fca5a5 !important;
+        }
+
+        /* 11. Modals */
+        html.dark-mode .modal-content {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border-strong) !important;
+            box-shadow: var(--dm-shadow-strong) !important;
+            color: var(--dm-text-body);
+        }
+        html.dark-mode .modal-header {
+            border-bottom-color: var(--dm-border) !important;
+            color: var(--dm-text-primary);
+        }
+        html.dark-mode .modal-body {
+            background: var(--dm-elevated) !important;
+            color: var(--dm-text-body);
+        }
+        html.dark-mode .modal-footer {
+            background: var(--dm-surface-2) !important;
+            border-top-color: var(--dm-border) !important;
+        }
+        html.dark-mode .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+
+        /* Route map modals */
+        html.dark-mode #qcBusRoutesModal .modal-content,
+        html.dark-mode #jeepneyRoutesModal .modal-content,
+        html.dark-mode #bikeLaneModal .modal-content,
+        html.dark-mode #viewRouteMapModal .modal-content {
+            background: #0f141c !important;
+            border: 1px solid #1e2e46 !important;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.65), 0 0 0 1px rgba(147,197,253,0.06) inset !important;
+        }
+        html.dark-mode #qcBusRoutesModal .modal-body,
+        html.dark-mode #jeepneyRoutesModal .modal-body,
+        html.dark-mode #bikeLaneModal .modal-body {
+            background: #0f141c !important;
+        }
+        html.dark-mode #qcBusRoutesModal .modal-footer,
+        html.dark-mode #jeepneyRoutesModal .modal-footer,
+        html.dark-mode #bikeLaneModal .modal-footer {
+            background: #0c1220 !important;
+            border-top-color: #1e2e46 !important;
+        }
+        html.dark-mode #viewRouteMapModal .modal-body {
+            background: #0f141c !important;
+        }
+        html.dark-mode #viewRouteMapModal .modal-footer {
+            background: #0c1220 !important;
+            border-top-color: #1e2e46 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .row.g-3 > div > div,
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list > div,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 {
+            background: #162032 !important;
+            border-color: #1e2e46 !important;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.35) !important;
+        }
+        html.dark-mode #qcBusRoutesModal .row.g-3 > div > div:hover,
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list > div:hover,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.45) !important;
+        }
+        html.dark-mode #qcBusRoutesModal .row.g-3 h6,
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list h6,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 h6 {
+            color: #e2e8f0 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .row.g-3 ul,
+        html.dark-mode #qcBusRoutesModal .row.g-3 li,
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list ul,
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list li,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 ul,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 li {
+            color: #cbd5e1 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .row.g-3 .small,
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list .small,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 .small {
+            color: #94a3b8 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .row.g-3 strong,
+        html.dark-mode #jeepneyRoutesModal #jeepneyRouteDetailPanel .jeepney-route-list strong,
+        html.dark-mode #bikeLaneModal .modal-body > .p-3.p-md-4 > div.mb-3 strong {
+            color: #e0f2fe !important;
+        }
+        html.dark-mode #qcBusRoutesModal .badge.bg-light,
+        html.dark-mode #jeepneyRoutesModal .badge.bg-light,
+        html.dark-mode #bikeLaneModal .badge.bg-light {
+            background: #1e293b !important;
+            color: #93c5fd !important;
+            border-color: #334155 !important;
+        }
+        html.dark-mode #qcBusRoutesModal div[style*="background:#fff7ed"],
+        html.dark-mode #jeepneyRoutesModal div[style*="background:#f8fafc"],
+        html.dark-mode #bikeLaneModal div[style*="border:1px dashed"] {
+            background: #1a2333 !important;
+            border-color: #1e3a5a !important;
+        }
+        html.dark-mode #qcBusRoutesModal div[style*="background:#fff7ed"] *,
+        html.dark-mode #jeepneyRoutesModal div[style*="background:#f8fafc"] *,
+        html.dark-mode #bikeLaneModal div[style*="border:1px dashed"] * {
+            color: #cbd5e1 !important;
+        }
+        html.dark-mode #qcBusRoutesModal div[style*="background:#fff7ed"] h6,
+        html.dark-mode #bikeLaneModal div[style*="border:1px dashed"] h6 {
+            color: #fde68a !important;
+        }
+        html.dark-mode #qcBusRoutesModal a,
+        html.dark-mode #jeepneyRoutesModal a,
+        html.dark-mode #bikeLaneModal a {
+            color: #93c5fd !important;
+        }
+        #qcBusRoutesModal .modal-body::-webkit-scrollbar,
+        #jeepneyRoutesModal .modal-body::-webkit-scrollbar,
+        #bikeLaneModal .modal-body::-webkit-scrollbar { width: 8px; }
+        #qcBusRoutesModal .modal-body::-webkit-scrollbar-thumb,
+        #jeepneyRoutesModal .modal-body::-webkit-scrollbar-thumb,
+        #bikeLaneModal .modal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+        html.dark-mode #qcBusRoutesModal .modal-body::-webkit-scrollbar-track,
+        html.dark-mode #jeepneyRoutesModal .modal-body::-webkit-scrollbar-track,
+        html.dark-mode #bikeLaneModal .modal-body::-webkit-scrollbar-track { background: #0f141c; }
+        html.dark-mode #qcBusRoutesModal .modal-body::-webkit-scrollbar-thumb,
+        html.dark-mode #jeepneyRoutesModal .modal-body::-webkit-scrollbar-thumb,
+        html.dark-mode #bikeLaneModal .modal-body::-webkit-scrollbar-thumb { background: #334155; }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel {
+            background: #162032 !important;
+            border-color: #1e2e46 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-title { color: #e2e8f0 !important; }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-corridor { color: #93c5fd !important; }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-meta-badge {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+            color: #93c5fd !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-stops li {
+            color: #cbd5e1 !important;
+            border-bottom-color: #1e293b !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-route-detail-panel .qc-route-stop-dot {
+            background: #93c5fd !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-summary-bar {
+            background: linear-gradient(180deg, #0f1d2e 0%, #0c1220 100%) !important;
+            border-bottom-color: #1e3a5a !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-summary-bar * {
+            color: #cbd5e1 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-summary-bar i {
+            color: #93c5fd !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-summary-bar .col-md-4 {
+            background: #162032 !important;
+            border-color: #1e2e46 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-gis-section {
+            background: #0f141c !important;
+            border-bottom-color: #1e2e46 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-gis-section .text-muted {
+            color: #94a3b8 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-info-section {
+            background: #0c1220 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .qc-bus-info-section .small,
+        html.dark-mode #qcBusRoutesModal .qc-bus-info-section p {
+            color: #94a3b8 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .view-route-dropdown-bar {
+            background: #1e293b !important;
+            border-color: #334155 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35) !important;
+        }
+        html.dark-mode #qcBusRoutesModal .view-route-dropdown-bar label {
+            color: #e2e8f0 !important;
+        }
+        html.dark-mode #qcBusRoutesModal .view-route-dropdown-bar #qcBusRoutesDropdown {
+            background: #1e2229 !important;
+            border-color: #334155 !important;
+            color: #e4e6ea !important;
+        }
+
+        /* 12. Footer */
+        html.dark-mode footer.qc-footer {
+            background: linear-gradient(135deg, var(--dm-navbar) 0%, var(--dm-surface-2) 100%) !important;
+            color: var(--dm-text-body) !important;
+            border-top: 1px solid var(--dm-border);
+        }
+        html.dark-mode footer.qc-footer a {
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .footer-contact-item {
+            color: var(--dm-text-body) !important;
+        }
+        html.dark-mode .footer-contact-item:hover {
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .footer-contact-item i {
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .contact-separator {
+            background: rgba(255, 255, 255, 0.12) !important;
+        }
+        html.dark-mode .footer-links-row a {
+            color: rgba(241, 245, 253, 0.85) !important;
+        }
+        html.dark-mode .footer-links-row a:hover {
+            color: var(--dm-text-primary) !important;
+            text-decoration: underline;
+        }
+        html.dark-mode .footer-divider {
+            background: rgba(255, 255, 255, 0.12) !important;
+        }
+        html.dark-mode .footer-copyright {
+            color: rgba(241, 245, 253, 0.75) !important;
+        }
+        html.dark-mode .footer-copyright i {
+            color: var(--dm-accent) !important;
+        }
+
+        /* 13. Emergency ticker */
+        html.dark-mode .emergency-ticker {
+            background: linear-gradient(90deg, #7f1d1d 0%, #991b1b 100%) !important;
+            color: #fff !important;
+        }
+        html.dark-mode .emergency-ticker-text strong,
+        html.dark-mode .emergency-ticker-link {
+            color: #fff !important;
+        }
+        html.dark-mode .emergency-ticker-dismiss {
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #fff;
+        }
+        html.dark-mode .emergency-ticker-dismiss:hover {
+            background: rgba(255,255,255,0.32);
+        }
+
+        /* 14. Traffic components */
+        html.dark-mode .live-traffic-card {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border) !important;
+            border-radius: 14px;
+        }
+        html.dark-mode .live-traffic-header {
+            background: var(--dm-surface-2) !important;
+            border-bottom-color: var(--dm-border) !important;
+        }
+        html.dark-mode .live-traffic-header h4 {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .traffic-status {
+            background: var(--dm-surface-3) !important;
+            color: var(--dm-text-tertiary) !important;
+        }
+        html.dark-mode .traffic-status.live {
+            background: #13251a !important;
+            color: #6ee7b7 !important;
+        }
+        html.dark-mode .traffic-legend {
+            background: var(--dm-elevated) !important;
+            border-top-color: var(--dm-border) !important;
+            color: var(--dm-text-secondary) !important;
+        }
+        html.dark-mode .traffic-legend span { color: var(--dm-text-secondary); }
+        #liveTrafficMap { background: #e8eef3; }
+        html.dark-mode #liveTrafficMap { background: var(--dm-surface-1); }
+
+        /* 15. Filter pills */
+        html.dark-mode .road-filter-bar {
+            background: var(--dm-surface-2) !important;
+            border: 1px solid var(--dm-border) !important;
+        }
+        html.dark-mode .filter-pill {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border-strong) !important;
+            color: var(--dm-text-body) !important;
+        }
+        html.dark-mode .filter-pill:hover {
+            background: var(--dm-elevated-hover) !important;
+            border-color: rgba(33, 161, 214, 0.4) !important;
+        }
+        html.dark-mode .filter-pill.active {
+            background: var(--dm-accent-strong) !important;
+            color: #fff !important;
+            border-color: var(--dm-accent-strong) !important;
+            box-shadow: 0 4px 10px rgba(17,82,114,0.35);
+        }
+        html.dark-mode .filter-pill .count {
+            background: rgba(0,0,0,0.25) !important;
+            color: var(--dm-text-secondary) !important;
+        }
+        html.dark-mode .filter-pill.active .count {
+            background: rgba(255,255,255,0.22) !important;
+            color: #fff !important;
+        }
+        html.dark-mode .filter-empty { color: var(--dm-text-tertiary); }
+
+        /* 16. FAQ accordion */
+        html.dark-mode .faq-accordion .accordion-item {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border) !important;
+            border-radius: 12px;
+        }
+        html.dark-mode .faq-accordion .accordion-button {
+            background: var(--dm-elevated) !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .faq-accordion .accordion-button:not(.collapsed) {
+            background: var(--dm-elevated-hover) !important;
+            color: var(--dm-accent) !important;
+            box-shadow: none !important;
+        }
+        html.dark-mode .faq-accordion .accordion-button:focus {
+            box-shadow: none !important;
+            border-color: var(--dm-border-strong) !important;
+        }
+        html.dark-mode .faq-accordion .accordion-body {
+            background: var(--dm-elevated) !important;
+            color: var(--dm-text-secondary) !important;
+        }
+        html.dark-mode .faq-accordion .accordion-body strong {
+            color: var(--dm-accent) !important;
+        }
+
+        /* 17. GIS elements */
+        html.dark-mode .gis-map-btn {
+            border-color: rgba(33, 161, 214, 0.35) !important;
+            background: rgba(33, 161, 214, 0.1) !important;
+            color: var(--dm-accent) !important;
+            transition: all 0.2s ease;
+        }
+        html.dark-mode .gis-map-btn:hover {
+            background: var(--dm-accent) !important;
+            border-color: var(--dm-accent) !important;
+            color: var(--dm-base) !important;
+        }
+        html.dark-mode .gis-map-btn.active-toggle {
+            background: rgba(33, 161, 214, 0.2) !important;
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .gis-map-btn.inactive-toggle {
+            background: #6c757d !important;
+            color: #fff !important;
+            border-color: #6c757d !important;
+        }
+        html.dark-mode .gis-search-input {
+            background: var(--dm-surface-1) !important;
+            border-color: var(--dm-border-strong) !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .gis-search-input:focus {
+            border-color: var(--dm-accent) !important;
+            box-shadow: 0 0 0 2px var(--dm-accent-focus) !important;
+        }
+        html.dark-mode .gis-search-results {
+            background: var(--dm-surface-1) !important;
+            border-color: var(--dm-border-strong) !important;
+            box-shadow: var(--dm-shadow-strong) !important;
+        }
+        html.dark-mode .gis-search-result-item {
+            border-bottom-color: var(--dm-border) !important;
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .gis-search-result-item:hover {
+            background: var(--dm-elevated) !important;
+        }
+        html.dark-mode .gis-search-result-item small {
+            color: var(--dm-text-tertiary) !important;
+        }
+
+        /* 18. Leaflet maps */
+        html.dark-mode .leaflet-container { background: var(--dm-surface-1); }
+        html.dark-mode .leaflet-tile-pane { filter: brightness(0.6) contrast(1.15) grayscale(0.2); }
+        html.dark-mode .leaflet-bar { border-color: var(--dm-border-strong); }
+        html.dark-mode .leaflet-control-zoom a {
+            background: var(--dm-surface-2); color: var(--dm-text-primary); border-color: var(--dm-border-strong);
+        }
+        html.dark-mode .leaflet-control-zoom a:hover { background: var(--dm-elevated); }
+        html.dark-mode .leaflet-control-attribution {
+            background: rgba(9, 13, 22, 0.85); color: var(--dm-text-tertiary);
+        }
+        html.dark-mode .leaflet-control-attribution a { color: var(--dm-accent); }
+        html.dark-mode .leaflet-popup-content-wrapper,
+        html.dark-mode .leaflet-popup-tip { background: var(--dm-surface-2); color: var(--dm-text-primary); }
+        html.dark-mode .leaflet-popup-content-wrapper a { color: var(--dm-accent); }
+
+        /* 19. Miscellaneous */
+        html.dark-mode .card { background: var(--dm-elevated) !important; color: var(--dm-text-body) !important; border-color: var(--dm-border) !important; }
+        html.dark-mode .card-header { background: var(--dm-surface-2) !important; color: var(--dm-text-primary) !important; border-color: var(--dm-border) !important; }
+        html.dark-mode .badge { color: #fff !important; }
+        html.dark-mode .text-dark { color: var(--dm-text-primary) !important; }
+        html.dark-mode .text-primary { color: var(--dm-accent) !important; }
+        html.dark-mode .bg-light { background: var(--dm-surface-2) !important; }
+        html.dark-mode .bg-white { background: var(--dm-elevated) !important; }
+        html.dark-mode .border { border-color: var(--dm-border) !important; }
+        html.dark-mode table { background: var(--dm-elevated) !important; color: var(--dm-text-body) !important; border-color: var(--dm-border) !important; }
+        html.dark-mode table thead { background: var(--dm-surface-2) !important; }
+        html.dark-mode table th { color: var(--dm-text-primary) !important; border-color: var(--dm-border-strong) !important; }
+        html.dark-mode table td { color: var(--dm-text-body) !important; border-color: var(--dm-border) !important; }
+        html.dark-mode .alert-success { background: #13251a !important; color: #6ee7b7 !important; border-color: #1f4d33 !important; }
+        html.dark-mode .alert-danger { background: #2a1416 !important; color: #fda4af !important; border-color: #5c2228 !important; }
+        html.dark-mode .alert-info { background: #0e2430 !important; color: #7dd3fc !important; border-color: #1f4a5e !important; }
+        html.dark-mode .alert-primary { background: #122a44 !important; color: #93c5fd !important; border-color: #1e3a5f !important; }
+        html.dark-mode .alert-secondary { background: #262a30 !important; color: #c8cdd4 !important; border-color: #3a3f47 !important; }
+        html.dark-mode .alert-dark { background: #2a2d33 !important; color: #e4e6ea !important; border-color: #3a3f47 !important; }
+        html.dark-mode .alert-light { background: var(--dm-surface-1) !important; color: #e4e6ea !important; border-color: var(--dm-border-strong) !important; }
+        html.dark-mode .alert-warning {
+            background: #3a3418 !important; color: #fde68a !important; border-color: #4a411f !important;
+        }
+        html.dark-mode .alert-warning h5 { color: #fde68a !important; }
+        html.dark-mode .alert-link { color: inherit !important; font-weight: 700 !important; }
+        html.dark-mode .terms-scroll {
+            background: var(--dm-surface-1) !important;
+            border-color: var(--dm-border-strong) !important;
+            color: var(--dm-text-secondary) !important;
+        }
+        html.dark-mode .modal-body h6 { color: #93c5fd !important; }
+        html.dark-mode .restricted-card { background: var(--dm-elevated) !important; }
+        html.dark-mode .restricted-card h2 { color: var(--dm-text-primary) !important; }
+        html.dark-mode .restricted-card p { color: var(--dm-text-secondary) !important; }
+        html.dark-mode .restricted-card .btn-login {
+            background: var(--dm-accent-strong) !important;
+            color: #fff !important;
+        }
+        html.dark-mode .restricted-card .btn-login:hover {
+            background: var(--dm-accent) !important;
+            box-shadow: var(--dm-glow-hover) !important;
+        }
+
+        /* Accessibility FAB & panel */
+        html.dark-mode .a11y-fab-btn {
+            background: linear-gradient(135deg, var(--dm-accent), var(--dm-accent-hover)) !important;
+            box-shadow: 0 4px 20px var(--dm-accent-glow) !important;
+        }
+        html.dark-mode .a11y-fab-btn:hover {
+            box-shadow: 0 6px 28px var(--dm-accent-glow) !important;
+        }
+        html.dark-mode .a11y-panel {
+            background: var(--dm-elevated) !important;
+            box-shadow: var(--dm-shadow-strong) !important;
+            color: var(--dm-text-body) !important;
+        }
+        html.dark-mode .a11y-panel h5 {
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .a11y-option {
+            border-bottom-color: var(--dm-border) !important;
+        }
+        html.dark-mode .a11y-option > label:not(.a11y-option-row),
+        html.dark-mode .a11y-option-text {
+            color: var(--dm-text-body) !important;
+        }
+        html.dark-mode .a11y-btn-group button {
+            background: var(--dm-surface-2) !important;
+            color: var(--dm-accent) !important;
+            border-color: var(--dm-border-strong) !important;
+        }
+        html.dark-mode .a11y-btn-group button:hover {
+            background: var(--dm-accent) !important;
+            color: var(--dm-base) !important;
+            border-color: var(--dm-accent) !important;
+        }
+        html.dark-mode .a11y-switch-slider {
+            background: #444 !important;
+        }
+        html.dark-mode .a11y-switch-slider::before {
+            background: #fff !important;
+        }
+        html.dark-mode .a11y-switch input:checked + .a11y-switch-slider {
+            background: var(--dm-accent-strong) !important;
+        }
+        html.dark-mode .a11y-reset {
+            background: var(--dm-surface-3) !important;
+            color: var(--dm-text-body) !important;
+        }
+        html.dark-mode .a11y-reset:hover {
+            background: var(--dm-border-strong) !important;
+        }
+        html.dark-mode .filters-bar { background: var(--dm-elevated) !important; border-color: var(--dm-border) !important; }
+        html.dark-mode .stats-ribbon { background: var(--dm-elevated) !important; border-color: var(--dm-border) !important; }
+        html.dark-mode .progress { background: #333 !important; }
+        html.dark-mode .progress-bar { background: var(--dm-accent) !important; }
+
+        /* 20. Scrollbar */
+        html.dark-mode ::-webkit-scrollbar { width: 8px; }
+        html.dark-mode ::-webkit-scrollbar-track { background: var(--dm-base); }
+        html.dark-mode ::-webkit-scrollbar-thumb { background: var(--dm-border-strong); border-radius: 4px; }
+        html.dark-mode ::-webkit-scrollbar-thumb:hover { background: var(--dm-text-tertiary); }
+
+        /* 21. Smooth theme transitions */
+        body.theme-transition,
+        body.theme-transition *,
+        body.theme-transition *::before,
+        body.theme-transition *::after {
+            transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, fill 0.35s ease, stroke 0.35s ease !important;
+        }
+
+        /* 22. Responsive dark mode */
+        @media (max-width: 768px) {
+            html.dark-mode .hero h1 { text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        }
+    </style>
 </head>
 <body>
     <?php if ($restricted): ?>
