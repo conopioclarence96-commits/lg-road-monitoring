@@ -7605,6 +7605,24 @@ if ($is_completed_projects_view || $is_system_admin) {
 
         let isCompleting = false; // Flag to prevent multiple clicks
         var pendingStatusAction = null; // 'complete' | 'cancel' while confirm modal is open
+        var COMPLETE_REQUIRES_100_MSG = 'This project is not at 100% completion. Unable to complete.';
+
+        function parseProgressApiJson(r) {
+            return r.json().then(function(data) {
+                if (!data || typeof data !== 'object') {
+                    throw new Error('Unexpected server response.');
+                }
+                return data;
+            });
+        }
+
+        function progressApiErrorMessage(err, fallback) {
+            var msg = (err && err.message) ? String(err.message) : '';
+            if (!msg || msg === 'Failed to fetch') {
+                return fallback || 'Network error';
+            }
+            return msg;
+        }
 
         function isOfficerRole() {
             var tag = document.getElementById('sessionTimeoutData');
@@ -7729,6 +7747,15 @@ if ($is_completed_projects_view || $is_system_admin) {
             if (!currentUpdatesReportId) return;
             if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) return;
             if (isCompleting) return; // Prevent multiple clicks
+
+            var completionPct = parseCompletionPercentage(
+                typeof currentProjectCompletionPercentage !== 'undefined' ? currentProjectCompletionPercentage : 0
+            );
+            if (completionPct < 100) {
+                showNotification(COMPLETE_REQUIRES_100_MSG, 'error');
+                return;
+            }
+
             isCompleting = true;
             
             var today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -7763,12 +7790,13 @@ if ($is_completed_projects_view || $is_system_admin) {
             updateFormData.append('source', currentUpdatesReportSource);
             updateFormData.append('title', 'Completed');
             updateFormData.append('description', 'completed on ' + today);
+            updateFormData.append('completion_percentage', '100');
 
             fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: updateFormData
             })
-            .then(function(r) { return r.json(); })
+            .then(parseProgressApiJson)
             .then(function(data) {
                 if (data.success) {
                     // Now update the status
@@ -7778,7 +7806,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                 }
             })
             .catch(function(e) {
-                showNotification('Network error', 'error');
+                showNotification(progressApiErrorMessage(e, 'Network error'), 'error');
                 console.error(e);
                 isCompleting = false;
             });
@@ -7800,7 +7828,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                 method: 'POST',
                 body: statusFormData
             })
-            .then(function(r) { return r.json(); })
+            .then(parseProgressApiJson)
             .then(function(data) {
                 if (data.success) {
                     showNotification(data.message || 'Report completed successfully', 'success');
@@ -7812,7 +7840,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                 isCompleting = false; // Reset flag
             })
             .catch(function(e) {
-                showNotification('Network error', 'error');
+                showNotification(progressApiErrorMessage(e, 'Network error'), 'error');
                 console.error(e);
                 isCompleting = false; // Reset flag
             });

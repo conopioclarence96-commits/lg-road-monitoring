@@ -1204,6 +1204,98 @@ function rgmap_your_reports_archive_sql($user_id, $role) {
     )";
 }
 
+/**
+ * Whether a report belongs to the Road or Transportation supervisor module.
+ * @return 'road'|'transport'|null
+ */
+function rgmap_report_module_for_row(array $row, ?string $source_table = null): ?string {
+    $table = trim((string)($source_table ?? ($row['_source_table'] ?? '')));
+    if ($table === 'cimm_verification_reports' || $table === 'ipms_road_projects' || $table === 'road_maintenance_reports') {
+        return 'road';
+    }
+    $cat = strtolower(trim((string)($row['report_category'] ?? '')));
+    if ($cat === 'road') {
+        return 'road';
+    }
+    if ($cat === 'transportation') {
+        return 'transport';
+    }
+    $src = strtolower(trim((string)($row['source_system'] ?? '')));
+    if ($src === 'transport' || (int)($row['created_by'] ?? -1) === 0) {
+        return 'transport';
+    }
+    return null;
+}
+
+/**
+ * Resolve report module from report_assignments.report_type (API paths without a full row).
+ * @return 'road'|'transport'|null
+ */
+function rgmap_report_module_for_assignment($conn, int $report_id, ?string $report_type = null): ?string {
+    if (!$conn || $report_id <= 0) {
+        return null;
+    }
+    $rt = trim((string)$report_type);
+    if ($rt === 'cimm_verification_reports' || $rt === 'ipms_road_projects' || $rt === 'road_maintenance_reports') {
+        return 'road';
+    }
+    if ($rt === 'road_transportation_reports') {
+        $row = fetch_one(
+            "SELECT report_category, created_by FROM road_transportation_reports WHERE id = ?",
+            [$report_id],
+            'i'
+        );
+        if (!$row) {
+            return null;
+        }
+        $cat = strtolower(trim((string)($row['report_category'] ?? '')));
+        if ($cat === 'road') {
+            return 'road';
+        }
+        if ($cat === 'transportation') {
+            return 'transport';
+        }
+        if ((int)($row['created_by'] ?? 1) === 0) {
+            return 'transport';
+        }
+    }
+    return null;
+}
+
+/**
+ * Supervisor manage/assign permission with cross-department ownership rule:
+ * a Transport supervisor's first-claim does not block Road supervisor actions
+ * on road-module reports (and vice versa). Same-role peers remain exclusive.
+ */
+function rgmap_supervisor_can_manage_owned_report(
+    int $user_id,
+    string $user_role,
+    int $owner_id,
+    string $owner_role,
+    ?string $report_module
+): bool {
+    if ($owner_id <= 0) {
+        return true;
+    }
+    if ($owner_id === $user_id) {
+        return true;
+    }
+    if (!in_array($user_role, ['road_ops_supervisor', 'trans_ops_supervisor'], true)) {
+        return false;
+    }
+    $user_module = ($user_role === 'road_ops_supervisor') ? 'road' : 'transport';
+    if ($report_module === null || $report_module !== $user_module) {
+        return false;
+    }
+    if ($user_role === 'road_ops_supervisor' && $owner_role === 'trans_ops_supervisor') {
+        return true;
+    }
+    if ($user_role === 'trans_ops_supervisor' && $owner_role === 'road_ops_supervisor') {
+        return true;
+    }
+    return false;
+}
+
 // Annotate a list of report rows with a display-only "Assignment Status".
 // The report_assignments table is the single source of truth updated by the
 // Assign/Unassign Staff features, so this reflects assignments live on every
@@ -1220,8 +1312,8 @@ function annotate_report_assignment_status($conn, array &$reports) {
     $owners = [];
     try {
         $res = $conn->query(
-            "SELECT ra.report_id, ra.report_type, ra.assigned_by, ra.assigned_at, ra.status,
-                    u.full_name AS officer_name, ab.full_name AS assigner_name
+            "SELECT ra.report_id, ra.report_type, ra.assigned_by, ra.assigned_at, ra.status, ra.user_id,
+                    u.full_name AS officer_name, ab.full_name AS assigner_name, ab.role AS assigner_role
              FROM report_assignments ra
              LEFT JOIN users u ON u.id = ra.user_id
              LEFT JOIN users ab ON ab.id = ra.assigned_by
@@ -1235,11 +1327,13 @@ function annotate_report_assignment_status($conn, array &$reports) {
                     $owners[$key] = [
                         'id' => (int)$row['assigned_by'],
                         'name' => (string)($row['assigner_name'] ?? ''),
+                        'role' => (string)($row['assigner_role'] ?? ''),
                     ];
                 }
                 if (($row['status'] ?? '') === 'active') {
                     $assigned[$key] = [
                         'officer' => $row['officer_name'] ?? '',
+                        'officer_id' => (int)($row['user_id'] ?? 0),
                         'assigner' => $row['assigner_name'] ?? '',
                         'assigner_id' => (int)($row['assigned_by'] ?? 0),
                     ];
@@ -1259,17 +1353,25 @@ function annotate_report_assignment_status($conn, array &$reports) {
         $key = $table . ':' . ($rr['id'] ?? 0);
         $rr['assignment_status'] = isset($assigned[$key]) ? 'assigned' : 'unassigned';
         $rr['assignment_officer'] = $assigned[$key]['officer'] ?? '';
+        $rr['assignment_officer_id'] = (int)($assigned[$key]['officer_id'] ?? 0);
         // Prefer live active assigner name; fall back to first-claim owner name.
         $rr['assigned_by'] = $assigned[$key]['assigner']
             ?? ($owners[$key]['name'] ?? '');
         $owner_id = (int)($owners[$key]['id'] ?? ($assigned[$key]['assigner_id'] ?? 0));
         $rr['assigned_by_id'] = $owner_id;
+        $rr['display_supervisor_id'] = (int)($assigned[$key]['assigner_id'] ?? $owner_id);
         if ($role === 'system_admin' || !$is_supervisor) {
             $rr['can_manage_as_supervisor'] = true;
-        } elseif ($owner_id <= 0) {
-            $rr['can_manage_as_supervisor'] = true; // unclaimed — any matching-role supervisor may claim
         } else {
-            $rr['can_manage_as_supervisor'] = ($owner_id === $uid);
+            $owner_role = (string)($owners[$key]['role'] ?? '');
+            $report_module = rgmap_report_module_for_row($rr, $table);
+            $rr['can_manage_as_supervisor'] = rgmap_supervisor_can_manage_owned_report(
+                $uid,
+                $role,
+                $owner_id,
+                $owner_role,
+                $report_module
+            );
         }
         // Keep _source_table for callers that still need the live table name
         // (pagination APIs, archive helpers). Ownership fields are already set.
@@ -1290,15 +1392,19 @@ function rgmap_get_report_owner_supervisor($conn, $report_id, $report_type = nul
         return null;
     }
 
-    $types = [];
     $rt = trim((string)$report_type);
+    // When the caller names a source table, scope ownership to that table only.
+    // Numeric report_id values are reused across tables (e.g. CIMM id 21 vs LGU
+    // id 21); falling back to other report_type rows would block the wrong panel.
     if ($rt !== '') {
-        $types[] = $rt;
-    }
-    foreach (['road_transportation_reports', 'cimm_verification_reports', 'road_maintenance_reports', 'ipms_road_projects'] as $t) {
-        if (!in_array($t, $types, true)) {
-            $types[] = $t;
-        }
+        $types = [$rt];
+    } else {
+        $types = [
+            'road_transportation_reports',
+            'cimm_verification_reports',
+            'road_maintenance_reports',
+            'ipms_road_projects',
+        ];
     }
 
     try {
@@ -1336,11 +1442,6 @@ function rgmap_get_report_owner_supervisor($conn, $report_id, $report_type = nul
                 || ($candidate['_at'] === $best['_at'] && $candidate['_id'] < $best['_id'])) {
                 $best = $candidate;
             }
-            // Exact type match preferred when caller passed one — still compare
-            // timestamps across types only when type was unknown.
-            if ($rt !== '' && $rtype === $rt) {
-                break;
-            }
         }
         if ($best) {
             unset($best['_at'], $best['_id']);
@@ -1376,7 +1477,7 @@ function rgmap_assignment_type_from_source($source) {
  * Whether the current (or given) user may perform supervisor actions on a report.
  * - system_admin: always
  * - non-supervisors: true (other role gates still apply)
- * - supervisors: true only when unclaimed OR they are the first assigner
+ * - supervisors: unclaimed, self-owned, cross-dept on matching module, or same-role peer blocked
  */
 function rgmap_supervisor_can_manage_report($conn, $report_id, $report_type = null, $user_id = null, $user_role = null) {
     $user_id = (int)($user_id ?? ($_SESSION['user_id'] ?? 0));
@@ -1396,7 +1497,14 @@ function rgmap_supervisor_can_manage_report($conn, $report_id, $report_type = nu
     if (!$owner || empty($owner['id'])) {
         return true; // not yet claimed
     }
-    return ((int)$owner['id'] === $user_id);
+    $report_module = rgmap_report_module_for_assignment($conn, (int)$report_id, $report_type);
+    return rgmap_supervisor_can_manage_owned_report(
+        $user_id,
+        $user_role,
+        (int)$owner['id'],
+        (string)($owner['role'] ?? ''),
+        $report_module
+    );
 }
 
 /**
@@ -1468,10 +1576,15 @@ function rgmap_annotate_archive_supervisor_ownership($conn, array &$rows): void 
         $row['assigned_by'] = (string)($owner['name'] ?? '');
         if ($role === 'system_admin' || !$is_supervisor) {
             $row['can_manage_as_supervisor'] = true;
-        } elseif ($row['assigned_by_id'] <= 0) {
-            $row['can_manage_as_supervisor'] = true;
         } else {
-            $row['can_manage_as_supervisor'] = ($row['assigned_by_id'] === $uid);
+            $report_module = rgmap_report_module_for_assignment($conn, $rid, $rtype);
+            $row['can_manage_as_supervisor'] = rgmap_supervisor_can_manage_owned_report(
+                $uid,
+                $role,
+                (int)$row['assigned_by_id'],
+                (string)($owner['role'] ?? ''),
+                $report_module
+            );
         }
     }
     unset($row);

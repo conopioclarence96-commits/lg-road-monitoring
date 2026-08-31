@@ -1153,6 +1153,120 @@ function getLguReportsForManagement(
 }
 
 /**
+ * Whether report tables should show Supervisor / Officer assignment columns.
+ */
+function rm_show_assignment_columns(string $user_role, bool $is_road_supervisor, bool $is_transport_supervisor): bool {
+    return $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
+}
+
+function rm_should_annotate_assignments(string $user_role, bool $is_road_supervisor, bool $is_transport_supervisor): bool {
+    return rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor);
+}
+
+function rm_assignment_supervisor_label(array $report): string {
+    $name = trim((string)($report['assigned_by'] ?? ''));
+    return $name !== '' ? $name : 'Unassigned';
+}
+
+function rm_assignment_officer_label(array $report): string {
+    if (($report['assignment_status'] ?? 'unassigned') !== 'assigned') {
+        return 'Unassigned';
+    }
+    $name = trim((string)($report['assignment_officer'] ?? ''));
+    return $name !== '' ? $name : 'Unassigned';
+}
+
+/**
+ * Stable badge background/text colors per user (display-only).
+ *
+ * @return array{bg:string,fg:string}
+ */
+function rm_assignment_badge_colors(string $kind, int $user_id, string $name): array {
+    static $supervisor_palette = null;
+    static $officer_palette = null;
+    if ($supervisor_palette === null) {
+        $supervisor_palette = [
+            ['bg' => '#dbeafe', 'fg' => '#1e3a8a'],
+            ['bg' => '#e0e7ff', 'fg' => '#3730a3'],
+            ['bg' => '#ede9fe', 'fg' => '#5b21b6'],
+            ['bg' => '#fce7f3', 'fg' => '#9d174d'],
+            ['bg' => '#ffedd5', 'fg' => '#9a3412'],
+            ['bg' => '#fef3c7', 'fg' => '#92400e'],
+            ['bg' => '#ecfccb', 'fg' => '#3f6212'],
+            ['bg' => '#ccfbf1', 'fg' => '#115e59'],
+            ['bg' => '#cffafe', 'fg' => '#155e75'],
+            ['bg' => '#e2e8f0', 'fg' => '#334155'],
+            ['bg' => '#fae8ff', 'fg' => '#86198f'],
+            ['bg' => '#f1f5f9', 'fg' => '#1e293b'],
+        ];
+        $officer_palette = [
+            ['bg' => '#d1fae5', 'fg' => '#065f46'],
+            ['bg' => '#bbf7d0', 'fg' => '#166534'],
+            ['bg' => '#a7f3d0', 'fg' => '#047857'],
+            ['bg' => '#99f6e4', 'fg' => '#0f766e'],
+            ['bg' => '#a5f3fc', 'fg' => '#0e7490'],
+            ['bg' => '#bae6fd', 'fg' => '#0369a1'],
+            ['bg' => '#bfdbfe', 'fg' => '#1d4ed8'],
+            ['bg' => '#c7d2fe', 'fg' => '#4338ca'],
+            ['bg' => '#ddd6fe', 'fg' => '#6d28d9'],
+            ['bg' => '#fbcfe8', 'fg' => '#be185d'],
+            ['bg' => '#fed7aa', 'fg' => '#c2410c'],
+            ['bg' => '#fde68a', 'fg' => '#a16207'],
+        ];
+    }
+    $palette = ($kind === 'officer') ? $officer_palette : $supervisor_palette;
+    $name_key = strtolower(trim($name));
+    $key = ($user_id > 0) ? ($kind . ':id:' . $user_id) : ($kind . ':name:' . $name_key);
+    $idx = abs(crc32($key)) % count($palette);
+    return $palette[$idx];
+}
+
+function rm_assignment_badge_style_attr(string $kind, int $user_id, string $name): string {
+    $colors = rm_assignment_badge_colors($kind, $user_id, $name);
+    return 'background-color:' . $colors['bg'] . ';color:' . $colors['fg'] . ';';
+}
+
+function rm_render_assignment_name_badge(string $label, string $kind, int $user_id = 0): void {
+    if ($label === 'Unassigned') {
+        echo '<span class="assignment-badge assignment-unassigned">', htmlspecialchars($label), '</span>';
+        return;
+    }
+    $style = rm_assignment_badge_style_attr($kind, $user_id, $label);
+    echo '<span class="assignment-badge assignment-assigned assignment-user-colored" style="', htmlspecialchars($style, ENT_QUOTES), '">',
+        htmlspecialchars($label),
+        '</span>';
+}
+
+function rm_render_assignment_column_cells(array $report): void {
+    $supervisor = rm_assignment_supervisor_label($report);
+    $officer = rm_assignment_officer_label($report);
+    $supervisor_id = (int)($report['display_supervisor_id'] ?? $report['assigned_by_id'] ?? 0);
+    $officer_id = (int)($report['assignment_officer_id'] ?? 0);
+    ?>
+                            <td><?php rm_render_assignment_name_badge($supervisor, 'supervisor', $supervisor_id); ?></td>
+                            <td><?php rm_render_assignment_name_badge($officer, 'officer', $officer_id); ?></td>
+    <?php
+}
+
+/**
+ * Truncate long location strings in table cells; full value in title tooltip.
+ */
+function rm_render_location_cell(?string $location, int $max_len = 35): void {
+    $location = trim((string)$location);
+    if ($location === '') {
+        echo '—';
+        return;
+    }
+    if (strlen($location) > $max_len) {
+        echo '<span title="', htmlspecialchars($location, ENT_QUOTES), '">',
+            htmlspecialchars(substr($location, 0, $max_len) . '...'),
+            '</span>';
+        return;
+    }
+    echo htmlspecialchars($location);
+}
+
+/**
  * Render LGU Monitoring table body rows (shared by initial page + AJAX pagination).
  */
 function rm_render_lgu_panel_tbody(
@@ -1171,9 +1285,10 @@ function rm_render_lgu_panel_tbody(
     ];
     $lgu_transport_types = ['potholes', 'road_damage', 'shoulder_damage', 'traffic_jam', 'accident', 'congestion', 'traffic_light_outage', 'vehicle_breakdown', 'traffic_sign_issue', 'transportation', 'infrastructure_issue', 'road_closure', 'parking_violation', 'public_transport_issue'];
     $lgu_road_types = ['debris', 'cracks', 'erosion', 'flooding', 'marking_fade'];
+    $show_assignment_cols = rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor);
     $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 10 : 8)
-        + ($is_transport_supervisor ? 1 : 0)
-        + ($user_role === 'system_admin' ? 1 : 0);
+        + ($user_role === 'system_admin' ? 1 : 0)
+        + ($show_assignment_cols ? 2 : 0);
     // Assign is supervisor-only — system admin has no Assign/Edit action here.
     $can_assign_role = $is_road_supervisor || $is_transport_supervisor;
     $show_engineer = $is_road_supervisor || $user_role === 'system_admin';
@@ -1233,20 +1348,14 @@ function rm_render_lgu_panel_tbody(
                                 }
                             ?></td>
                             <?php endif; ?>
-                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php rm_render_location_cell($report['location'] ?? ''); ?></td>
                             <td><?php
                                 $lgu_district = trim((string)($report['detected_district'] ?? $report['cimm_district'] ?? $report['district'] ?? ''));
                                 echo $lgu_district !== '' ? htmlspecialchars($lgu_district) : '—';
                             ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($report['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? ''))); ?></span></td>
-                            <?php if ($is_transport_supervisor): ?>
-                            <td>
-                                <?php if (($report['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($report['assignment_officer'])): ?>
-                                <span class="assignment-badge assignment-assigned"><?php echo htmlspecialchars($report['assignment_officer']); ?></span>
-                                <?php else: ?>
-                                <span class="assignment-badge assignment-unassigned">Unassigned</span>
-                                <?php endif; ?>
-                            </td>
+                            <?php if ($show_assignment_cols): ?>
+                            <?php rm_render_assignment_column_cells($report); ?>
                             <?php endif; ?>
                             <?php if ($show_engineer): ?>
                             <td>
@@ -1376,7 +1485,8 @@ function rm_render_citizen_panel_tbody(
         'potholes' => 'Potholes',
         'road_damage' => 'Road Damage',
     ];
-    $colspan = 8 + ($is_transport_supervisor ? 1 : 0);
+    $colspan = 8 + (rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor) ? 2 : 0);
+    $show_assignment_cols = rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor);
     // Assign is supervisor-only — system admin has no Assign/Edit action here.
     $can_assign_role = $is_road_supervisor || $is_transport_supervisor;
 
@@ -1421,20 +1531,14 @@ function rm_render_citizen_panel_tbody(
                             </td>
                             <td><?php echo htmlspecialchars($report['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($type_labels[$report['report_type']] ?? ucfirst((string)($report['report_type'] ?? ''))); ?></td>
-                            <td><?php if (($report['location'] ?? '') !== ''): ?><span title="<?php echo htmlspecialchars($report['location']); ?>"><?php echo htmlspecialchars(strlen($report['location']) > 40 ? substr($report['location'], 0, 40) . '...' : $report['location']); ?></span><?php else: ?>—<?php endif; ?></td>
+                            <td><?php rm_render_location_cell($report['location'] ?? ''); ?></td>
                             <td><?php
                                 $citizen_district = trim((string)($report['detected_district'] ?? $report['district'] ?? ''));
                                 echo $citizen_district !== '' ? htmlspecialchars($citizen_district) : '—';
                             ?></td>
                             <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($report['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($report['priority'] ?? ''))); ?></span></td>
-                            <?php if ($is_transport_supervisor): ?>
-                            <td>
-                                <?php if (($report['assignment_status'] ?? 'unassigned') === 'assigned' && !empty($report['assignment_officer'])): ?>
-                                <span class="assignment-badge assignment-assigned"><?php echo htmlspecialchars($report['assignment_officer']); ?></span>
-                                <?php else: ?>
-                                <span class="assignment-badge assignment-unassigned">Unassigned</span>
-                                <?php endif; ?>
-                            </td>
+                            <?php if ($show_assignment_cols): ?>
+                            <?php rm_render_assignment_column_cells($report); ?>
                             <?php endif; ?>
                             <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower((string)($report['status'] ?? ''))); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', (string)($report['status'] ?? '')))); ?></span></td>
                             <td>
@@ -1550,6 +1654,8 @@ function rm_render_cimm_panel_tbody(array $reports): string {
     $is_road_sup = !empty($is_road_supervisor) || ($role === 'road_ops_supervisor');
     $is_trans_sup = !empty($is_transport_supervisor) || ($role === 'trans_ops_supervisor');
     $can_assign_role = $is_road_sup || $is_trans_sup;
+    $show_assignment_cols = rm_show_assignment_columns($role, $is_road_sup, $is_trans_sup);
+    $cimm_colspan = 10 + ($show_assignment_cols ? 2 : 0);
 
     ob_start();
     if (!empty($reports)):
@@ -1594,14 +1700,17 @@ function rm_render_cimm_panel_tbody(array $reports): string {
                             </td>
                             <td><?php echo htmlspecialchars($row['report_id'] ?? '—'); ?></td>
                             <td><?php echo htmlspecialchars($row['title'] ?? '—'); ?></td>
-                            <td><?php echo htmlspecialchars($row['location'] ?? '—'); ?></td>
+                            <td><?php rm_render_location_cell($row['location'] ?? ''); ?></td>
                             <td><?php
                                 $cimm_district = trim((string)($row['district'] ?? $row['detected_district'] ?? $row['cimm_district'] ?? ''));
                                 echo $cimm_district !== '' ? htmlspecialchars($cimm_district) : '—';
                             ?></td>
+                            <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($row['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($row['priority'] ?? ''))); ?></span></td>
+                            <?php if ($show_assignment_cols): ?>
+                            <?php rm_render_assignment_column_cells($row); ?>
+                            <?php endif; ?>
                             <td><?php echo htmlspecialchars(strlen($row['description'] ?? '') > 40 ? substr($row['description'], 0, 40) . '...' : ($row['description'] ?? '')); ?></td>
                             <td><?php echo htmlspecialchars($row['assigned_to'] ?? '—'); ?></td>
-                            <td><span class="rm-priority-badge <?php echo htmlspecialchars((string)($row['priority'] ?? '')); ?>"><?php echo ucfirst(htmlspecialchars((string)($row['priority'] ?? ''))); ?></span></td>
                             <td><?php echo !empty($row['estimation']) ? '₱' . number_format((float)$row['estimation'], 2) : '—'; ?></td>
                             <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower((string)($row['status'] ?? ''))); ?>"><?php echo ucfirst(htmlspecialchars(str_replace('-', ' ', (string)($row['status'] ?? '')))); ?></span></td>
                         </tr>
@@ -1611,7 +1720,7 @@ function rm_render_cimm_panel_tbody(array $reports): string {
     else:
         ?>
                         <tr>
-                            <td colspan="10">
+                            <td colspan="<?php echo (int)$cimm_colspan; ?>">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
                                         <i class="fas fa-building t-text-cimm"></i>
@@ -1922,10 +2031,50 @@ $is_system_admin = ($user_role === 'system_admin');
 $is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
 
 /**
+ * LGU "Your Reports": first-claim ownership plus reports this supervisor
+ * currently has staff assigned to (active report_assignments.assigned_by).
+ */
+function rm_filter_lgu_your_reports($conn, array $reports): array {
+    $owned = rgmap_filter_reports_you_handle($conn, $reports);
+    $keys = [];
+    foreach ($owned as $r) {
+        $table = rgmap_report_row_source_table($r);
+        $keys[$table . ':' . (int)($r['id'] ?? 0)] = true;
+    }
+
+    $user_id = (int)($_SESSION['user_id'] ?? 0);
+    if ($user_id > 0) {
+        try {
+            $active = fetch_all(
+                "SELECT report_type, report_id
+                   FROM report_assignments
+                  WHERE assigned_by = ? AND status = 'active'",
+                [$user_id],
+                'i'
+            );
+            foreach ($active as $row) {
+                $keys[(string)($row['report_type'] ?? '') . ':' . (int)($row['report_id'] ?? 0)] = true;
+            }
+        } catch (Exception $e) {
+            error_log('rm_filter_lgu_your_reports error: ' . $e->getMessage());
+        }
+    }
+
+    if (empty($keys)) {
+        return [];
+    }
+
+    return array_values(array_filter($reports, static function ($r) use ($keys) {
+        $table = rgmap_report_row_source_table($r);
+        return isset($keys[$table . ':' . (int)($r['id'] ?? 0)]);
+    }));
+}
+
+/**
  * When "Your Reports" is on: annotate ownership, keep only handled rows, then
  * re-paginate in PHP. Expects $all_rows already loaded (large batch, offset 0).
  */
-function rm_paginate_your_reports($conn, array $all_rows, int $page, int $per_page, string $source_table = 'road_transportation_reports'): array {
+function rm_paginate_your_reports($conn, array $all_rows, int $page, int $per_page, string $source_table = 'road_transportation_reports', bool $lgu_panel = false): array {
     foreach ($all_rows as &$r) {
         if (empty($r['_source_table'])) {
             $r['_source_table'] = $source_table;
@@ -1933,7 +2082,9 @@ function rm_paginate_your_reports($conn, array $all_rows, int $page, int $per_pa
     }
     unset($r);
     annotate_report_assignment_status($conn, $all_rows);
-    $filtered = rgmap_filter_reports_you_handle($conn, $all_rows);
+    $filtered = $lgu_panel
+        ? rm_filter_lgu_your_reports($conn, $all_rows)
+        : rgmap_filter_reports_you_handle($conn, $all_rows);
     $total = count($filtered);
     $page = max(1, $page);
     $max_page = max(1, (int)ceil($total / max(1, $per_page)));
@@ -1965,7 +2116,7 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 0,
                 $search_q
             );
-            $paged = rm_paginate_your_reports($conn, $lgu_result['rows'], $ajax_page, $panel_per_page);
+            $paged = rm_paginate_your_reports($conn, $lgu_result['rows'], $ajax_page, $panel_per_page, 'road_transportation_reports', true);
             $rows = $paged['rows'];
             $total = (int)$paged['total'];
             $ajax_page = (int)$paged['page'];
@@ -1993,7 +2144,7 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $total = (int)$lgu_result['total'];
             }
             $rows = $lgu_result['rows'];
-            if ($is_transport_supervisor || $is_road_supervisor) {
+            if (rm_should_annotate_assignments($user_role, $is_road_supervisor, $is_transport_supervisor)) {
                 foreach ($rows as &$__r) {
                     if (empty($__r['_source_table'])) {
                         $__r['_source_table'] = 'road_transportation_reports';
@@ -2061,7 +2212,7 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $total = (int)$citizen_result['total'];
             }
             $rows = $citizen_result['rows'];
-            if ($is_transport_supervisor || $is_road_supervisor) {
+            if (rm_should_annotate_assignments($user_role, $is_road_supervisor, $is_transport_supervisor)) {
                 foreach ($rows as &$__r) {
                     if (empty($__r['_source_table'])) {
                         $__r['_source_table'] = 'road_transportation_reports';
@@ -2218,7 +2369,7 @@ if ($source_filter === 'all' || $source_filter === 'lgu_reports') {
             0,
             $lgu_search
         );
-        $paged = rm_paginate_your_reports($conn, $lgu_result['rows'], $lgu_page, $panel_per_page);
+        $paged = rm_paginate_your_reports($conn, $lgu_result['rows'], $lgu_page, $panel_per_page, 'road_transportation_reports', true);
         $lgu_reports_list = $paged['rows'];
         $lgu_reports_total = (int)$paged['total'];
         $lgu_page = (int)$paged['page'];
@@ -2300,9 +2451,9 @@ if (!$is_road_supervisor && ($source_filter === 'all' || $source_filter === 'tra
 // ipms_road_projects with status = approved only, so the completed append
 // from the transport table is no longer applied.
 
-// Road/Transportation Operations Supervisors need assignment ownership
-// annotations so action buttons and ownership checks can use assigned_by.
-if ($is_transport_supervisor || $is_road_supervisor) {
+// Road/Transportation Operations Supervisors and admins need assignment
+// annotations for Supervisor / Officer columns and ownership checks.
+if (rm_should_annotate_assignments($user_role, $is_road_supervisor, $is_transport_supervisor)) {
     foreach ($lgu_reports_list as &$__lr) {
         if (empty($__lr['_source_table'])) {
             $__lr['_source_table'] = 'road_transportation_reports';
@@ -4835,6 +4986,7 @@ if ($focus_id > 0) {
             text-transform: capitalize;
         }
         .assignment-badge.assignment-assigned { background: #d1fae5; color: #065f46; }
+        .assignment-badge.assignment-user-colored { /* per-user bg/fg via inline style */ }
         .assignment-badge.assignment-unassigned { background: #e2e3e5; color: #495057; }
 
         .rm-empty-state {
@@ -6221,8 +6373,9 @@ if ($focus_id > 0) {
                             <th>Location</th>
                             <th>District</th>
                             <th>Priority</th>
-                            <?php if ($is_transport_supervisor): ?>
-                            <th>Assignment</th>
+                            <?php if (rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor)): ?>
+                            <th>Supervisor</th>
+                            <th>Officer</th>
                             <?php endif; ?>
                             <?php if ($is_road_supervisor || $user_role === 'system_admin'): ?>
                             <th>Engineer</th>
@@ -6280,8 +6433,9 @@ if ($focus_id > 0) {
                             <th>Location</th>
                             <th>District</th>
                             <th>Priority</th>
-                            <?php if ($is_transport_supervisor): ?>
-                            <th>Assignment</th>
+                            <?php if (rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor)): ?>
+                            <th>Supervisor</th>
+                            <th>Officer</th>
                             <?php endif; ?>
                             <th>Status</th>
                             <th>Created</th>
@@ -6335,9 +6489,13 @@ if ($focus_id > 0) {
                             <th>Infrastructure</th>
                             <th>Location</th>
                             <th>District</th>
+                            <th>Priority</th>
+                            <?php if (rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor)): ?>
+                            <th>Supervisor</th>
+                            <th>Officer</th>
+                            <?php endif; ?>
                             <th>Issue / Notes</th>
                             <th>Engineer</th>
-                            <th>Priority</th>
                             <th>Budget</th>
                             <th>Status</th>
                         </tr>
@@ -6391,10 +6549,13 @@ if ($focus_id > 0) {
                             <th>Type</th>
                             <th>Location</th>
                             <th>District</th>
+                            <?php if (rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor)): ?>
+                            <th>Supervisor</th>
+                            <th>Officer</th>
+                            <?php endif; ?>
                             <th>Department</th>
                             <th>Engineer</th>
                             <th>Budget</th>
-                            <th>Priority</th>
                             <th>Status</th>
                             <th>Created</th>
                         </tr>
@@ -6402,6 +6563,8 @@ if ($focus_id > 0) {
                     <tbody>
                         <?php
                         $hasInfra = false;
+                        $show_infra_assignment_cols = rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor);
+                        $infra_colspan = 11 + ($show_infra_assignment_cols ? 2 : 0);
                         if (!empty($infra_reports_list)):
                             foreach ($infra_reports_list as $report):
                                 $hasInfra = true;
@@ -6454,15 +6617,17 @@ if ($focus_id > 0) {
                                 $rtype = $report['report_type'] ?? '';
                                 echo htmlspecialchars($type_labels[$rtype] ?? (ucfirst(str_replace(['_', '-'], ' ', (string)$rtype)) ?: 'Infrastructure Project'));
                             ?></td>
-                            <td><?php echo htmlspecialchars($report['location'] ?? '—'); ?></td>
+                            <td><?php rm_render_location_cell($report['location'] ?? ''); ?></td>
                             <td><?php
                                 $infra_district = trim((string)($report['district'] ?? ''));
                                 echo $infra_district !== '' ? htmlspecialchars($infra_district) : '—';
                             ?></td>
+                            <?php if ($show_infra_assignment_cols): ?>
+                            <?php rm_render_assignment_column_cells($report); ?>
+                            <?php endif; ?>
                             <td><?php echo htmlspecialchars(ucfirst($report['department'] ?? 'Engineering')); ?></td>
                             <td><?php echo htmlspecialchars(trim((string)($report['engineer'] ?? '')) ?: '—'); ?></td>
                             <td><?php echo (!empty($report['budget']) && (float)$report['budget'] > 0) ? '₱' . number_format((float)$report['budget'], 2) : '—'; ?></td>
-                            <td><span class="rm-priority-badge"><?php echo htmlspecialchars($report['priority'] ?? '—'); ?></span></td>
                             <td><span class="rm-status-badge <?php echo htmlspecialchars(strtolower($report['status'] ?? 'approved')); ?>"><?php echo ucfirst(htmlspecialchars(str_replace(['-', '_'], ' ', (string)($report['status'] ?? 'approved')))); ?></span></td>
                             <td>
                                 <?php echo !empty($report['created_at']) ? date('M d, Y', strtotime($report['created_at'])) : '—'; ?>
@@ -6475,7 +6640,7 @@ if ($focus_id > 0) {
 
                         <?php if (!$hasInfra): ?>
                         <tr>
-                            <td colspan="12">
+                            <td colspan="<?php echo (int)$infra_colspan; ?>">
                                 <div class="rm-empty-state">
                                     <div class="rm-empty-icon" style="background: rgba(249, 115, 22, 0.12);">
                                         <i class="fas fa-hard-hat t-text-cimm"></i>

@@ -534,9 +534,21 @@ if ($method === 'GET') {
         $title = sanitize_input($_POST['title'] ?? '');
         $description = sanitize_input($_POST['description'] ?? '');
         $completion_percentage = rgmap_normalize_completion_percentage($_POST['completion_percentage'] ?? 0);
+        $is_completion_marker = (strtolower(trim($title)) === 'completed');
 
         if ($report_id <= 0) json_response(['success' => false, 'message' => 'Invalid report ID']);
         if (empty($description)) json_response(['success' => false, 'message' => 'Description is required']);
+
+        if ($is_completion_marker && $source !== 'cimm' && $source !== 'external' && !rgmap_progress_is_ipms_source($source)) {
+            $latest_pct = rgmap_get_latest_completion_percentage($conn, $report_id);
+            if ($latest_pct < 100) {
+                json_response([
+                    'success' => false,
+                    'message' => 'This project is not at 100% completion. Unable to complete.',
+                ]);
+            }
+            $completion_percentage = 100;
+        }
 
         // New updates cannot go below the last saved completion %.
         $completion_floor = rgmap_get_completion_percentage_floor($conn, $report_id, 0);
@@ -936,6 +948,15 @@ if ($method === 'GET') {
 
         try {
             $ipms_complete = rgmap_progress_is_ipms_source($source);
+            if ($source !== 'cimm' && !$ipms_complete) {
+                $latest_pct = rgmap_get_latest_completion_percentage($conn, $report_id);
+                if ($latest_pct < 100) {
+                    json_response([
+                        'success' => false,
+                        'message' => 'This project is not at 100% completion. Unable to complete.',
+                    ]);
+                }
+            }
             if ($source === 'cimm') {
                 rgmap_ensure_auto_archive_column();
                 $stmt = $conn->prepare("UPDATE cimm_verification_reports SET verification_status = 'Completed', auto_archive_at = COALESCE(auto_archive_at, DATE_ADD(NOW(), INTERVAL 7 DAY)) WHERE id = ?");
