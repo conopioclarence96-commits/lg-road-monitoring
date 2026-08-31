@@ -49,6 +49,38 @@ function sc_date_range_intersects(?string $start, ?string $end, string $rangeSta
     return $start <= $rangeEnd && $effEnd >= $rangeStart;
 }
 
+/**
+ * Calendar display dates for a scheduled item: start and end only (not every day between).
+ *
+ * @return array<int, string> Y-m-d dates, unique, sorted
+ */
+function sc_calendar_item_marker_dates(array $item): array {
+    $start = sc_date_ymd($item['start_date'] ?? null);
+    if ($start === null) {
+        return [];
+    }
+    $dates = [$start];
+    $end = sc_date_ymd($item['end_date'] ?? null);
+    if ($end !== null && $end !== $start) {
+        $dates[] = $end;
+    }
+    sort($dates);
+    return $dates;
+}
+
+/** True when $day is the scheduled start or end date (calendar marker day). */
+function sc_calendar_day_is_marker(?string $start, ?string $end, string $day): bool {
+    $start = sc_date_ymd($start);
+    if ($start === null) {
+        return false;
+    }
+    if ($day === $start) {
+        return true;
+    }
+    $end = sc_date_ymd($end);
+    return $end !== null && $end !== $start && $day === $end;
+}
+
 /** Map CIMM verification row to calendar display status (mirrors report management). */
 function sc_map_cimm_status(array $row): string {
     $verification = $row['verification_status'] ?? 'Pending Review';
@@ -86,7 +118,7 @@ function sc_calendar_collect_items(
 
     $include = static function (?string $start, ?string $end) use ($dayYmd, $monthStart, $monthEnd): bool {
         if ($dayYmd !== null) {
-            return sc_date_spans_day($start, $end, $dayYmd);
+            return sc_calendar_day_is_marker($start, $end, $dayYmd);
         }
         if ($monthStart !== null && $monthEnd !== null) {
             return sc_date_range_intersects($start, $end, $monthStart, $monthEnd);
@@ -94,48 +126,55 @@ function sc_calendar_collect_items(
         return sc_date_ymd($start) !== null;
     };
 
-    // --- LGU (road_transportation_reports) ---
-    $where = "report_source = 'local'
-              AND created_by != 0
-              AND report_type != 'infrastructure_issue'
+    $scheduleSelect = "id, report_id, title, location, status, priority, report_type, report_category,
+                district, cimm_starting_date, cimm_estimated_end_date";
+    $scheduleDateWhere = "report_type != 'infrastructure_issue'
               AND status IN ('approved', 'in-progress')
               AND cimm_starting_date IS NOT NULL
               AND cimm_starting_date != '0000-00-00'";
+
+    $appendRoadTransportRow = static function (array $r, string $source, string $sourceLabel) use (&$items, $include): void {
+        $start = $r['cimm_starting_date'] ?? null;
+        $end = $r['cimm_estimated_end_date'] ?? null;
+        if (!$include($start, $end)) {
+            return;
+        }
+        $items[] = [
+            'source' => $source,
+            'source_label' => $sourceLabel,
+            'id' => (int)($r['id'] ?? 0),
+            'report_id' => (string)($r['report_id'] ?? ''),
+            'title' => (string)($r['title'] ?? ''),
+            'status' => (string)($r['status'] ?? ''),
+            'priority' => (string)($r['priority'] ?? ''),
+            'location' => (string)($r['location'] ?? ''),
+            'district' => (string)($r['district'] ?? ''),
+            'report_type' => (string)($r['report_type'] ?? ''),
+            'report_category' => (string)($r['report_category'] ?? ''),
+            'start_date' => sc_date_ymd($start),
+            'end_date' => sc_date_ymd($end),
+        ];
+    };
+
+    // --- LGU: staff-created local reports only (created_by != 0) ---
+    $lguWhere = "report_source = 'local'
+              AND created_by != 0
+              AND {$scheduleDateWhere}";
     if ($is_road_supervisor) {
-        $where .= " AND report_category = 'road'";
+        $lguWhere .= " AND report_category = 'road'";
     } elseif ($is_transport_supervisor) {
-        $where .= " AND report_category = 'transportation'";
+        $lguWhere .= " AND report_category = 'transportation'";
     }
 
     $lguRows = fetch_all(
-        "SELECT id, report_id, title, location, status, priority, report_type, report_category,
-                district, cimm_starting_date, cimm_estimated_end_date
+        "SELECT {$scheduleSelect}
          FROM road_transportation_reports
-         WHERE {$where}
+         WHERE {$lguWhere}
          ORDER BY cimm_starting_date ASC, id DESC"
     );
     if (is_array($lguRows)) {
         foreach ($lguRows as $r) {
-            $start = $r['cimm_starting_date'] ?? null;
-            $end = $r['cimm_estimated_end_date'] ?? null;
-            if (!$include($start, $end)) {
-                continue;
-            }
-            $items[] = [
-                'source' => 'lgu',
-                'source_label' => 'LGU',
-                'id' => (int)($r['id'] ?? 0),
-                'report_id' => (string)($r['report_id'] ?? ''),
-                'title' => (string)($r['title'] ?? ''),
-                'status' => (string)($r['status'] ?? ''),
-                'priority' => (string)($r['priority'] ?? ''),
-                'location' => (string)($r['location'] ?? ''),
-                'district' => (string)($r['district'] ?? ''),
-                'report_type' => (string)($r['report_type'] ?? ''),
-                'report_category' => (string)($r['report_category'] ?? ''),
-                'start_date' => sc_date_ymd($start),
-                'end_date' => sc_date_ymd($end),
-            ];
+            $appendRoadTransportRow($r, 'lgu', 'LGU');
         }
     }
 
@@ -216,38 +255,143 @@ function sc_calendar_collect_items(
     return $items;
 }
 
+/** Canonical display order for calendar source markers. */
+function sc_calendar_source_order(): array {
+    return ['lgu', 'cimm', 'ipms'];
+}
+
 /**
  * Build per-day counts for a visible calendar grid range.
+ * Each report appears only on its start and end dates (not every day in between).
  *
- * @return array<string, array{count:int, sources:string[]}>
+ * @return array<string, array{count:int, sources:string[], source_counts:array<string,int>}>
  */
 function sc_calendar_build_day_map(array $items, string $gridStart, string $gridEnd): array {
+    $sourceOrder = sc_calendar_source_order();
     $days = [];
     foreach ($items as $item) {
-        $start = sc_date_ymd($item['start_date'] ?? null);
-        if ($start === null) {
-            continue;
-        }
-        $end = sc_date_ymd($item['end_date'] ?? null) ?? $gridEnd;
-        $cur = $start < $gridStart ? $gridStart : $start;
-        $last = $end > $gridEnd ? $gridEnd : $end;
-        if ($cur > $last) {
-            continue;
-        }
         $source = (string)($item['source'] ?? '');
-        $cursor = strtotime($cur);
-        $lastTs = strtotime($last);
-        while ($cursor !== false && $lastTs !== false && $cursor <= $lastTs) {
-            $key = date('Y-m-d', $cursor);
+        foreach (sc_calendar_item_marker_dates($item) as $key) {
+            if ($key < $gridStart || $key > $gridEnd) {
+                continue;
+            }
             if (!isset($days[$key])) {
-                $days[$key] = ['count' => 0, 'sources' => []];
+                $days[$key] = ['count' => 0, 'sources' => [], 'source_counts' => []];
             }
             $days[$key]['count']++;
-            if ($source !== '' && !in_array($source, $days[$key]['sources'], true)) {
-                $days[$key]['sources'][] = $source;
+            if ($source !== '') {
+                $days[$key]['source_counts'][$source] = ($days[$key]['source_counts'][$source] ?? 0) + 1;
+                if (!in_array($source, $days[$key]['sources'], true)) {
+                    $days[$key]['sources'][] = $source;
+                }
             }
-            $cursor = strtotime('+1 day', $cursor);
         }
     }
+
+    foreach ($days as &$dayInfo) {
+        usort($dayInfo['sources'], static function (string $a, string $b) use ($sourceOrder): int {
+            $ia = array_search($a, $sourceOrder, true);
+            $ib = array_search($b, $sourceOrder, true);
+            $ia = ($ia === false) ? 999 : $ia;
+            $ib = ($ib === false) ? 999 : $ib;
+            return $ia <=> $ib;
+        });
+    }
+    unset($dayInfo);
+
     return $days;
+}
+
+/** Trim user ID search input. */
+function sc_calendar_normalize_id_query(string $query): string {
+    return trim($query);
+}
+
+/** True when a calendar item matches an ID query (report_management-style partial match). */
+function sc_calendar_item_matches_id(array $item, string $query): bool {
+    $query = sc_calendar_normalize_id_query($query);
+    if ($query === '') {
+        return false;
+    }
+    $needle = strtolower($query);
+    $reportId = strtolower(trim((string)($item['report_id'] ?? '')));
+    if ($reportId !== '' && str_contains($reportId, $needle)) {
+        return true;
+    }
+    if (ctype_digit($query)) {
+        $id = (int)($item['id'] ?? 0);
+        if ($id > 0 && (string)$id === $query) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** Start/end marker dates for ID search highlighting (not every day in between). */
+function sc_calendar_item_scheduled_dates(array $item): array {
+    return sc_calendar_item_marker_dates($item);
+}
+
+/**
+ * Search the calendar data set by report/project ID (same sources as report management).
+ *
+ * @return array{found:bool,items:array<int,array>,highlight_dates:array<int,string>,focus_date:?string,message:string}
+ */
+function sc_calendar_search_by_id(
+    bool $is_road_supervisor,
+    bool $is_transport_supervisor,
+    string $query
+): array {
+    $query = sc_calendar_normalize_id_query($query);
+    if ($query === '') {
+        return [
+            'found' => false,
+            'items' => [],
+            'highlight_dates' => [],
+            'focus_date' => null,
+            'message' => 'Enter a report or project ID.',
+        ];
+    }
+
+    $allItems = sc_calendar_collect_items($is_road_supervisor, $is_transport_supervisor, null, null, null);
+    $matches = [];
+    foreach ($allItems as $item) {
+        if (sc_calendar_item_matches_id($item, $query)) {
+            $matches[] = $item;
+        }
+    }
+
+    if ($matches === []) {
+        return [
+            'found' => false,
+            'items' => [],
+            'highlight_dates' => [],
+            'focus_date' => null,
+            'message' => 'No schedule found for this ID.',
+        ];
+    }
+
+    $highlightDates = [];
+    $focusDate = null;
+    foreach ($matches as &$item) {
+        $item['scheduled_dates'] = sc_calendar_item_scheduled_dates($item);
+        foreach ($item['scheduled_dates'] as $d) {
+            $highlightDates[$d] = true;
+            if ($focusDate === null || $d < $focusDate) {
+                $focusDate = $d;
+            }
+        }
+    }
+    unset($item);
+
+    $highlightList = array_keys($highlightDates);
+    sort($highlightList);
+
+    return [
+        'found' => true,
+        'items' => $matches,
+        'highlight_dates' => $highlightList,
+        'focus_date' => $focusDate,
+        'message' => '',
+    ];
 }

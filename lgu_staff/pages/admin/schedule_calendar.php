@@ -92,6 +92,32 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
     ]);
     exit;
 }
+
+// --- AJAX: search by report/project ID ---
+if (($_GET['ajax'] ?? '') === 'calendar_search') {
+    header('Content-Type: application/json; charset=utf-8');
+    $query = trim((string)($_GET['q'] ?? $_GET['id'] ?? ''));
+    $result = sc_calendar_search_by_id($is_road_supervisor, $is_transport_supervisor, $query);
+
+    $payload = [
+        'success' => true,
+        'found' => $result['found'],
+        'query' => sc_calendar_normalize_id_query($query),
+        'items' => $result['items'],
+        'highlight_dates' => $result['highlight_dates'],
+        'focus_date' => $result['focus_date'],
+        'message' => $result['message'],
+    ];
+
+    if ($result['found'] && !empty($result['focus_date'])) {
+        $ts = strtotime($result['focus_date']);
+        $payload['focus_year'] = (int)date('Y', $ts);
+        $payload['focus_month'] = (int)date('n', $ts);
+    }
+
+    echo json_encode($payload);
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -370,6 +396,114 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
             color: #6b7280;
         }
 
+        .sc-cal-search-row {
+            padding: 12px 16px 0;
+            border-top: 1px solid rgba(55, 98, 200, 0.08);
+        }
+        .sc-cal-search-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        body.dark-mode .sc-cal-search-label { color: #d1d5db; }
+        .sc-cal-search-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .sc-cal-search-input {
+            flex: 1 1 220px;
+            min-width: 180px;
+            padding: 8px 12px;
+            border: 1px solid rgba(55, 98, 200, 0.22);
+            border-radius: 8px;
+            font-size: 13px;
+            background: #fff;
+            color: #1f2937;
+        }
+        body.dark-mode .sc-cal-search-input {
+            background: #111827;
+            border-color: rgba(255,255,255,0.12);
+            color: #e5e7eb;
+        }
+        .sc-cal-search-input:focus {
+            outline: none;
+            border-color: #3762c8;
+            box-shadow: 0 0 0 3px rgba(55, 98, 200, 0.12);
+        }
+        .sc-cal-search-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 8px 14px;
+            background: linear-gradient(135deg, #3762c8, #1e3c72);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .sc-cal-search-btn:hover {
+            box-shadow: 0 4px 12px rgba(55, 98, 200, 0.28);
+        }
+        .sc-cal-search-clear {
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            background: #e5e7eb;
+            color: #374151;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        body.dark-mode .sc-cal-search-clear {
+            background: #374151;
+            color: #e5e7eb;
+        }
+        .sc-cal-search-msg {
+            margin-top: 8px;
+            font-size: 12px;
+            min-height: 18px;
+        }
+        .sc-cal-search-msg.is-error { color: #dc2626; }
+        .sc-cal-search-msg.is-success { color: #15803d; }
+        body.dark-mode .sc-cal-search-msg.is-success { color: #4ade80; }
+
+        .sc-cal-day.search-hit {
+            outline: 2px solid #f59e0b;
+            outline-offset: -2px;
+            z-index: 2;
+            background: rgba(245, 158, 11, 0.1);
+        }
+        body.dark-mode .sc-cal-day.search-hit {
+            background: rgba(245, 158, 11, 0.18);
+        }
+        .sc-cal-day.search-hit-start .sc-cal-day-num {
+            background: #f59e0b;
+            color: #fff;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sc-cal-day.search-hit-end .sc-cal-day-num {
+            box-shadow: inset 0 0 0 2px #f59e0b;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sc-day-item.search-hit {
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
+        }
+
         .sc-modal-overlay {
             display: none;
             position: fixed;
@@ -538,6 +672,20 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                     </div>
                 </div>
             </div>
+            <div class="sc-cal-search-row">
+                <label class="sc-cal-search-label" for="rmCalIdSearch">Search by ID</label>
+                <div class="sc-cal-search-wrap">
+                    <input type="text" id="rmCalIdSearch" class="sc-cal-search-input"
+                        placeholder="Enter report or project ID…" autocomplete="off" spellcheck="false">
+                    <button type="button" class="sc-cal-search-btn" id="rmCalIdSearchBtn">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                    <button type="button" class="sc-cal-search-clear" id="rmCalIdSearchClear" style="display:none;">
+                        Clear
+                    </button>
+                </div>
+                <div class="sc-cal-search-msg" id="rmCalSearchMsg" aria-live="polite"></div>
+            </div>
             <div class="sc-cal-toolbar">
                 <div class="sc-cal-nav">
                     <button type="button" class="sc-cal-nav-btn" id="rmCalPrev" title="Previous month" aria-label="Previous month">
@@ -609,9 +757,152 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                 year: new Date().getFullYear(),
                 month: new Date().getMonth() + 1,
                 days: {},
-                loading: false
+                loading: false,
+                searchQuery: '',
+                highlightDates: [],
+                searchStartDates: [],
+                searchEndDates: []
             };
             let rmCalendarDayItems = [];
+            let rmCalLastGridData = null;
+
+            function rmCalItemMatchesQuery(item, query) {
+                if (!query) return false;
+                const needle = String(query).trim().toLowerCase();
+                if (!needle) return false;
+                const reportId = String(item.report_id || '').toLowerCase();
+                if (reportId && reportId.indexOf(needle) !== -1) return true;
+                if (/^\d+$/.test(needle)) {
+                    const id = parseInt(item.id, 10);
+                    if (!isNaN(id) && String(id) === needle) return true;
+                }
+                return false;
+            }
+
+            function setSearchMessage(text, type) {
+                const el = document.getElementById('rmCalSearchMsg');
+                if (!el) return;
+                el.textContent = text || '';
+                el.classList.remove('is-error', 'is-success');
+                if (type) el.classList.add(type === 'error' ? 'is-error' : 'is-success');
+            }
+
+            function clearCalendarSearch() {
+                rmCalState.searchQuery = '';
+                rmCalState.highlightDates = [];
+                rmCalState.searchStartDates = [];
+                rmCalState.searchEndDates = [];
+                setSearchMessage('');
+                const input = document.getElementById('rmCalIdSearch');
+                const clearBtn = document.getElementById('rmCalIdSearchClear');
+                if (input) input.value = '';
+                if (clearBtn) clearBtn.style.display = 'none';
+                if (rmCalLastGridData) renderCalendarGrid(rmCalLastGridData);
+            }
+
+            function applySearchHighlights() {
+                const grid = document.getElementById('rmCalGrid');
+                if (!grid || !rmCalState.highlightDates.length) return;
+                const hitSet = {};
+                rmCalState.highlightDates.forEach(d => { hitSet[d] = true; });
+                const startSet = {};
+                rmCalState.searchStartDates.forEach(d => { startSet[d] = true; });
+                const endSet = {};
+                rmCalState.searchEndDates.forEach(d => { endSet[d] = true; });
+                grid.querySelectorAll('.sc-cal-day[data-date]').forEach(el => {
+                    const key = el.getAttribute('data-date');
+                    if (hitSet[key]) {
+                        el.classList.add('search-hit');
+                        if (startSet[key]) el.classList.add('search-hit-start');
+                        if (endSet[key]) el.classList.add('search-hit-end');
+                    }
+                });
+                const firstInMonth = rmCalState.highlightDates.find(d => {
+                    const parts = d.split('-');
+                    return parseInt(parts[0], 10) === rmCalState.year
+                        && parseInt(parts[1], 10) === rmCalState.month;
+                });
+                if (firstInMonth) {
+                    const target = grid.querySelector('.sc-cal-day[data-date="' + firstInMonth + '"]');
+                    if (target && typeof target.scrollIntoView === 'function') {
+                        target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    }
+                }
+            }
+
+            function buildSearchSuccessMessage(items) {
+                if (!items.length) return '';
+                if (items.length === 1) {
+                    const it = items[0];
+                    const id = it.report_id || it.id;
+                    return 'Found ' + (it.source_label || it.source || 'report') + ' '
+                        + id + ': start ' + (it.start_date || '—')
+                        + ', end ' + (it.end_date || 'Open')
+                        + '. Both dates are highlighted on the calendar.';
+                }
+                return 'Found ' + items.length + ' scheduled reports matching this ID. Highlighted dates are shown on the calendar.';
+            }
+
+            function runCalendarIdSearch() {
+                const input = document.getElementById('rmCalIdSearch');
+                const clearBtn = document.getElementById('rmCalIdSearchClear');
+                const query = input ? String(input.value || '').trim() : '';
+                if (!query) {
+                    clearCalendarSearch();
+                    setSearchMessage('Enter a report or project ID.', 'error');
+                    return;
+                }
+
+                setSearchMessage('Searching…');
+                fetch('schedule_calendar.php?ajax=calendar_search&q=' + encodeURIComponent(query), { credentials: 'same-origin' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data || !data.success) {
+                            setSearchMessage((data && data.message) || 'Search failed.', 'error');
+                            return;
+                        }
+                        if (!data.found) {
+                            rmCalState.searchQuery = '';
+                            rmCalState.highlightDates = [];
+                            rmCalState.searchStartDates = [];
+                            rmCalState.searchEndDates = [];
+                            if (clearBtn) clearBtn.style.display = 'none';
+                            if (rmCalLastGridData) renderCalendarGrid(rmCalLastGridData);
+                            setSearchMessage(data.message || 'No schedule found for this ID.', 'error');
+                            return;
+                        }
+
+                        rmCalState.searchQuery = data.query || query;
+                        rmCalState.highlightDates = Array.isArray(data.highlight_dates) ? data.highlight_dates : [];
+                        rmCalState.searchStartDates = (data.items || [])
+                            .map(it => it.start_date)
+                            .filter(Boolean);
+                        rmCalState.searchEndDates = (data.items || [])
+                            .map(it => it.end_date)
+                            .filter(function (d, i, arr) {
+                                const start = (data.items[i] || {}).start_date;
+                                return d && d !== start;
+                            });
+                        if (clearBtn) clearBtn.style.display = '';
+
+                        const focusYear = parseInt(data.focus_year, 10) || rmCalState.year;
+                        const focusMonth = parseInt(data.focus_month, 10) || rmCalState.month;
+                        const sameMonth = focusYear === rmCalState.year && focusMonth === rmCalState.month;
+
+                        const afterRender = () => {
+                            applySearchHighlights();
+                            setSearchMessage(buildSearchSuccessMessage(data.items || []), 'success');
+                        };
+
+                        if (sameMonth) {
+                            if (rmCalLastGridData) renderCalendarGrid(rmCalLastGridData);
+                            afterRender();
+                        } else {
+                            loadCalendarMonth(focusYear, focusMonth, afterRender);
+                        }
+                    })
+                    .catch(() => setSearchMessage('Search failed.', 'error'));
+            }
 
             function rmCalEscape(s) {
                 return String(s == null ? '' : s)
@@ -625,6 +916,12 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                 return new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
             }
 
+            const rmCalSourceLabels = {
+                lgu: 'LGU',
+                cimm: 'CIMM',
+                ipms: 'IPMS'
+            };
+
             function rmSourceToRmLink(item) {
                 const src = item.source;
                 let sourceParam = 'lgu_reports';
@@ -635,7 +932,7 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                     + '&open=1';
             }
 
-            function loadCalendarMonth(year, month) {
+            function loadCalendarMonth(year, month, onRendered) {
                 if (rmCalState.loading) return;
                 rmCalState.loading = true;
                 const hint = document.getElementById('rmCalHint');
@@ -654,6 +951,7 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                         rmCalState.year = data.year;
                         rmCalState.month = data.month;
                         rmCalState.days = data.days || {};
+                        rmCalLastGridData = data;
                         const label = document.getElementById('rmCalMonthLabel');
                         if (label) label.textContent = rmCalMonthName(data.year, data.month);
                         if (badge) {
@@ -661,11 +959,15 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                             badge.textContent = n + (n === 1 ? ' Active' : ' Active');
                         }
                         renderCalendarGrid(data);
+                        if (rmCalState.highlightDates.length) {
+                            applySearchHighlights();
+                        }
                         if (hint) {
                             hint.textContent = (parseInt(data.total_items, 10) || 0) === 0
                                 ? 'No approved or in-progress reports with schedule dates this month.'
                                 : 'Click a day with reports to view everything active that day.';
                         }
+                        if (typeof onRendered === 'function') onRendered();
                     })
                     .catch(() => {
                         if (hint) hint.textContent = 'Failed to load calendar';
@@ -683,6 +985,12 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                 const gridEnd = data.grid_end;
                 const today = new Date();
                 const todayKey = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
+                const hitSet = {};
+                rmCalState.highlightDates.forEach(d => { hitSet[d] = true; });
+                const startSet = {};
+                rmCalState.searchStartDates.forEach(d => { startSet[d] = true; });
+                const endSet = {};
+                rmCalState.searchEndDates.forEach(d => { endSet[d] = true; });
 
                 const dows = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                 let html = '';
@@ -699,13 +1007,19 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                     const info = daysMap[key] || null;
                     const count = info ? (parseInt(info.count, 10) || 0) : 0;
                     const sources = (info && Array.isArray(info.sources)) ? info.sources : [];
+                    const sourceCounts = (info && info.source_counts && typeof info.source_counts === 'object')
+                        ? info.source_counts
+                        : {};
                     const classes = ['sc-cal-day'];
                     if (!inMonth) classes.push('other-month');
                     if (key === todayKey) classes.push('today');
-                    if (count > 0) classes.push('has-items');
+                    if (count > 0 || hitSet[key]) classes.push('has-items');
+                    if (hitSet[key]) classes.push('search-hit');
+                    if (startSet[key]) classes.push('search-hit-start');
+                    if (endSet[key]) classes.push('search-hit-end');
 
                     html += '<div class="' + classes.join(' ') + '"'
-                        + (count > 0 ? ' role="button" tabindex="0" data-date="' + key + '"' : '')
+                        + ((count > 0 || hitSet[key]) ? ' role="button" tabindex="0" data-date="' + key + '"' : '')
                         + '>';
                     html += '<div class="sc-cal-day-num">' + cursor.getDate() + '</div>';
                     if (count > 0) {
@@ -713,7 +1027,10 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                         html += '<span class="sc-cal-count">' + count + '</span>';
                         html += '<span class="sc-cal-sources">';
                         sources.forEach(s => {
-                            html += '<i class="sc-cal-dot ' + rmCalEscape(s) + '" title="' + rmCalEscape(s.toUpperCase()) + '"></i>';
+                            const srcCount = parseInt(sourceCounts[s], 10) || 0;
+                            const label = (rmCalSourceLabels[s] || s.toUpperCase())
+                                + (srcCount > 1 ? ' (' + srcCount + ')' : '');
+                            html += '<i class="sc-cal-dot ' + rmCalEscape(s) + '" title="' + rmCalEscape(label) + '"></i>';
                         });
                         html += '</span></div>';
                     }
@@ -778,7 +1095,8 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                     const status = (item.status || '—').replace(/-/g, ' ');
                     const range = (item.start_date || '—') + ' → ' + (item.end_date || 'Open');
                     const href = rmSourceToRmLink(item);
-                    return '<div class="sc-day-item">'
+                    const isHit = rmCalItemMatchesQuery(item, rmCalState.searchQuery);
+                    return '<div class="sc-day-item' + (isHit ? ' search-hit' : '') + '">'
                         + '<div class="sc-day-item-top">'
                         + '<div class="sc-day-item-title">' + rmCalEscape(item.title || 'Untitled') + '</div>'
                         + '<span class="sc-source-badge ' + rmCalEscape(src) + '">' + rmCalEscape(item.source_label || src.toUpperCase()) + '</span>'
@@ -825,6 +1143,21 @@ if (($_GET['ajax'] ?? '') === 'calendar_day') {
                     loadCalendarMonth(now.getFullYear(), now.getMonth() + 1);
                 });
             }
+
+            const searchInput = document.getElementById('rmCalIdSearch');
+            const searchBtn = document.getElementById('rmCalIdSearchBtn');
+            const searchClear = document.getElementById('rmCalIdSearchClear');
+            if (searchBtn) searchBtn.addEventListener('click', runCalendarIdSearch);
+            if (searchInput) {
+                searchInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        runCalendarIdSearch();
+                    }
+                });
+            }
+            if (searchClear) searchClear.addEventListener('click', clearCalendarSearch);
+
             loadCalendarMonth(rmCalState.year, rmCalState.month);
         })();
     </script>

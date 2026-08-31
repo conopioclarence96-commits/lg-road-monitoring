@@ -176,4 +176,47 @@ function completed_projects_public_column_js_map() {
     return completed_projects_public_status_map();
 }
 
+/**
+ * Strip the default citizen-report title suffix for display on Completed Projects.
+ */
+function completed_projects_format_citizen_title(string $title): string {
+    $clean = preg_replace('/\s+at pinned location/i', '', $title);
+    $clean = trim((string)$clean);
+    return $clean !== '' ? $clean : 'Untitled';
+}
+
+/**
+ * Format a report title for the Completed Projects table/modals.
+ */
+function completed_projects_format_report_title(string $title, string $source = ''): string {
+    if (strtolower(trim($source)) === 'citizen') {
+        return completed_projects_format_citizen_title($title);
+    }
+    $clean = trim($title);
+    return $clean !== '' ? $clean : 'Untitled';
+}
+
+/** Normalize citizen report titles in a fetched report list. */
+function completed_projects_apply_title_format(array &$reports): void {
+    foreach ($reports as &$report) {
+        if (strtolower((string)($report['source'] ?? '')) === 'citizen') {
+            $report['title'] = completed_projects_format_citizen_title((string)($report['title'] ?? ''));
+        }
+    }
+    unset($report);
+}
+
+/** Client-side title cleanup for Load More / detail modal (Completed Projects only). */
+function completed_projects_title_js(): string {
+    return <<<'JS'
+        function formatCompletedProjectCitizenTitle(title, source) {
+            if (String(source || '').toLowerCase() !== 'citizen') {
+                return title || 'Untitled';
+            }
+            var clean = String(title || '').replace(/\s+at pinned location/gi, '').trim();
+            return clean || 'Untitled';
+        }
+JS;
+}
+
 require __DIR__ . '/road_transportation_monitoring.php';
