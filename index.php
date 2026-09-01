@@ -4060,7 +4060,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                                  onclick="window.open(this.src, '_blank')"
                                                  title="Click to view full size">
                                         </div>
-                                    <?php endif; ?>
+                                    <?php endif; ?>.
                                     
                                     <small class="text-muted">
                                         <i class="fas fa-calendar"></i> 
