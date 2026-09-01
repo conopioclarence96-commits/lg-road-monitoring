@@ -4,7 +4,7 @@ require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
 if (!is_logged_in()) {
-    header('Location: ' . rgmap_url('login'));
+    header('Location: ../../login.php');
     exit();
 }
 
@@ -103,19 +103,18 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SLA Compliance - LGU Road Monitoring</title>
-    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
-    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
-    <link rel="stylesheet" href="lgu_staff/css/enhanced-reports.css">
-    <link rel="stylesheet" href="styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
+    <link rel="stylesheet" href="../../css/enhanced-reports.css">
+    <link rel="stylesheet" href="../../../styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <?php if (($user_role ?? '') === 'trans_ops_supervisor'): ?>
     <!-- Transport Operations Supervisor only: fit all four SLA stat cards on
@@ -315,7 +314,7 @@ log_audit_action($user_id, "Viewed SLA dashboard", "Tracked reports: " . count($
         </div>
     </div>
 
-    <script src="lgu_staff/js/enhanced-reports.js"></script>
+    <script src="../../js/enhanced-reports.js"></script>
     <script>
         const isDark = document.body.classList.contains('dark-mode');
         const textColor = isDark ? '#9ca3af' : '#64748b';

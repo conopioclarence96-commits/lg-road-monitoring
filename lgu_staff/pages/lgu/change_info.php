@@ -10,14 +10,14 @@ require_once '../../includes/functions.php';
 
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 1800)) {
     lgu_logout_current_session();
-    header('Location: ' . rgmap_url('login', ['timeout' => 1]));
+    header('Location: ../../login.php?timeout=1');
     exit();
 }
 
 $_SESSION['last_activity'] = time();
 
 if (!isset($_SESSION['user_id']) || !is_staff_role($_SESSION['role'] ?? '')) {
-    header('Location: ' . rgmap_url('login'));
+    header('Location: ../../login.php');
     exit();
 }
 
@@ -121,18 +121,17 @@ $stmt->close();
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Change Information - LGU Road Monitoring</title>
-    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
-    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
-    <link rel="stylesheet" href="styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
+    <link rel="stylesheet" href="../../../styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         body { background: #f7f5f0; min-height: 100vh; }
@@ -363,7 +362,7 @@ $stmt->close();
                     <button type="submit" name="submit_request" class="btn-primary" <?php echo $pending_request ? 'disabled' : ''; ?>>
                         <i class="fas fa-paper-plane"></i> Submit Request
                     </button>
-                    <a href="<?php echo htmlspecialchars(rgmap_url('staff-dashboard')); ?>" class="btn-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+                    <a href="lgu_staff_dashboard.php" class="btn-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
                 </div>
             </form>
         </div>

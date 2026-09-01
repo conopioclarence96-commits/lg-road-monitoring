@@ -29,7 +29,7 @@ require_once __DIR__ . '/notification_badge.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ' . rgmap_url('login'));
+    header('Location: /lg-road-monitoring/lgu_staff/login.php');
     exit();
 }
 
@@ -43,7 +43,7 @@ if ($conn && isset($_SESSION['user_id'])) {
     $mcp_row = $mcp->get_result()->fetch_assoc();
     $mcp->close();
     if ($mcp_row && !empty($mcp_row['must_change_password'])) {
-        header('Location: ' . rgmap_url('change-password'));
+        header('Location: /lg-road-monitoring/lgu_staff/change_password.php');
         exit();
     }
 }
@@ -685,49 +685,49 @@ function getSidebarNotificationCount($user_role = '', $user_id = 0) {
     return $count;
 }
 
-// Absolute asset/API base paths (clean browser URLs use flat routes; static
-// files stay under /lgu_staff/…).
-$nav_base = rgmap_lgu_base() . '/';
+// Determine base path: all pages are in lgu_staff/pages/{admin,lgu,shared}/
+// So base path to lgu_staff/ is always ../../
+$nav_base = isset($nav_base) ? $nav_base : '../../';
 
 $user_info = getSidebarUserInfo();
 $user_role = $_SESSION['role'] ?? $user_info['role'] ?? 'citizen';
 $notification_count = getSidebarNotificationCount($user_role, $_SESSION['user_id'] ?? 0);
 
-// Detect current route for sidebar active state.
-$current_route = rgmap_current_route_key();
+// Detect current page for active state
+$current_page = basename($_SERVER['SCRIPT_NAME']);
 
-// Navigation items (route keys → clean public URLs via rgmap_url()).
+// Navigation items
 $nav_items = [
     'main' => [
-        ['route' => 'staff-dashboard', 'icon' => 'tachometer-alt', 'title' => 'Staff Dashboard', 'roles' => ['lgu_staff']],
-        ['route' => 'admin-dashboard', 'icon' => 'tachometer-alt', 'title' => 'Admin Dashboard', 'roles' => ['system_admin']],
+        ['href' => $nav_base . 'pages/lgu/lgu_staff_dashboard.php', 'icon' => 'tachometer-alt', 'title' => 'Staff Dashboard', 'roles' => ['lgu_staff']],   
+        ['href' => $nav_base . 'pages/admin/admin_dashboard.php', 'icon' => 'tachometer-alt', 'title' => 'Admin Dashboard', 'roles' => ['system_admin']],
     ],
     'managing_accounts' => [
-        ['route' => 'manage-accounts', 'icon' => 'users', 'title' => 'Manage Accounts', 'roles' => ['system_admin']],
-        ['route' => 'account-approvals', 'icon' => 'clipboard-check', 'title' => 'Account Approvals', 'roles' => ['system_admin']],
-        ['route' => 'create-staff', 'icon' => 'user-plus', 'title' => 'Create Staff Account', 'roles' => ['system_admin']],
-        ['route' => 'send-registration', 'icon' => 'envelope-open-text', 'title' => 'Send Registration Link', 'roles' => ['system_admin']],
+        ['href' => $nav_base . 'pages/admin/manage_accounts.php', 'icon' => 'users', 'title' => 'Manage Accounts', 'roles' => ['system_admin']],
+        ['href' => $nav_base . 'pages/admin/account_approvals.php', 'icon' => 'clipboard-check', 'title' => 'Account Approvals', 'roles' => ['system_admin']],
+        ['href' => $nav_base . 'pages/admin/create_staff_account.php', 'icon' => 'user-plus', 'title' => 'Create Staff Account', 'roles' => ['system_admin']],
+        ['href' => $nav_base . 'pages/admin/send_registration_link.php', 'icon' => 'envelope-open-text', 'title' => 'Send Registration Link', 'roles' => ['system_admin']],
     ],
     'monitoring' => [
-        ['route' => 'monitoring', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['system_admin','road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer']],
-        ['route' => 'verification', 'icon' => 'shield-alt', 'title' => 'Verification Reports', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
-        ['route' => 'report-management', 'icon' => 'clipboard-list', 'title' => 'Report Management', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
-        ['route' => 'completed-projects', 'icon' => 'check-circle', 'title' => 'Completed Projects', 'roles' => ['system_admin','road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer']],
+        ['href' => $nav_base . 'pages/shared/road_transportation_monitoring.php', 'icon' => 'map-marked-alt', 'title' => 'Road Monitoring', 'roles' => ['system_admin','road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer']],
+        ['href' => $nav_base . 'pages/admin/verification_monitoring.php', 'icon' => 'shield-alt', 'title' => 'Verification Reports', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
+        ['href' => $nav_base . 'pages/admin/report_management.php', 'icon' => 'clipboard-list', 'title' => 'Report Management', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
+        ['href' => $nav_base . 'pages/shared/completed_projects.php', 'icon' => 'check-circle', 'title' => 'Completed Projects', 'roles' => ['system_admin','road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer']],
     ],
     'transparency' => [
-        ['route' => 'public-transparency', 'icon' => 'eye', 'title' => 'Public Transparency', 'roles' => ['system_admin', 'lgu_staff']],
-        ['route' => 'announcements', 'icon' => 'bullhorn', 'title' => 'Announcements', 'roles' => ['system_admin']],
+        ['href' => $nav_base . 'pages/shared/public_transparency.php', 'icon' => 'eye', 'title' => 'Public Transparency', 'roles' => ['system_admin', 'lgu_staff']],
+        ['href' => $nav_base . 'pages/admin/announcements.php', 'icon' => 'bullhorn', 'title' => 'Announcements', 'roles' => ['system_admin']],
     ],
     'reports' => [
-        ['route' => 'analytics', 'icon' => 'chart-line', 'title' => 'Analytics', 'roles' => ['system_admin', 'lgu_staff']],
-        ['route' => 'audit-trail', 'icon' => 'history', 'title' => 'Audit Trail', 'roles' => ['system_admin']],
+        ['href' => $nav_base . 'pages/shared/analytics.php', 'icon' => 'chart-line', 'title' => 'Analytics', 'roles' => ['system_admin', 'lgu_staff']],
+        ['href' => $nav_base . 'pages/admin/audit_trail.php', 'icon' => 'history', 'title' => 'Audit Trail', 'roles' => ['system_admin']],
     ],
     'system' => [
-        ['route' => 'notifications', 'icon' => 'bell', 'title' => 'Notifications', 'roles' => ['system_admin', 'lgu_staff']],
-        ['route' => 'schedule-calendar', 'icon' => 'calendar-alt', 'title' => 'Schedule Calendar', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
-        ['route' => 'archive', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer']],
-        ['route' => 'officer-archive', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['road_monitoring_officer']],
-        ['route' => 'settings', 'icon' => 'cog', 'title' => 'Settings', 'roles' => ['system_admin', 'lgu_staff']],
+        ['href' => $nav_base . 'pages/shared/notifications.php', 'icon' => 'bell', 'title' => 'Notifications', 'roles' => ['system_admin', 'lgu_staff']],
+        ['href' => $nav_base . 'pages/admin/schedule_calendar.php', 'icon' => 'calendar-alt', 'title' => 'Schedule Calendar', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor']],
+        ['href' => $nav_base . 'pages/admin/archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer']],
+        ['href' => $nav_base . 'pages/lgu/officer_archive.php', 'icon' => 'archive', 'title' => 'Archive', 'roles' => ['road_monitoring_officer']],
+        ['href' => $nav_base . 'pages/shared/settings.php', 'icon' => 'cog', 'title' => 'Settings', 'roles' => ['system_admin', 'lgu_staff']],
     ]
 ];
 
@@ -742,7 +742,7 @@ foreach ($nav_items as $section => $items) {
         // Change Information menu item.
         if ($visible
             && in_array($user_role, ['trans_ops_supervisor', 'road_ops_supervisor'], true)
-            && ($item['route'] ?? '') === 'change-info') {
+            && basename($item['href']) === 'change_info.php') {
             $visible = false;
         }
         return $visible;
@@ -756,13 +756,13 @@ foreach ($nav_items as $section => $items) {
 if ($user_role !== 'system_admin') {
     $__sidebar_css = __DIR__ . '/../css/sidebar.css';
     $__sidebar_v = is_file($__sidebar_css) ? (int)filemtime($__sidebar_css) : 6;
-    echo '<link rel="stylesheet" href="' . htmlspecialchars(rgmap_asset('css/sidebar.css'), ENT_QUOTES, 'UTF-8') . '?v=' . $__sidebar_v . '">' . "\n";
+    echo '<link rel="stylesheet" href="' . htmlspecialchars($nav_base, ENT_QUOTES, 'UTF-8') . 'css/sidebar.css?v=' . $__sidebar_v . '">' . "\n";
 }
 ?>
 <aside class="sidebar" id="sidebar" role="complementary">
     <header class="sidebar-header">
         <div class="sidebar-brand">
-            <img src="<?php echo htmlspecialchars(rgmap_asset('assets/img/infra-gov-logo-white.png')); ?>" alt="INFRA Gov Services" class="sidebar-logo">
+            <img src="<?php echo htmlspecialchars($nav_base); ?>assets/img/infra-gov-logo-white.png" alt="INFRA Gov Services" class="sidebar-logo">
             <div class="sidebar-brand-text">
                 <p><?php echo htmlspecialchars(getPortalTitle($user_role)); ?></p>
             </div>
@@ -786,7 +786,7 @@ if ($user_role !== 'system_admin') {
             if ($sidebar_profile_picture !== '' && strpos($sidebar_profile_picture, '..') === false && strpos($sidebar_profile_picture, '/') === false) {
                 $sidebar_profile_fs = __DIR__ . '/../uploads/profile_pictures/' . $sidebar_profile_picture;
                 if (is_file($sidebar_profile_fs)) {
-                    $sidebar_profile_url = rgmap_asset('uploads/profile_pictures/' . rawurlencode($sidebar_profile_picture));
+                    $sidebar_profile_url = $nav_base . 'uploads/profile_pictures/' . rawurlencode($sidebar_profile_picture);
                 }
             }
             ?>
@@ -812,7 +812,7 @@ if ($user_role !== 'system_admin') {
                 $accounts_active = false;
                 if ($is_managing_accounts) {
                     foreach ($items as $item) {
-                        if ($current_route === ($item['route'] ?? '')) { $accounts_active = true; break; }
+                        if ($current_page === basename($item['href'])) { $accounts_active = true; break; }
                     }
                 }
                 ?>
@@ -820,13 +820,12 @@ if ($user_role !== 'system_admin') {
                 <ul role="list" aria-labelledby="<?php echo $is_managing_accounts ? 'managingAccountsToggle' : 'menu-label-' . $section; ?>"<?php if ($is_managing_accounts): ?> id="managingAccountsSubmenu" class="managing-accounts-submenu" style="display:<?php echo $accounts_active ? 'block' : 'none'; ?>;"<?php endif; ?>>
                     <?php foreach ($items as $item): ?>
                         <?php
-                        $item_route = (string)($item['route'] ?? '');
-                        $item_href = rgmap_url($item_route);
-                        $is_active = ($current_route === $item_route) ? ' active' : '';
-                        $aria_current = ($current_route === $item_route) ? ' aria-current="page"' : '';
+                        $href_file = basename($item['href']);
+                        $is_active = ($current_page === $href_file) ? ' active' : '';
+                        $aria_current = ($current_page === $href_file) ? ' aria-current="page"' : '';
                         ?>
                         <li role="listitem">
-                            <a href="<?php echo htmlspecialchars($item_href); ?>" class="nav-link<?php echo $is_active; ?>"<?php echo $aria_current; ?>>
+                            <a href="<?php echo $item['href']; ?>" class="nav-link<?php echo $is_active; ?>"<?php echo $aria_current; ?>>
                                 <i class="fas fa-<?php echo $item['icon']; ?>" aria-hidden="true"></i>
                                 <?php
                                 $display_title = $item['title'];
@@ -856,26 +855,13 @@ if ($user_role !== 'system_admin') {
         <div class="menu-label">Account</div>
         <ul role="list">
             <li role="listitem">
-                <a href="<?php echo htmlspecialchars(rgmap_url('logout')); ?>" class="nav-link nav-link-logout" id="logoutBtn" role="button">
+                <a href="<?php echo $nav_base; ?>logout.php" class="nav-link nav-link-logout" id="logoutBtn" role="button">
                     <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Logout
                 </a>
             </li>
         </ul>
     </nav>
 </aside>
-<script>
-window.RGMAP = {
-    base: <?php echo json_encode(rgmap_web_base()); ?>,
-    api: function (script) {
-        var b = this.base || '';
-        return b + '/api/' + String(script || '').replace(/^\//, '');
-    },
-    asset: function (path) {
-        var b = this.base || '';
-        return b + '/lgu_staff/' + String(path || '').replace(/^\//, '');
-    }
-};
-</script>
 
 <?php if (in_array($user_role, ['system_admin', 'road_ops_supervisor', 'road_monitoring_officer', 'trans_ops_supervisor', 'trans_monitoring_officer'], true)): ?>
 <!-- Mobile hamburger menu toggle (system_admin, road_ops_supervisor, road_monitoring_officer, trans_ops_supervisor, trans_monitoring_officer) -->
@@ -1033,7 +1019,7 @@ function ncSyncSidebarBadge(count) {
 }
 
 function ncPollSidebarBadge() {
-    fetch((window.RGMAP && typeof window.RGMAP.api === 'function') ? window.RGMAP.api('notifications_unread_count.php') : 'api/notifications_unread_count.php', {
+    fetch('../../pages/api/notifications_unread_count.php', {
         headers: { 'Accept': 'application/json' },
         credentials: 'same-origin'
     })

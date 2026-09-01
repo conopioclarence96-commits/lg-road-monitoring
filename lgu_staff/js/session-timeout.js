@@ -10,27 +10,13 @@
     var modal = document.getElementById('sessionTimeoutModal');
     var overlay = document.getElementById('sessionTimeoutOverlay');
 
-    function apiUrl(script) {
-        if (window.RGMAP && typeof window.RGMAP.api === 'function') {
-            return window.RGMAP.api(script);
-        }
-        return 'api/' + String(script || '').replace(/^\//, '');
-    }
-
-    function logoutUrl() {
-        if (window.RGMAP && window.RGMAP.base !== undefined) {
-            return (window.RGMAP.base || '') + '/logout';
-        }
-        return 'logout';
-    }
-
     function clearTimers() {
         if (warningTimer) { clearTimeout(warningTimer); warningTimer = null; }
         if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
     }
 
     function extendSession() {
-        fetch(apiUrl('extend_session.php'), { method: 'POST' })
+        fetch('../../pages/api/extend_session.php', { method: 'POST' })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
@@ -42,7 +28,7 @@
     }
 
     function logoutSession() {
-        window.location.href = logoutUrl();
+        window.location.href = '../../logout.php';
     }
 
     function showModal() {

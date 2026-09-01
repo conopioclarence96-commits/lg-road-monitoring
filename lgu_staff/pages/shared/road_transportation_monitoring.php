@@ -47,14 +47,14 @@ if ($deptCol && stripos($deptCol['Type'], 'enum') === 0) {
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
-lgu_enforce_idle_timeout($session_timeout, rgmap_url('login', ['timeout' => 1]));
+lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
 
 // Check if user is logged in
 if (
     !isset($_SESSION['user_id']) ||
     !is_admin_or_staff_role($_SESSION['role'] ?? '')
 ) {
-    header('Location: ' . rgmap_url('login'));
+    header('Location: ../../login.php');
     exit();
 }
 
@@ -1176,9 +1176,9 @@ if ($focus_report_id > 0) {
             $officer_assigned_focus = isset($assigned_keys[$focus_key]);
         }
         if (!$officer_assigned_focus) {
-            $redirect = rgmap_url('completed-projects', ['focus_report_id' => (int)$focus_report_id]);
+            $redirect = 'completed_projects.php?focus_report_id=' . (int)$focus_report_id;
             if ($focus_source_hint !== '') {
-                $redirect .= (strpos($redirect, '?') !== false ? '&' : '?') . 'source=' . urlencode($focus_source_hint);
+                $redirect .= '&source=' . urlencode($focus_source_hint);
             }
             header('Location: ' . $redirect);
             exit;
@@ -1300,24 +1300,23 @@ if ($is_completed_projects_view || $is_system_admin) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $is_completed_projects_view ? 'Completed Projects' : 'Road and Transportation Monitoring'; ?> | LGU Staff</title>
-    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
-    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
-    <link rel="stylesheet" href="styles/transition.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
+    <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="lgu_staff/css/progress-updates.css?v=<?php echo @filemtime(__DIR__ . '/../../css/progress-updates.css') ?: time(); ?>">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="../../css/progress-updates.css?v=<?php echo @filemtime(__DIR__ . '/../../css/progress-updates.css') ?: time(); ?>">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="lgu_staff/js/progress-updates.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates.js'); ?>"></script>
-    <script src="lgu_staff/js/progress-updates-common.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates-common.js'); ?>"></script>
-    <script src="lgu_staff/js/tomtom-services.js?v=<?php echo filemtime(__DIR__ . '/../../js/tomtom-services.js'); ?>"></script>
+    <script src="../../js/progress-updates.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates.js'); ?>"></script>
+    <script src="../../js/progress-updates-common.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates-common.js'); ?>"></script>
+    <script src="../../js/tomtom-services.js?v=<?php echo filemtime(__DIR__ . '/../../js/tomtom-services.js'); ?>"></script>
     <script>
         const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
         const TOMTOM_PROXY_URL = '<?php
@@ -5421,7 +5420,7 @@ if ($is_completed_projects_view || $is_system_admin) {
         }
 
         // Load QC Districts GeoJSON layer
-        fetch('api/qc_districts.geojson')
+        fetch('../../pages/api/qc_districts.geojson')
             .then(r => r.json())
             .then(data => {
                 qcDistrictsGeoJSON = data;
@@ -5901,7 +5900,7 @@ if ($is_completed_projects_view || $is_system_admin) {
         // request server-side first: it must still be pending and must belong to
         // the report being focused.
         function openTransparencyReview(requestId, reportId, source) {
-            fetch('api/transparency_request_api.php?action=get&request_id=' + encodeURIComponent(requestId))
+            fetch('../api/transparency_request_api.php?action=get&request_id=' + encodeURIComponent(requestId))
                 .then(function(r) { return r.json(); })
                 .then(function(resp) {
                     if (!resp || !resp.success || !resp.data) {
@@ -5950,7 +5949,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             fd.append('request_id', transparencyReview.requestId);
             if (decision === 'reject' && reason) fd.append('reason', reason);
 
-            fetch('api/transparency_request_api.php', { method: 'POST', body: fd })
+            fetch('../api/transparency_request_api.php', { method: 'POST', body: fd })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success) {
@@ -6686,7 +6685,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                 setTransparencyBtnState('idle');
                 // Reflect an existing request so the supervisor is not invited to
                 // submit a duplicate the API would reject.
-                fetch('api/transparency_request_api.php?action=status&report_id=' + encodeURIComponent(currentUpdatesReportId)
+                fetch('../api/transparency_request_api.php?action=status&report_id=' + encodeURIComponent(currentUpdatesReportId)
                     + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
@@ -6698,7 +6697,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             if ((typeof IS_ROAD_SUPERVISOR !== 'undefined' && IS_ROAD_SUPERVISOR)
                 || (typeof IS_TRANS_SUPERVISOR !== 'undefined' && IS_TRANS_SUPERVISOR)) {
                 btn.style.display = 'none';
-                fetch('api/progress_update_api.php?action=can_manage_report&report_id=' + encodeURIComponent(currentUpdatesReportId)
+                fetch('../api/progress_update_api.php?action=can_manage_report&report_id=' + encodeURIComponent(currentUpdatesReportId)
                     + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                     .then(function(r) { return r.json(); })
                     .then(function(own) {
@@ -6726,7 +6725,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             fd.append('source', currentUpdatesReportSource || '');
             fd.append('report_type', currentUpdatesReportType || '');
 
-            fetch('api/transparency_request_api.php', { method: 'POST', body: fd })
+            fetch('../api/transparency_request_api.php', { method: 'POST', body: fd })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success) {
@@ -6815,7 +6814,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             if (!canReviewTransparencyUpload()) return;
 
             var reportId = currentUpdatesReportId;
-            fetch('api/transparency_request_api.php?action=status&report_id=' + encodeURIComponent(reportId)
+            fetch('../api/transparency_request_api.php?action=status&report_id=' + encodeURIComponent(reportId)
                 + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
@@ -6845,7 +6844,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             fd.append('request_id', updatesTransparencyRequestId);
             if (decision === 'reject' && reason) fd.append('reason', reason);
 
-            fetch('api/transparency_request_api.php', { method: 'POST', body: fd })
+            fetch('../api/transparency_request_api.php', { method: 'POST', body: fd })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success) {
@@ -6987,7 +6986,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                     completeBtn.style.display = 'none';
                     if (cancelBtn) cancelBtn.style.display = 'none';
                     if (!currentUpdatesReportId) return;
-                    fetch('api/progress_update_api.php?action=can_manage_report&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
+                    fetch('../api/progress_update_api.php?action=can_manage_report&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
                             if (data && data.success && data.can_manage) {
@@ -7015,7 +7014,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             // hidden until the server confirms an active assignment for this report.
             completeBtn.style.display = 'none';
             if (cancelBtn) cancelBtn.style.display = 'none';
-            fetch('api/progress_update_api.php?action=can_request_review&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
+            fetch('../api/progress_update_api.php?action=can_request_review&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success && data.can_request) {
@@ -7053,7 +7052,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                 btn.style.display = 'inline-flex';
             }
 
-            fetch('api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
+            fetch('../api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId + '&source=' + encodeURIComponent(currentUpdatesReportSource || ''))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success && data.can_post) {
@@ -7514,7 +7513,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                 completionSliderLocked ? 0 : completionSliderMin,
                 submitPct
             )));
-            fetch('api/progress_update_api.php', {
+            fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: fd
             })
@@ -7733,7 +7732,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             fd.append('report_id', id);
             fd.append('source', source || '');
 
-            fetch('api/progress_update_api.php', {
+            fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: fd
             })
@@ -7800,7 +7799,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             updateFormData.append('description', 'completed on ' + today);
             updateFormData.append('completion_percentage', '100');
 
-            fetch('api/progress_update_api.php', {
+            fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: updateFormData
             })
@@ -7832,7 +7831,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             statusFormData.append('report_id', currentUpdatesReportId);
             statusFormData.append('source', currentUpdatesReportSource);
 
-            fetch('api/progress_update_api.php', {
+            fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: statusFormData
             })
@@ -7866,7 +7865,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             formData.append('status', newStatus);
             formData.append('source', currentUpdatesReportSource);
 
-            fetch('api/progress_update_api.php', {
+            fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: formData
             })
@@ -7907,7 +7906,7 @@ if ($is_completed_projects_view || $is_system_admin) {
             fd.append('request_type', requestType);
             fd.append('source', currentUpdatesReportSource);
 
-            fetch('api/progress_update_api.php', {
+            fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: fd
             })
@@ -8110,7 +8109,6 @@ if ($is_completed_projects_view || $is_system_admin) {
                 var htmlContent = `
                 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'>
                 <head>
-    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
                 <meta charset="utf-8">
                 <title>Progress Updates Report</title>
                 <style>
@@ -10091,7 +10089,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                     );
                     showNotification(
                         'Transparency draft #' + transparencyDraft + ' created from this project\'s progress updates. '
-                        + '<a href="<?php echo htmlspecialchars(rgmap_url('public-transparency')); ?>?edit=' + encodeURIComponent(transparencyDraft) + '" style="color:#fff;text-decoration:underline;">Review draft</a>',
+                        + '<a href="../shared/public_transparency.php?edit=' + encodeURIComponent(transparencyDraft) + '" style="color:#fff;text-decoration:underline;">Review draft</a>',
                         'success'
                     );
                 }
@@ -10365,7 +10363,7 @@ if ($is_completed_projects_view || $is_system_admin) {
 
     <!-- Session timeout data -->
     <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>" data-role="<?php echo htmlspecialchars($_SESSION['role'] ?? ''); ?>"></script>
-    <script src="lgu_staff/js/session-timeout.js"></script>
+    <script src="../../js/session-timeout.js"></script>
 
     <?php if ($is_system_admin): ?>
     <script>

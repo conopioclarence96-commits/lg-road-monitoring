@@ -3809,7 +3809,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             <?php if (!empty($redirect_url)): ?>
                 <a href="<?php echo htmlspecialchars($redirect_url); ?>" class="btn-login"><i class="fas fa-external-link-alt"></i> Go to Redirect</a>
             <?php else: ?>
-                <a href="<?php echo htmlspecialchars(function_exists('rgmap_url') ? rgmap_url('login') : ($basePath . 'login')); ?>" class="btn-login"><i class="fas fa-sign-in-alt"></i> Login to Access</a>
+                <a href="lgu_staff/login.php" class="btn-login"><i class="fas fa-sign-in-alt"></i> Login to Access</a>
             <?php endif; ?>
         </div>
     </div>
@@ -4554,10 +4554,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
     <!-- Shared TomTom / citizen API config (a11y_js merges TOMTOM key + loads Leaflet / GIS) -->
     <script>
-        window.TOMTOM_API_PROXY = <?php echo json_encode(function_exists('rgmap_api_url') ? rgmap_api_url('tomtom/proxy.php') : 'lgu_staff/pages/api/tomtom/proxy.php'); ?>;
+        window.TOMTOM_API_PROXY = 'lgu_staff/pages/api/tomtom/proxy.php';
         window.LG_ASSET_CONFIG = {
             TOMTOM_API_KEY: <?php echo json_encode(defined('TOMTOM_API_KEY') ? TOMTOM_API_KEY : ''); ?>,
-            CITIZEN_API: <?php echo json_encode(function_exists('rgmap_api_url') ? rgmap_api_url('citizen_report.php') : 'lgu_staff/pages/api/citizen_report.php'); ?>
+            CITIZEN_API: 'lgu_staff/pages/api/citizen_report.php'
         };
     </script>
 

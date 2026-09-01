@@ -25,7 +25,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
 
 // Must be authenticated
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ' . rgmap_url('login'));
+    header('Location: ' . $basePath . 'lgu_staff/login.php');
     exit();
 }
 
@@ -42,17 +42,18 @@ if ($conn && isset($_SESSION['user_id'])) {
 if (!$user) {
     // Account no longer exists
     lgu_logout_current_session();
-    header('Location: ' . rgmap_url('login'));
+    header('Location: ' . $basePath . 'lgu_staff/login.php');
     exit();
 }
 
 // Role-based dashboard URL helper
 function cp_dashboard_url($role, $basePath) {
-    unset($basePath);
-    if ($role === 'system_admin') {
-        return rgmap_url('admin-dashboard');
+    switch ($role) {
+        case 'system_admin':
+            return $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
+        default:
+            return $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
     }
-    return rgmap_url('staff-dashboard');
 }
 
 // Users who are not required to change their password should not be here
@@ -114,13 +115,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <?php require_once __DIR__ . '/includes/page_head_base.php'; ?>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LGU | Change Password</title>
-    <link rel="icon" type="image/png" href="assets/img/infra-gov-logo.png">
-    <link rel="stylesheet" href="styles/style.css" />
-    <link rel="stylesheet" href="styles/login.css" />
+    <link rel="icon" type="image/png" href="../assets/img/infra-gov-logo.png">
+    <link rel="stylesheet" href="<?php echo $basePath; ?>styles/style.css" />
+    <link rel="stylesheet" href="<?php echo $basePath; ?>styles/login.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     <header class="nav">
       <div class="nav-logo">🏛️ Local Government Unit Portal</div>
       <div class="nav-links">
-        <a href="<?php echo htmlspecialchars(rgmap_home_url()); ?>">Home</a>
+        <a href="../index.php">Home</a>
       </div>
     </header>
 

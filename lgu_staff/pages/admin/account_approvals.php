@@ -15,7 +15,7 @@ require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
 $session_timeout = 30 * 60;
-lgu_enforce_idle_timeout($session_timeout, rgmap_url('login', ['timeout' => 1]));
+lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
 
 if ($conn->connect_error === null) {
     $check = $conn->query("SHOW COLUMNS FROM users LIKE 'approved_at'");
@@ -35,7 +35,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
         echo json_encode(['success' => false, 'message' => 'Unauthorized']);
         exit;
     }
-    header('Location: ' . rgmap_url('login'));
+    header('Location: ../../login.php');
     exit();
 }
 
@@ -387,18 +387,17 @@ if ($focus_cr_id > 0) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Account Approvals - LGU Road Monitoring</title>
-    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
-    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
-    <link rel="stylesheet" href="styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
+    <link rel="stylesheet" href="../../../styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         body { background: #f5f3ee; min-height: 100vh; color: var(--text-primary); }
@@ -1604,7 +1603,7 @@ if ($focus_cr_id > 0) {
             dot.classList.add('syncing');
             text.textContent = 'Syncing...';
 
-            fetch('api/get_account_approvals_data.php')
+            fetch('../api/get_account_approvals_data.php')
             .then(function(response) { return response.json(); })
             .then(function(result) {
                 if (!result.success) return;

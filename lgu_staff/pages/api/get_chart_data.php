@@ -231,6 +231,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['period'])) {
 }
 
 // If not an AJAX request, redirect
-header('Location: ' . rgmap_url('staff-dashboard'));
+header('Location: ../lgu/lgu_staff_dashboard.php');
 exit();
 ?>

@@ -45,14 +45,14 @@ if ($deptCol && stripos($deptCol['Type'], 'enum') === 0) {
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
-lgu_enforce_idle_timeout($session_timeout, rgmap_url('login', ['timeout' => 1]));
+lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
 
 // Check if user is logged in
 if (
     !isset($_SESSION['user_id']) ||
     !is_admin_or_staff_role($_SESSION['role'] ?? '')
 ) {
-    header('Location: ' . rgmap_url('login'));
+    header('Location: ../../login.php');
     exit();
 }
 
@@ -800,23 +800,22 @@ if ($focus_report_id > 0) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Road and Transportation Monitoring | LGU Staff</title>
-    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
-    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
-    <link rel="stylesheet" href="styles/transition.css">
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
+    <link rel="stylesheet" href="../../../styles/transition.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="lgu_staff/css/progress-updates.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="../../css/progress-updates.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="lgu_staff/js/progress-updates.js"></script>
-    <script src="lgu_staff/js/tomtom-services.js?v=<?php echo filemtime(__DIR__ . '/../../js/tomtom-services.js'); ?>"></script>
+    <script src="../../js/progress-updates.js"></script>
+    <script src="../../js/tomtom-services.js?v=<?php echo filemtime(__DIR__ . '/../../js/tomtom-services.js'); ?>"></script>
     <script>
         const TOMTOM_API_KEY = '<?php echo TOMTOM_API_KEY; ?>';
         const TOMTOM_PROXY_URL = '<?php
@@ -2128,7 +2127,7 @@ if ($focus_report_id > 0) {
         }
 
         // Load QC Districts GeoJSON layer
-        fetch('api/qc_districts.geojson')
+        fetch('../../pages/api/qc_districts.geojson')
             .then(r => r.json())
             .then(data => {
                 qcDistrictsGeoJSON = data;
@@ -2440,7 +2439,7 @@ if ($focus_report_id > 0) {
             isLoadingMore = false;
             
             // Fetch filtered data from API
-            fetch(`api/get_recent_submissions_paginated.php?offset=0&limit=10&status=${statusFilter}&type=${source}`)
+            fetch(`../api/get_recent_submissions_paginated.php?offset=0&limit=10&status=${statusFilter}&type=${source}`)
                 .then(response => response.json())
                 .then(data => {
                     tableBody.innerHTML = ''; // Clear loading row
@@ -2828,7 +2827,7 @@ if ($focus_report_id > 0) {
             fd.append('report_id', id);
             fd.append('source', source || '');
 
-            fetch('api/progress_update_api.php', {
+            fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: fd
             })
@@ -2881,7 +2880,7 @@ if ($focus_report_id > 0) {
                 btn.style.display = 'inline-flex';
             }
 
-            fetch('api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId)
+            fetch('../api/progress_update_api.php?action=can_post_update&report_id=' + currentUpdatesReportId)
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data && data.success && data.can_post) {
@@ -3005,7 +3004,7 @@ if ($focus_report_id > 0) {
             if (fileInput) fileInput.files = dt.files;
 
             const fd = new FormData(form);
-            fetch('api/progress_update_api.php', {
+            fetch('../api/progress_update_api.php', {
                 method: 'POST',
                 body: fd
             })
@@ -3539,7 +3538,7 @@ if ($focus_report_id > 0) {
         const statusFilter = document.getElementById('statusFilter').value;
         const typeFilter = document.getElementById('typeFilter').value;
         
-        fetch(`api/get_recent_submissions_paginated.php?offset=${currentOffset}&limit=10&status=${statusFilter}&type=${typeFilter}`)
+        fetch(`../api/get_recent_submissions_paginated.php?offset=${currentOffset}&limit=10&status=${statusFilter}&type=${typeFilter}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.reports.length > 0) {
@@ -3814,6 +3813,6 @@ if ($focus_report_id > 0) {
 
     <!-- Session timeout data -->
     <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>" data-role="<?php echo htmlspecialchars($_SESSION['role'] ?? ''); ?>"></script>
-    <script src="lgu_staff/js/session-timeout.js"></script>
+    <script src="../../js/session-timeout.js"></script>
 </body>
 </html>

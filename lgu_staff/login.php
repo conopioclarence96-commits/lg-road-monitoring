@@ -16,7 +16,7 @@ $session_timeout = 5 * 60; // 5 minutes in seconds
 // Check if session has expired
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
     lgu_logout_current_session();
-    header('Location: ' . rgmap_url('login', ['timeout' => 1]));
+    header('Location: login.php?timeout=1');
     exit();
 }
 
@@ -65,7 +65,7 @@ $register_token_disabled = false;
 $loginTokenParam = trim($_GET['login_token'] ?? ($_GET['token'] ?? ''));
 $registerTokenParam = trim($_GET['register_token'] ?? '');
 if ($loginTokenParam === '') {
-    header('Location: ' . rgmap_home_url());
+    header('Location: ' . $basePath . 'index.php');
     exit;
 }
 try {
@@ -76,7 +76,7 @@ try {
     $tokStmt->close();
 
     if (!$tokRow || empty($tokRow['login_token_active'])) {
-        header('Location: ' . rgmap_home_url());
+        header('Location: ' . $basePath . 'index.php');
         exit;
     }
 
@@ -98,7 +98,7 @@ try {
     }
 } catch (Exception $e) {
     error_log("Login token validation error: " . $e->getMessage());
-    header('Location: ' . rgmap_home_url());
+    header('Location: ' . $basePath . 'index.php');
     exit;
 }
 
@@ -109,12 +109,12 @@ if (isset($_SESSION['user_id'])) {
     // Allow logout if explicitly requested
     if (isset($_GET['logout'])) {
         lgu_logout_current_session();
-        header('Location: ' . rgmap_url('login', $loginTokenParam !== '' ? ['login_token' => $loginTokenParam] : []));
+        header('Location: login.php' . ($loginTokenParam !== '' ? ('?login_token=' . urlencode($loginTokenParam)) : ''));
         exit();
     }
     
     // Show message that user is already logged in and provide logout option
-    $loginMessage = 'You are already logged in as ' . htmlspecialchars($_SESSION['full_name'] ?? 'User') . '. <a href="' . htmlspecialchars(rgmap_url('login', ['logout' => 1])) . '" style="color: #0066cc; text-decoration: underline;">Click here to logout</a>';
+    $loginMessage = 'You are already logged in as ' . htmlspecialchars($_SESSION['full_name'] ?? 'User') . '. <a href="login.php?logout=1" style="color: #0066cc; text-decoration: underline;">Click here to logout</a>';
     $messageType = 'success';
 }
 
@@ -201,10 +201,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_login_otp'])) 
 
                     switch ($user['role']) {
                         case 'system_admin':
-                            $redirectUrl = rgmap_url('admin-dashboard');
+                            $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
+                            break;
+                        case 'lgu_staff':
+                            $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                            break;
+                        case 'citizen':
+                            $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                             break;
                         default:
-                            $redirectUrl = rgmap_url(rgmap_role_home_route((string)$user['role']));
+                            $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                     }
 
                     header('Location: ' . $redirectUrl);
@@ -625,10 +631,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 
                             switch ($user['role']) {
                                 case 'system_admin':
-                                    $redirectUrl = rgmap_url('admin-dashboard');
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/admin/admin_dashboard.php';
+                                    break;
+                                case 'lgu_staff':
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
+                                    break;
+                                case 'citizen':
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                                     break;
                                 default:
-                                    $redirectUrl = rgmap_url(rgmap_role_home_route((string)$user['role']));
+                                    $redirectUrl = $basePath . 'lgu_staff/pages/lgu/lgu_staff_dashboard.php';
                             }
 
                             header('Location: ' . $redirectUrl);
@@ -691,14 +703,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <?php require_once __DIR__ . '/includes/page_head_base.php'; ?>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LGU | Login</title>
-    <link rel="icon" type="image/png" href="assets/img/logocityhall.png">
-    <link rel="stylesheet" href="styles/style.css" />
-    <link rel="stylesheet" href="styles/login.css" />
-    <link rel="stylesheet" href="styles/transition.css" />
+    <link rel="icon" type="image/png" href="../assets/img/logocityhall.png">
+    <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/style.css" />
+    <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/login.css" />
+    <link rel="stylesheet" href="<?php echo $basePath; ?>../styles/transition.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -709,7 +720,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
     <header class="nav">
       <div class="nav-logo">🏛️ Local Government Unit Portal</div>
       <div class="nav-links">
-        <a href="<?php echo htmlspecialchars(rgmap_home_url()); ?>">Home</a>
+        <a href="../index.php">Home</a>
       </div>
     </header>
     <div class="wrapper">
@@ -1282,7 +1293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['submit_register']) &
       
       function updateSessionActivity() {
         // Send AJAX request to update last activity
-        fetch(<?php echo json_encode(rgmap_url('login')); ?>, {
+        fetch('login.php', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',

@@ -13,7 +13,7 @@ if (!isset($_SESSION['user_id']) || !is_staff_role($_SESSION['role'] ?? '')) {
         echo json_encode(['success' => false, 'message' => 'Unauthorized']);
         exit;
     }
-    header('Location: ' . rgmap_url('login'));
+    header('Location: ../../login.php');
     exit();
 }
 
@@ -407,18 +407,17 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LGU Staff Dashboard | Road and Transportation Department</title>
-    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
-    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
-    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
-    <link rel="stylesheet" href="styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="../../css/theme-tokens.css">
+    <link rel="stylesheet" href="../../css/theme-utilities.css">
+    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
+    <link rel="stylesheet" href="../../../styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
@@ -1650,7 +1649,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         if (!empty($assignment['report_type'])) {
             $query['report_type'] = (string)$assignment['report_type'];
         }
-        return rgmap_url('monitoring', $query);
+        return '../shared/road_transportation_monitoring.php?' . http_build_query($query);
     }
 
     /** Status badge for RMO My Assignments — mirrors road_transportation_monitoring.php. */
@@ -2068,7 +2067,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         if (!empty($assignment['report_type'])) {
             $query['report_type'] = (string)$assignment['report_type'];
         }
-        return rgmap_url('monitoring', $query);
+        return '../shared/road_transportation_monitoring.php?' . http_build_query($query);
     }
 
     /** Status badge for TMO panels — same mapping as monitoring page. */
@@ -2452,7 +2451,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                 'time' => $a['assigned_at'],
                 'link' => ($road_only && function_exists('rmo_monitoring_focus_link'))
                     ? rmo_monitoring_focus_link($a)
-                    : rgmap_url('monitoring', ['focus_report_id' => (int)($a['report_id'] ?? 0), 'source' => (string)($a['_source'] ?? 'transport')]),
+                    : '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($a['report_id'] ?? 0) . '&source=' . rawurlencode($a['_source'] ?? 'transport'),
             ];
         }
         if ($conn) {
@@ -2504,7 +2503,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                         'title' => $label . ' · ' . ($n['report_code'] ?? ('#' . $n['report_id'])),
                         'desc' => $n['message'],
                         'time' => $n['created_at'],
-                        'link' => rgmap_url('monitoring', ['focus_report_id' => (int)($n['report_id'] ?? 0)]),
+                        'link' => '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($n['report_id'] ?? 0),
                     ];
                 }
             } catch (Exception $e) {}
@@ -3008,7 +3007,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                                 <p>Your latest updates</p>
                             </div>
                         </div>
-                        <a class="dsh-link" href="<?php echo htmlspecialchars(rgmap_url('notifications')); ?>">View all <i class="fas fa-arrow-right"></i></a>
+                        <a class="dsh-link" href="../shared/notifications.php">View all <i class="fas fa-arrow-right"></i></a>
                     </div>
                     <div class="nt-list">
                         <?php if (empty($dash_notifs)): ?>
@@ -3090,7 +3089,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                                         'report_type' => (string)($act['report_type'] ?? ''),
                                     ]);
                                 } else {
-                                    $act_link = rgmap_url('monitoring', ['focus_report_id' => (int)($act['id'] ?? 0), 'source' => (string)$act['src']]);
+                                    $act_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($act['id'] ?? 0) . '&source=' . rawurlencode($act['src']);
                                 }
                                 $act_icon_color = '#3762c8';
                                 if ($act['src'] === 'maintenance') { $act_icon_color = '#f97316'; }
@@ -3177,9 +3176,9 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                                     // CIMM tasks open in report management (they are
                                     // managed there); everything else opens the
                                     // monitoring page.
-                                    $task_link = rgmap_url('report-management', ['source' => 'cimm', 'id' => (int)($task['id'] ?? 0)]);
+                                    $task_link = '../admin/report_management.php?source=cimm&id=' . (int)($task['id'] ?? 0);
                                 } else {
-                                    $task_link = rgmap_url('monitoring', ['focus_report_id' => (int)($task['id'] ?? 0), 'source' => (string)$task['src']]);
+                                    $task_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)($task['id'] ?? 0) . '&source=' . rawurlencode($task['src']);
                                 }
                             ?>
                             <a class="task-card" href="<?php echo $task_link; ?>">
@@ -3210,21 +3209,21 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                     </div>
                 </div>
                 <div class="qa-grid">
-                    <a class="qa-btn" style="--qa:#3b82f6;" href="<?php echo htmlspecialchars(rgmap_url('monitoring')); ?>">
+                    <a class="qa-btn" style="--qa:#3b82f6;" href="../shared/road_transportation_monitoring.php">
                         <span class="qa-icon"><i class="fas fa-map-location-dot"></i></span>
                         <span class="qa-label">View Map</span>
                     </a>
             <?php if (!$is_supervisor && !$is_transport_monitoring_officer && !$is_road_monitoring_officer): ?>
-                        <a class="qa-btn" style="--qa:#8b5cf6;" href="<?php echo htmlspecialchars(rgmap_url('notifications')); ?>">
+                        <a class="qa-btn" style="--qa:#8b5cf6;" href="../shared/notifications.php">
                             <span class="qa-icon"><i class="fas fa-clipboard-list"></i></span>
                             <span class="qa-label">My Assigned Reports</span>
                         </a>
-                        <a class="qa-btn" style="--qa:#f59e0b;" href="<?php echo htmlspecialchars(rgmap_url('notifications')); ?>">
+                        <a class="qa-btn" style="--qa:#f59e0b;" href="../shared/notifications.php">
                             <span class="qa-icon"><i class="fas fa-bell"></i></span>
                             <span class="qa-label">Notifications</span>
                         </a>
                     <?php endif; ?>
-                    <a class="qa-btn" style="--qa:#10b981;" href="<?php echo htmlspecialchars(rgmap_url('analytics')); ?>">
+                    <a class="qa-btn" style="--qa:#10b981;" href="../shared/analytics.php">
                         <span class="qa-icon"><i class="fas fa-chart-pie"></i></span>
                         <span class="qa-label">Analytics</span>
                     </a>
@@ -3342,7 +3341,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                         </div>
                         <span class="dsh-badge"><?php echo count($sup_assigned_reports); ?></span>
                     </div>
-                    <a class="dsh-link" href="<?php echo htmlspecialchars(rgmap_url('report-management')); ?>">Report Management <i class="fas fa-arrow-right"></i></a>
+                    <a class="dsh-link" href="../admin/report_management.php">Report Management <i class="fas fa-arrow-right"></i></a>
                 </div>
                 <?php if (empty($sup_assigned_reports)): ?>
                     <div class="db-empty">
@@ -3355,7 +3354,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                             <?php
                                 $sasb = dbStatusBadge($sa['report_status']);
                                 $sapb = dbPriorityBadge($sa['priority']);
-                                $sup_link = rgmap_url('monitoring', ['focus_report_id' => (int)$sa['report_id'], 'source' => (string)$sa['_source']]);
+                                $sup_link = '../shared/road_transportation_monitoring.php?focus_report_id=' . (int)$sa['report_id'] . '&source=' . rawurlencode($sa['_source']);
                             ?>
                             <div class="asg-card" style="--as:#7c3aed;">
                                 <div class="asg-top">
@@ -3393,7 +3392,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                         </div>
                         <span class="dsh-badge"><?php echo count($awaiting_transport_reports); ?></span>
                     </div>
-                    <a class="dsh-link" href="<?php echo htmlspecialchars(rgmap_url('report-management')); ?>">Report Management <i class="fas fa-arrow-right"></i></a>
+                    <a class="dsh-link" href="../admin/report_management.php">Report Management <i class="fas fa-arrow-right"></i></a>
                 </div>
                 <?php if (empty($awaiting_transport_reports)): ?>
                     <div class="db-empty">
@@ -3407,7 +3406,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
                                 $trsb = dbStatusBadge($tr['status']);
                                 $trpb = dbPriorityBadge($tr['priority']);
                                 $tr_panel = ($tr['source_system'] === 'lgu_reports') ? 'lgu_reports' : 'transport';
-                                $tr_link = rgmap_url('report-management', ['id' => (int)$tr['id'], 'source' => $tr_panel]);
+                                $tr_link = '../admin/report_management.php?id=' . (int)$tr['id'] . '&source=' . $tr_panel;
                             ?>
                             <div class="asg-card" style="--as:#0ea5e9;">
                                 <div class="asg-top">
@@ -3550,7 +3549,7 @@ $chart_data = getWeeklyChartData($conn, $is_road_monitoring_officer, $is_trans_o
         });
 
         function updateChartData(period) {
-            fetch(<?php echo json_encode(rgmap_api_url('get_chart_data.php')); ?> + `?period=${period}`)
+            fetch(`../api/get_chart_data.php?period=${period}`)
                 .then(response => response.json())
                 .then(data => {
                     reportsChart.data.datasets[0].data = data.reports;

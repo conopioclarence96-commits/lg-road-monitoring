@@ -208,13 +208,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step_password'])) {
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <?php require_once __DIR__ . '/includes/page_head_base.php'; ?>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LGU | Forgot Password</title>
-    <link rel="icon" type="image/png" href="assets/img/infra-gov-logo.png">
-    <link rel="stylesheet" href="styles/style.css" />
-    <link rel="stylesheet" href="styles/login.css" />
+    <link rel="icon" type="image/png" href="../assets/img/infra-gov-logo.png">
+    <link rel="stylesheet" href="<?php echo $basePath; ?>styles/style.css" />
+    <link rel="stylesheet" href="<?php echo $basePath; ?>styles/login.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -225,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step_password'])) {
     <header class="nav">
       <div class="nav-logo">🏛️ Local Government Unit Portal</div>
       <div class="nav-links">
-        <a href="<?php echo htmlspecialchars(rgmap_home_url()); ?>">Home</a>
+        <a href="../index.php">Home</a>
       </div>
     </header>
 
@@ -252,7 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step_password'])) {
             </div>
             <button class="btn-primary" type="submit">Send Verification Code</button>
             <p class="small-text">
-              <a href="<?php echo htmlspecialchars(rgmap_url('login')); ?>" class="link">Back to Login</a>
+              <a href="login.php" class="link">Back to Login</a>
             </p>
           </form>
 
@@ -275,8 +274,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step_password'])) {
           </form>
 
           <p class="small-text">
-            <a href="<?php echo htmlspecialchars(rgmap_url('forgot-password', ['restart' => 1])); ?>" class="link">Start Over</a> ·
-            <a href="<?php echo htmlspecialchars(rgmap_url('login')); ?>" class="link">Back to Login</a>
+            <a href="forgot_password.php?restart=1" class="link">Start Over</a> ·
+            <a href="login.php" class="link">Back to Login</a>
           </p>
 
         <?php elseif ($currentStep === 'password'): ?>
@@ -308,7 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step_password'])) {
 
             <button class="btn-primary" type="submit">Update Password</button>
             <p class="small-text">
-              <a href="<?php echo htmlspecialchars(rgmap_url('login')); ?>" class="link">Back to Login</a>
+              <a href="login.php" class="link">Back to Login</a>
             </p>
           </form>
 
@@ -321,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['step_password'])) {
             Redirecting to the login page...
           </p>
           <p class="small-text">
-            <a href="<?php echo htmlspecialchars(rgmap_url('login')); ?>" class="link">Go to Login</a>
+            <a href="login.php" class="link">Go to Login</a>
           </p>
         <?php endif; ?>
       </div>

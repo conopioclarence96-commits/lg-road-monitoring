@@ -34,6 +34,6 @@ if ($returnToMainLgu) {
 }
 
 $timestamp = time();
-header("Location: " . rgmap_url('login', ['t' => $timestamp]));
+header("Location: login.php?t=$timestamp");
 exit();
 ?>

@@ -133,7 +133,7 @@ try {
             && strpos($profile_picture, '\\') === false) {
             $profile_fs = __DIR__ . '/../../uploads/profile_pictures/' . $profile_picture;
             if (is_file($profile_fs)) {
-                $row['profile_picture_url'] = rgmap_asset('uploads/profile_pictures/' . rawurlencode($profile_picture));
+                $row['profile_picture_url'] = '../../uploads/profile_pictures/' . rawurlencode($profile_picture);
             }
         }
         unset($row['profile_picture']);

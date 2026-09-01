@@ -12,13 +12,6 @@ var currentProjectMinCompletionPercentage = 0;
 /** ID of the most recent progress update for the open project. */
 var currentLatestUpdateId = 0;
 
-function progressApiUrl(query) {
-    var base = (window.RGMAP && typeof window.RGMAP.api === 'function')
-        ? window.RGMAP.api('progress_update_api.php')
-        : 'api/progress_update_api.php';
-    return query ? (base + (base.indexOf('?') >= 0 ? '&' : '?') + query.replace(/^\?/, '')) : base;
-}
-
 function loadUpdates(reportId, reportType) {
     currentUpdatesReportId = reportId;
     currentUpdatesReportType = reportType;
@@ -27,7 +20,7 @@ function loadUpdates(reportId, reportType) {
     container.innerHTML = '<div style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>';
 
     const source = encodeURIComponent(currentUpdatesReportSource || '');
-    fetch(progressApiUrl(`action=get_updates&report_id=${reportId}&report_type=${encodeURIComponent(reportType || '')}&source=${source}`))
+    fetch(`../api/progress_update_api.php?action=get_updates&report_id=${reportId}&report_type=${encodeURIComponent(reportType || '')}&source=${source}`)
         .then(r => r.json())
         .then(data => {
             if (data.success) {
@@ -238,7 +231,7 @@ function handleUpdateFormSubmit(e) {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
     const fd = new FormData(this);
-    fetch(progressApiUrl(''), {
+    fetch('../api/progress_update_api.php', {
         method: 'POST',
         body: fd
     })
@@ -260,7 +253,7 @@ function handleUpdateFormSubmit(e) {
 }
 
 function editUpdate(updateId) {
-    fetch(progressApiUrl(`action=get_update&id=${updateId}`))
+    fetch(`../api/progress_update_api.php?action=get_update&id=${updateId}`)
         .then(r => r.json())
         .then(data => {
             if (data.success && data.update) {
@@ -278,7 +271,7 @@ function deleteUpdate(updateId) {
     fd.set('action', 'delete_update');
     fd.set('update_id', updateId);
 
-    fetch(progressApiUrl(''), {
+    fetch('../api/progress_update_api.php', {
         method: 'POST',
         body: fd
     })
