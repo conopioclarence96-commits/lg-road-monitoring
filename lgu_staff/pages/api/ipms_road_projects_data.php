@@ -327,6 +327,86 @@ function rgmap_ipms_status_bucket(string $status): string {
 }
 
 /**
+ * SQL expression for the current IPMS scope bucket from the latest synced feed.
+ * Uses status_bucket when present; otherwise derives from project_status (same
+ * rules as rgmap_ipms_status_bucket()).
+ *
+ * @param string $tableAlias Optional table alias prefix (e.g. "ip" -> "ip.status_bucket")
+ */
+function rgmap_ipms_current_status_bucket_sql(string $tableAlias = ''): string {
+    $p = $tableAlias !== '' ? rtrim($tableAlias, '.') . '.' : '';
+    return "COALESCE(NULLIF({$p}status_bucket, ''), "
+        . "CASE "
+        . "WHEN {$p}project_status IN ('completed', 'turnover') THEN 'completed' "
+        . "WHEN {$p}project_status IN ('active', 'delayed', 'on_hold', 'completion_inspection') THEN 'ongoing' "
+        . "WHEN {$p}project_status = 'cancelled' THEN 'cancelled' "
+        . "ELSE 'new' END)";
+}
+
+/**
+ * Map ipms_road_projects to a filter/display status based on the current IPMS
+ * bucket, not a stale local status left over from an earlier completion.
+ *
+ * @param string $tableAlias Optional table alias prefix
+ */
+function rgmap_ipms_display_status_sql(string $tableAlias = ''): string {
+    $bucket = rgmap_ipms_current_status_bucket_sql($tableAlias);
+    $p = $tableAlias !== '' ? rtrim($tableAlias, '.') . '.' : '';
+    return "CASE WHEN LOWER(COALESCE({$p}status, '')) = 'completed' THEN 'completed'"
+        . " WHEN ({$bucket}) = 'completed' THEN 'completed'"
+        . " ELSE COALESCE({$p}status, 'pending') END";
+}
+
+/**
+ * Evidence that an IPMS row went through local verify → approve → monitor
+ * workflow (not auto-imported as completed from the feed alone).
+ *
+ * @param string $tableAlias Optional table alias prefix
+ */
+function rgmap_ipms_completed_workflow_gate_sql(string $tableAlias = ''): string {
+    $p = $tableAlias !== '' ? rtrim($tableAlias, '.') . '.' : '';
+    return "(COALESCE({$p}restored_from_archive, 0) = 1"
+        . " OR EXISTS (SELECT 1 FROM report_assignments ra"
+        . "             WHERE ra.report_id = {$p}project_id"
+        . "               AND ra.report_type = 'ipms_road_projects')"
+        . " OR EXISTS (SELECT 1 FROM report_updates ru"
+        . "             WHERE ru.report_id = {$p}project_id))";
+}
+
+/**
+ * WHERE clause for Infrastructure Projects on Completed Projects.
+ *
+ * - Supervisor Complete (monitoring page): local status = completed while IPMS
+ *   may still be ongoing — always include.
+ * - IPMS feed bucket = completed: include only when local workflow ran (blocks
+ *   auto-imported rows that never went through approve/monitor).
+ * - Stale local completed when IPMS bucket is new/assigned: exclude.
+ *
+ * @param string $tableAlias Optional table alias prefix
+ */
+function rgmap_ipms_completed_only_where_sql(string $tableAlias = ''): string {
+    $bucket = rgmap_ipms_current_status_bucket_sql($tableAlias);
+    $gate = rgmap_ipms_completed_workflow_gate_sql($tableAlias);
+    $p = $tableAlias !== '' ? rtrim($tableAlias, '.') . '.' : '';
+    $localCompleted = "LOWER(COALESCE({$p}status, '')) = 'completed'";
+    return "(({$localCompleted}) AND ({$bucket}) = 'ongoing')"
+        . " OR (({$localCompleted}) AND ({$bucket}) = 'completed' AND {$gate})";
+}
+
+/**
+ * completed_at expression for IPMS rows on Completed Projects.
+ *
+ * @param string $tableAlias Optional table alias prefix
+ */
+function rgmap_ipms_completed_at_sql(string $tableAlias = ''): string {
+    $bucket = rgmap_ipms_current_status_bucket_sql($tableAlias);
+    $p = $tableAlias !== '' ? rtrim($tableAlias, '.') . '.' : '';
+    return "CASE WHEN LOWER(COALESCE({$p}status, '')) = 'completed' OR ({$bucket}) = 'completed'"
+        . " THEN COALESCE({$p}end_date, {$p}synced_at, {$p}created_at)"
+        . " ELSE NULL END";
+}
+
+/**
  * Fetch cached IPMS road projects.
  *
  * @param PDO   $pdo  Database connection

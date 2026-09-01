@@ -269,8 +269,11 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         ? "verification_status = 'Completed'"
         : "verification_status IN ('Approved', 'In Progress')";
 
+    require_once __DIR__ . '/../api/ipms_road_projects_data.php';
+    $ipms_display_status_sql = rgmap_ipms_display_status_sql();
+    $ipms_completed_at_sql = rgmap_ipms_completed_at_sql();
     $ipms_status_sql = $completed_only
-        ? "status = 'completed'"
+        ? rgmap_ipms_completed_only_where_sql()
         : "status IN ('approved', 'in-progress')";
 
     // Helper to append shared WHERE/ORDER/LIMIT clauses and run a query
@@ -346,11 +349,11 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
                         COALESCE(NULLIF(road_type, ''), 'infrastructure_issue') AS report_type,
                         'road' AS report_category,
                         'infrastructure' AS source,
-                        status,
+                        {$ipms_display_status_sql} AS status,
                         'medium' AS priority,
                         NULL AS severity,
                         created_at,
-                        NULL AS completed_at,
+                        {$ipms_completed_at_sql} AS completed_at,
                         road_status AS description,
                         start_lat AS latitude,
                         start_lng AS longitude,
