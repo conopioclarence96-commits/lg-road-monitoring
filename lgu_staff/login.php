@@ -401,7 +401,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_additional']))
                 if ($role === 'system_admin') {
                     $department = 'Admin';
                 } elseif ($role === 'lgu_staff') {
-                    $department = 'LGU Services';
+                    $department = 'Road and Transportation';
                 } elseif (in_array($role, ['road_ops_supervisor', 'trans_ops_supervisor', 'road_monitoring_officer', 'trans_monitoring_officer'])) {
                     $department = 'Road and Transportation';
                 } else {

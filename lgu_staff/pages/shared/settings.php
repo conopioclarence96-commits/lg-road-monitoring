@@ -42,6 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $full_name = sanitize_input($_POST['full_name'] ?? '');
         $email = sanitize_input($_POST['email'] ?? '');
         $department = sanitize_input($_POST['department'] ?? '');
+        if (strcasecmp(trim((string)$department), 'LGU Services') === 0) {
+            $department = 'Road and Transportation';
+        }
         $address = sanitize_input($_POST['address'] ?? '');
         $birthday = sanitize_input($_POST['birthday'] ?? '');
         $civil_status = sanitize_input($_POST['civil_status'] ?? '');

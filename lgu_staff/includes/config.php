@@ -83,6 +83,13 @@ try {
     } catch (Exception $e) {
         // Best-effort backfill, ignore
     }
+
+    // Consolidate legacy LGU Services department label to Road and Transportation.
+    try {
+        $conn->query("UPDATE users SET department = 'Road and Transportation' WHERE department = 'LGU Services'");
+    } catch (Exception $e) {
+        // Best-effort migration, ignore
+    }
     
     // Ensure report_updates table exists
     try {

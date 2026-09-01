@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- Insert sample users (Passwords: Test@1234)
 INSERT IGNORE INTO `users` (`username`, `email`, `password`, `full_name`, `role`, `department`, `is_active`) VALUES
 ('admin', 'admin@lgu.gov.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System Administrator', 'system_admin', 'System Administration', 1),
-('jsantos', 'jsantos@lgu.gov.ph', '$2y$10$LmhglHAY63tmCwfBI7q0AO9DTFQU.6OWcKuSqzlAEtIlcVZRLyqF2', 'Engr. Juan Santos', 'lgu_staff', 'LGU Services', 1),
+('jsantos', 'jsantos@lgu.gov.ph', '$2y$10$LmhglHAY63tmCwfBI7q0AO9DTFQU.6OWcKuSqzlAEtIlcVZRLyqF2', 'Engr. Juan Santos', 'lgu_staff', 'Road and Transportation', 1),
 ('mreyes', 'mreyes@lgu.gov.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Maria Reyes', 'citizen', 'Citizen Services', 1),
 ('rdela', 'rdela@lgu.gov.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Roberto dela Cruz', 'citizen', 'Citizen Services', 1);
 

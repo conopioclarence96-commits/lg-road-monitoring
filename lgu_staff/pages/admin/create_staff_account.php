@@ -152,7 +152,7 @@ function create_staff_collect_form_data(mysqli $conn, bool $handleUpload = true)
     $address = trim($_POST['address'] ?? '');
     $civil_status = trim($_POST['civil_status'] ?? '');
     $phone_number = trim($_POST['phone_number'] ?? '');
-    $department = trim($_POST['department'] ?? '');
+    $department = 'Road and Transportation';
 
     if (empty($email) || empty($first_name) || empty($last_name)) {
         return ['ok' => false, 'message' => 'Email, first name, and last name are required.'];
@@ -681,16 +681,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="form-group">
                             <label for="department">Department</label>
-                            <select id="department" name="department" class="locked-select">
-                                <option value="LGU Services" selected>LGU Services</option>
-                                <option value="Engineering">Engineering</option>
-                                <option value="Planning">Planning</option>
-                                <option value="Maintenance">Maintenance</option>
-                                <option value="Finance">Finance</option>
-                                <option value="IT / System Administration">IT / System Administration</option>
-                                <option value="LGU Services">LGU Services</option>
-                                <option value="Citizen Services">Citizen Services</option>
-                            </select>
+                            <input type="hidden" id="department" name="department" value="Road and Transportation">
+                            <input type="text" class="locked-select" value="Road and Transportation" readonly tabindex="-1" aria-readonly="true">
                         </div>
                         <div class="form-group">
                             <label for="role">Role</label>
@@ -845,7 +837,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 `;
                 document.getElementById('createForm').reset();
-                document.getElementById('department').value = 'LGU Services';
+                document.getElementById('department').value = 'Road and Transportation';
                 document.getElementById('role').selectedIndex = 0;
                 resetFileDisplay();
             } else {
@@ -1065,7 +1057,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         function resetForm() {
             document.getElementById('createForm').reset();
-            document.getElementById('department').value = 'LGU Services';
+            document.getElementById('department').value = 'Road and Transportation';
             document.getElementById('role').selectedIndex = 0;
             document.getElementById('alertContainer').innerHTML = '';
             resetFileDisplay();

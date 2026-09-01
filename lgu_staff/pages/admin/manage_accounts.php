@@ -142,6 +142,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $full_name = $_POST['full_name'] ?? '';
         $role = $_POST['role'] ?? '';
         $department = $_POST['department'] ?? '';
+        if (strcasecmp(trim((string)$department), 'LGU Services') === 0) {
+            $department = 'Road and Transportation';
+        }
         $address = $_POST['address'] ?? '';
         $birthday = $_POST['birthday'] ?? '';
         $civil_status = $_POST['civil_status'] ?? '';
