@@ -135,8 +135,13 @@ try {
         }
 
         $owner = rgmap_get_report_owner_supervisor($conn, $report_id, 'ipms_road_projects');
-        $report['assigned_by'] = $owner['name'] ?? '';
         $report['assigned_by_id'] = (int)($owner['id'] ?? 0);
+        $display = rgmap_get_report_assignment_display($conn, $report_id, 'ipms_road_projects');
+        $report['assignment_officer'] = $display['assignment_officer'];
+        $report['assignment_officer_id'] = $display['assignment_officer_id'];
+        $report['assigned_by'] = $display['assigned_by'] !== ''
+            ? $display['assigned_by']
+            : (string)($owner['name'] ?? '');
         $report['can_manage_as_supervisor'] = rgmap_supervisor_can_manage_report($conn, $report_id, 'ipms_road_projects');
 
         json_response(['success' => true, 'report' => $report]);
@@ -294,24 +299,15 @@ try {
         }
 
         $owner = rgmap_get_report_owner_supervisor($conn, $report_id, $table);
-        $report['assigned_by'] = $owner['name'] ?? '';
         $report['assigned_by_id'] = (int)($owner['id'] ?? 0);
         $report['can_manage_as_supervisor'] = rgmap_supervisor_can_manage_report($conn, $report_id, $table);
-        if ($owner && !empty($owner['id'])) {
-            // Prefer live officer name from annotate when available.
-            $ann = [$report];
-            $ann[0]['_source_table'] = $table;
-            annotate_report_assignment_status($conn, $ann);
-            if (!empty($ann[0]['assigned_by'])) {
-                $report['assigned_by'] = $ann[0]['assigned_by'];
-            }
-            if (isset($ann[0]['assignment_officer'])) {
-                $report['assignment_officer'] = $ann[0]['assignment_officer'];
-            }
-            if (isset($ann[0]['assignment_status'])) {
-                $report['assignment_status'] = $ann[0]['assignment_status'];
-            }
-        }
+        $display = rgmap_get_report_assignment_display($conn, $report_id, $table);
+        $report['assignment_officer'] = $display['assignment_officer'];
+        $report['assignment_officer_id'] = $display['assignment_officer_id'];
+        $report['assigned_by'] = $display['assigned_by'] !== ''
+            ? $display['assigned_by']
+            : (string)($owner['name'] ?? '');
+        $report['assignment_status'] = $display['assignment_officer'] !== '' ? 'assigned' : 'unassigned';
         
         json_response([
             'success' => true,

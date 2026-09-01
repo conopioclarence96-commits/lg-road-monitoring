@@ -1110,6 +1110,111 @@ function rgmap_report_row_source_table(array $r): string {
     return 'road_transportation_reports';
 }
 
+/** Quezon City legislative district options for report filters. */
+function rgmap_qc_district_filter_options(): array {
+    return ['District 1', 'District 2', 'District 3', 'District 4', 'District 5', 'District 6'];
+}
+
+/** Normalize ?district= query value to "all" or "District N" (1–6). */
+function rgmap_normalize_district_filter(?string $district): string {
+    $d = trim((string)$district);
+    if ($d === '' || strtolower($d) === 'all') {
+        return 'all';
+    }
+    $n = rgmap_parse_district_number($d);
+    if ($n === null || $n < 1 || $n > 6) {
+        return 'all';
+    }
+    return 'District ' . $n;
+}
+
+/** Extract district number (1–6) from stored label text. */
+function rgmap_parse_district_number(?string $value): ?int {
+    $s = trim((string)$value);
+    if ($s === '') {
+        return null;
+    }
+    if (preg_match('/district\s*(\d+)/i', $s, $m)) {
+        $n = (int)$m[1];
+        return ($n >= 1 && $n <= 6) ? $n : null;
+    }
+    if (preg_match('/^(\d)$/', $s, $m)) {
+        $n = (int)$m[1];
+        return ($n >= 1 && $n <= 6) ? $n : null;
+    }
+    return null;
+}
+
+/** Resolve district number from a list/modal row (transport, CIMM, IPMS). */
+function rgmap_report_row_district_number(array $row): ?int {
+    foreach (['detected_district', 'cimm_district', 'district'] as $col) {
+        if (!array_key_exists($col, $row)) {
+            continue;
+        }
+        $val = $row[$col];
+        if (is_string($val) && strpos($val, ',') !== false) {
+            foreach (explode(',', $val) as $part) {
+                $n = rgmap_parse_district_number($part);
+                if ($n !== null) {
+                    return $n;
+                }
+            }
+        } else {
+            $n = rgmap_parse_district_number($val);
+            if ($n !== null) {
+                return $n;
+            }
+        }
+    }
+    if (!empty($row['districts_json'])) {
+        $districts = json_decode((string)$row['districts_json'], true);
+        if (is_array($districts)) {
+            foreach ($districts as $d) {
+                $n = rgmap_parse_district_number((string)$d);
+                if ($n !== null) {
+                    return $n;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/** Whether a report row belongs to the selected QC district filter. */
+function rgmap_report_matches_district_filter(array $row, string $district_filter): bool {
+    $filter = rgmap_normalize_district_filter($district_filter);
+    if ($filter === 'all') {
+        return true;
+    }
+    $want = rgmap_parse_district_number($filter);
+    if ($want === null) {
+        return true;
+    }
+    return rgmap_report_row_district_number($row) === $want;
+}
+
+/** SQL AND clause for road_transportation_reports district columns. */
+function rgmap_sql_road_transport_district_clause(mysqli $conn, string $district_filter): string {
+    $filter = rgmap_normalize_district_filter($district_filter);
+    if ($filter === 'all') {
+        return '';
+    }
+    $n = rgmap_parse_district_number($filter);
+    if ($n === null) {
+        return '';
+    }
+    $esc = $conn->real_escape_string('District ' . $n);
+    $like = $conn->real_escape_string('%district ' . $n . '%');
+    return " AND (
+        LOWER(TRIM(COALESCE(detected_district, ''))) = LOWER('{$esc}')
+        OR LOWER(TRIM(COALESCE(cimm_district, ''))) = LOWER('{$esc}')
+        OR LOWER(TRIM(COALESCE(district, ''))) = LOWER('{$esc}')
+        OR LOWER(COALESCE(detected_district, '')) LIKE LOWER('{$like}')
+        OR LOWER(COALESCE(cimm_district, '')) LIKE LOWER('{$like}')
+        OR LOWER(COALESCE(district, '')) LIKE LOWER('{$like}')
+    )";
+}
+
 /**
  * Keep only reports the current user is handling:
  * - Supervisors / system_admin: first assigned_by = them
@@ -1512,6 +1617,252 @@ function annotate_report_assignment_status($conn, array &$reports) {
 }
 
 /**
+ * Resolve Officer / Supervisor names for display (completed, archived, or detail views).
+ * Reads report_assignments first (active → completed → cancelled), then falls back to
+ * related rows in report_updates, report_notifications, audit_logs, and legacy columns.
+ *
+ * @return array{assignment_officer:string,assignment_officer_id:int,assigned_by:string,assigned_by_id:int}
+ */
+function rgmap_get_report_assignment_display($conn, int $report_id, string $report_type): array {
+    $empty = [
+        'assignment_officer' => '',
+        'assignment_officer_id' => 0,
+        'assigned_by' => '',
+        'assigned_by_id' => 0,
+    ];
+    $report_id = (int)$report_id;
+    $report_type = trim($report_type);
+    if (!$conn || $report_id <= 0 || $report_type === '') {
+        return $empty;
+    }
+
+    $officer_name = '';
+    $officer_id = 0;
+    $supervisor_name = '';
+    $supervisor_id = 0;
+    $assignment_row = null;
+
+    try {
+        $assignment_row = fetch_one(
+            "SELECT ra.user_id, ra.assigned_by, ra.status,
+                    u.full_name AS officer_name, ab.full_name AS assigner_name
+               FROM report_assignments ra
+               LEFT JOIN users u ON u.id = ra.user_id
+               LEFT JOIN users ab ON ab.id = ra.assigned_by
+              WHERE ra.report_id = ? AND ra.report_type = ?
+                AND ra.status IN ('active', 'completed', 'cancelled')
+              ORDER BY FIELD(ra.status, 'active', 'completed', 'cancelled'),
+                       ra.assigned_at DESC, ra.id DESC
+              LIMIT 1",
+            [$report_id, $report_type],
+            'is'
+        );
+    } catch (Exception $e) {
+        error_log('rgmap_get_report_assignment_display assignment query: ' . $e->getMessage());
+    }
+
+    if (is_array($assignment_row)) {
+        $officer_name = trim((string)($assignment_row['officer_name'] ?? ''));
+        $officer_id = (int)($assignment_row['user_id'] ?? 0);
+        $supervisor_name = trim((string)($assignment_row['assigner_name'] ?? ''));
+        $supervisor_id = (int)($assignment_row['assigned_by'] ?? 0);
+    }
+
+    // project_assignment notification → officer (same report_id key as Assign Staff).
+    if ($officer_name === '') {
+        try {
+            $notif = fetch_one(
+                "SELECT u.id, u.full_name
+                   FROM report_notifications rn
+                   INNER JOIN users u ON u.email = rn.recipient_email
+                  WHERE rn.report_id = ?
+                    AND rn.type = 'project_assignment'
+                    AND u.role IN ('road_monitoring_officer', 'trans_monitoring_officer')
+                  ORDER BY rn.id DESC
+                  LIMIT 1",
+                [$report_id],
+                'i'
+            );
+            if (is_array($notif)) {
+                $officer_name = trim((string)($notif['full_name'] ?? ''));
+                $officer_id = (int)($notif['id'] ?? 0);
+            }
+        } catch (Exception $e) {
+            error_log('rgmap_get_report_assignment_display notification query: ' . $e->getMessage());
+        }
+    }
+
+    // Progress updates by monitoring officers / supervisors.
+    if ($officer_name === '') {
+        try {
+            $upd = fetch_one(
+                "SELECT u.id, u.full_name
+                   FROM report_updates ru
+                   INNER JOIN users u ON u.id = ru.user_id
+                  WHERE ru.report_id = ?
+                    AND u.role IN ('road_monitoring_officer', 'trans_monitoring_officer')
+                  ORDER BY ru.created_at DESC, ru.id DESC
+                  LIMIT 1",
+                [$report_id],
+                'i'
+            );
+            if (is_array($upd)) {
+                $officer_name = trim((string)($upd['full_name'] ?? ''));
+                $officer_id = (int)($upd['id'] ?? 0);
+            }
+        } catch (Exception $e) {
+            error_log('rgmap_get_report_assignment_display updates officer query: ' . $e->getMessage());
+        }
+    }
+
+    if ($supervisor_name === '') {
+        try {
+            $sup_upd = fetch_one(
+                "SELECT u.id, u.full_name
+                   FROM report_updates ru
+                   INNER JOIN users u ON u.id = ru.user_id
+                  WHERE ru.report_id = ?
+                    AND u.role IN ('road_ops_supervisor', 'trans_ops_supervisor')
+                  ORDER BY ru.created_at ASC, ru.id ASC
+                  LIMIT 1",
+                [$report_id],
+                'i'
+            );
+            if (is_array($sup_upd)) {
+                $supervisor_name = trim((string)($sup_upd['full_name'] ?? ''));
+                $supervisor_id = (int)($sup_upd['id'] ?? 0);
+            }
+        } catch (Exception $e) {
+            error_log('rgmap_get_report_assignment_display updates supervisor query: ' . $e->getMessage());
+        }
+    }
+
+    // Audit trail: Assign Staff and Complete actions (older records may lack report_assignments rows).
+    $report_token = 'Report ID: ' . $report_id . ',';
+    if ($officer_name === '' || $supervisor_name === '') {
+        try {
+            $assign_audit = fetch_one(
+                "SELECT al.user_id, al.details, u.full_name AS actor_name
+                   FROM audit_logs al
+                   INNER JOIN users u ON u.id = al.user_id
+                  WHERE al.action = 'Assigned user to project'
+                    AND al.details LIKE ?
+                  ORDER BY al.id DESC
+                  LIMIT 1",
+                [$report_token . '%'],
+                's'
+            );
+            if (is_array($assign_audit)) {
+                if ($supervisor_name === '') {
+                    $supervisor_name = trim((string)($assign_audit['actor_name'] ?? ''));
+                    $supervisor_id = (int)($assign_audit['user_id'] ?? 0);
+                }
+                if ($officer_name === '' && preg_match('/User ID:\s*(\d+)/', (string)($assign_audit['details'] ?? ''), $m)) {
+                    $off = fetch_one("SELECT id, full_name FROM users WHERE id = ?", [(int)$m[1]], 'i');
+                    if (is_array($off)) {
+                        $officer_name = trim((string)($off['full_name'] ?? ''));
+                        $officer_id = (int)($off['id'] ?? 0);
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log('rgmap_get_report_assignment_display audit assign query: ' . $e->getMessage());
+        }
+    }
+
+    if ($supervisor_name === '') {
+        try {
+            $complete_audit = fetch_one(
+                "SELECT al.user_id, u.full_name
+                   FROM audit_logs al
+                   INNER JOIN users u ON u.id = al.user_id
+                  WHERE al.action = 'Completed report'
+                    AND al.details LIKE ?
+                    AND u.role IN ('road_ops_supervisor', 'trans_ops_supervisor', 'system_admin')
+                  ORDER BY al.id DESC
+                  LIMIT 1",
+                [$report_token . '%'],
+                's'
+            );
+            if (is_array($complete_audit)) {
+                $supervisor_name = trim((string)($complete_audit['full_name'] ?? ''));
+                $supervisor_id = (int)($complete_audit['user_id'] ?? 0);
+            }
+        } catch (Exception $e) {
+            error_log('rgmap_get_report_assignment_display audit complete query: ' . $e->getMessage());
+        }
+    }
+
+    // First-claim supervisor from any assignment row (incl. cancelled).
+    $owner = rgmap_get_report_owner_supervisor($conn, $report_id, $report_type);
+    if ($supervisor_name === '' && $owner) {
+        $supervisor_name = trim((string)($owner['name'] ?? ''));
+        $supervisor_id = (int)($owner['id'] ?? 0);
+    }
+
+    // Legacy assigned_to / maintenance_team text on the source report row.
+    if ($officer_name === '') {
+        try {
+            if ($report_type === 'road_transportation_reports') {
+                $legacy = fetch_one(
+                    "SELECT assigned_to FROM road_transportation_reports WHERE id = ?",
+                    [$report_id],
+                    'i'
+                );
+            } elseif ($report_type === 'road_maintenance_reports') {
+                $legacy = fetch_one(
+                    "SELECT maintenance_team AS assigned_to FROM road_maintenance_reports WHERE id = ?",
+                    [$report_id],
+                    'i'
+                );
+            } else {
+                $legacy = null;
+            }
+            if (is_array($legacy)) {
+                $legacy_name = trim((string)($legacy['assigned_to'] ?? ''));
+                if ($legacy_name !== '' && !is_numeric($legacy_name)) {
+                    $officer_name = $legacy_name;
+                }
+            }
+        } catch (Exception $e) {
+            error_log('rgmap_get_report_assignment_display legacy assigned_to: ' . $e->getMessage());
+        }
+    }
+
+    return [
+        'assignment_officer' => $officer_name,
+        'assignment_officer_id' => $officer_id,
+        'assigned_by' => $supervisor_name,
+        'assigned_by_id' => $supervisor_id,
+    ];
+}
+
+/**
+ * Fill assignment_officer / assigned_by on report rows using historical assignment data.
+ * Used for Completed Projects where active-only lookups miss completed assignments.
+ */
+function rgmap_enrich_reports_assignment_display($conn, array &$reports): void {
+    foreach ($reports as &$rr) {
+        $table = $rr['_source_table'] ?? rgmap_report_row_source_table($rr);
+        $rid = (int)($rr['id'] ?? 0);
+        if ($rid <= 0) {
+            continue;
+        }
+        $display = rgmap_get_report_assignment_display($conn, $rid, $table);
+        if ($display['assignment_officer'] !== '') {
+            $rr['assignment_officer'] = $display['assignment_officer'];
+            $rr['assignment_officer_id'] = $display['assignment_officer_id'];
+            $rr['assignment_status'] = 'assigned';
+        }
+        if ($display['assigned_by'] !== '') {
+            $rr['assigned_by'] = $display['assigned_by'];
+            $rr['assigned_by_id'] = $display['assigned_by_id'];
+        }
+    }
+    unset($rr);
+}
+
+/**
  * Resolve the supervisor who first claimed/assigned a report.
  * Ownership is permanent (earliest assignment by assigned_at), including
  * cancelled/completed assignment rows so Archive still knows the owner.
@@ -1706,6 +2057,12 @@ function rgmap_annotate_archive_supervisor_ownership($conn, array &$rows): void 
         $owner = rgmap_get_report_owner_supervisor($conn, $rid, $rtype);
         $row['assigned_by_id'] = (int)($owner['id'] ?? 0);
         $row['assigned_by'] = (string)($owner['name'] ?? '');
+        $display = rgmap_get_report_assignment_display($conn, $rid, $rtype);
+        $row['assignment_officer'] = $display['assignment_officer'];
+        $row['assignment_officer_id'] = $display['assignment_officer_id'];
+        if ($display['assigned_by'] !== '') {
+            $row['assigned_by'] = $display['assigned_by'];
+        }
         if ($role === 'system_admin' || !$is_supervisor) {
             $row['can_manage_as_supervisor'] = true;
         } else {

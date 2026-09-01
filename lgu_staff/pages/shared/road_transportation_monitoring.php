@@ -1277,6 +1277,7 @@ if ($focus_report_id > 0) {
 // Reads live from report_assignments so it reflects Assign/Unassign changes
 // automatically. Never alters the report workflow or report statuses.
 annotate_report_assignment_status($conn, $recent_reports);
+rgmap_enrich_reports_assignment_display($conn, $recent_reports);
 
 if (!empty($your_reports_only)) {
     if ($is_road_monitoring_officer || $is_transport_monitoring_officer) {
@@ -5868,6 +5869,13 @@ if ($is_completed_projects_view || $is_system_admin) {
             return '<div class="rm-info-item"><div class="rm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="rm-info-label">' + label + '</div><div class="rm-info-value">' + displayVal + '</div></div></div>';
         }
 
+        function rmAppendAssignmentFields(reportGrid, r, data) {
+            data = data || {};
+            reportGrid += rmInfoItem('user-cog', 'Officer', r.assignment_officer || data.assignment_officer || '');
+            reportGrid += rmInfoItem('user-tie', 'Supervisor', r.assigned_by || data.assigned_by || '');
+            return reportGrid;
+        }
+
         function openViewDetailsModal() {
             var modal = document.getElementById('viewDetailsModal');
             if (modal) {
@@ -6177,6 +6185,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                     if (r.severity) {
                         reportGrid += rmInfoItem('exclamation-circle', 'Severity', r.severity);
                     }
+                    reportGrid = rmAppendAssignmentFields(reportGrid, r, data);
                     document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
                     // Source & Department
@@ -6190,12 +6199,6 @@ if ($is_completed_projects_view || $is_system_admin) {
                     var sourceLabel = sourceLabels[r.source] || (r.report_source === 'local' ? 'LGU Monitoring' : 'Citizen');
                     sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
                     sourceGrid += rmInfoItem('building', 'Department', r.department);
-                    if (r.assignment_officer || r.assigned_to) {
-                        sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assignment_officer || r.assigned_to);
-                    }
-                    if (r.assigned_by) {
-                        sourceGrid += rmInfoItem('user-tie', 'Assigned By', r.assigned_by);
-                    }
                     if (r.created_by_name) {
                         sourceGrid += rmInfoItem('user', 'Created By', r.created_by_name);
                     }

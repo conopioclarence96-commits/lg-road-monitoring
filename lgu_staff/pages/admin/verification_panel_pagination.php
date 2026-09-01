@@ -94,7 +94,8 @@ function getLguReportsForVerification(
     bool $road_only = false,
     int $limit = 10,
     int $offset = 0,
-    string $search = ''
+    string $search = '',
+    string $district_filter = 'all'
 ): array {
     $limit = max(1, $limit);
     $offset = max(0, $offset);
@@ -118,9 +119,10 @@ function getLguReportsForVerification(
     $transport_cols = "id, report_id, title, report_type, report_category, report_source, department, priority, status, cimm_sync_status, created_date, due_date, description, location, attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at, cimm_engineer_name, cimm_budget, cimm_starting_date, cimm_estimated_end_date, cimm_status, cimm_district, created_by";
     $maintenance_cols = "id, report_id, title, report_type, NULL as report_category, NULL as report_source, department, priority, status, NULL as cimm_sync_status, created_date, due_date, description, location, NULL as attachments, NULL as latitude, NULL as longitude, NULL as detected_district, created_at, updated_at, approved_at, rejected_at, NULL as cimm_engineer_name, NULL as cimm_budget, NULL as cimm_starting_date, NULL as cimm_estimated_end_date, NULL as cimm_status, NULL as cimm_district, NULL as created_by";
 
-    $parts = ["(SELECT {$source_case}, {$transport_cols} FROM road_transportation_reports WHERE {$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}{$search_clause})"];
+    $district_clause = rgmap_sql_road_transport_district_clause($conn, $district_filter);
+    $parts = ["(SELECT {$source_case}, {$transport_cols} FROM road_transportation_reports WHERE {$transport_where} AND {$infra_exclude} AND {$citizen_exclude}{$transport_category_filter}{$road_category_filter}{$search_clause}{$district_clause})"];
 
-    if (!$transport_only) {
+    if (!$transport_only && rgmap_normalize_district_filter($district_filter) === 'all') {
         $parts[] = "(SELECT 'maintenance' as source, {$maintenance_cols} FROM road_maintenance_reports WHERE {$maintenance_where}{$search_clause})";
     }
 
@@ -144,7 +146,8 @@ function getCitizenReportsForVerification(
     mysqli $conn,
     int $limit = 10,
     int $offset = 0,
-    string $search = ''
+    string $search = '',
+    string $district_filter = 'all'
 ): array {
     $limit = max(1, $limit);
     $offset = max(0, $offset);
@@ -157,12 +160,14 @@ function getCitizenReportsForVerification(
         $where .= " AND report_id LIKE '%{$like}%'";
     }
 
+    $where .= rgmap_sql_road_transport_district_clause($conn, $district_filter);
+
     $countRow = fetch_one("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE {$where}");
     $total = (int)($countRow['c'] ?? 0);
 
     $sql = "SELECT id, report_id, title, report_type, report_category, report_source,
                    department, priority, status, created_date, due_date, description, location,
-                   attachments, latitude, longitude, detected_district, created_at, updated_at, approved_at, rejected_at,
+                   attachments, latitude, longitude, detected_district, district, created_at, updated_at, approved_at, rejected_at,
                    reporter_name, reporter_email, reporter_phone, image_path, created_by
             FROM road_transportation_reports
             WHERE {$where}
@@ -183,7 +188,8 @@ function getCimmReportsPaginated(
     string $filter = 'all',
     int $limit = 10,
     int $offset = 0,
-    string $search = ''
+    string $search = '',
+    string $district_filter = 'all'
 ): array {
     $limit = max(1, $limit);
     $offset = max(0, $offset);
@@ -212,6 +218,12 @@ function getCimmReportsPaginated(
     if ($search !== '') {
         $mapped = array_values(array_filter($mapped, static function ($r) use ($search) {
             return stripos((string)($r['rep_number'] ?? ''), $search) !== false;
+        }));
+    }
+
+    if (rgmap_normalize_district_filter($district_filter) !== 'all') {
+        $mapped = array_values(array_filter($mapped, static function ($r) use ($district_filter) {
+            return rgmap_report_matches_district_filter($r, $district_filter);
         }));
     }
 

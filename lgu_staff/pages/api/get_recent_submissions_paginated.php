@@ -265,6 +265,7 @@ try {
     // Display-only Assignment Status (Assigned / Unassigned) for each report,
     // read live from report_assignments so it reflects Assign/Unassign changes.
     annotate_report_assignment_status($conn, $reports);
+    rgmap_enrich_reports_assignment_display($conn, $reports);
 
     if ($your_reports_only) {
         if ($is_road_monitoring_officer || $is_transport_monitoring_officer) {

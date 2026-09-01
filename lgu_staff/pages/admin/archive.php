@@ -2945,13 +2945,9 @@ if (isset($_SESSION['archive_message'])) {
                 if (row.estimation) {
                     reportGrid += rmInfoItem('dollar-sign', 'Estimation', row.estimation ? '₱' + parseFloat(row.estimation).toLocaleString('en-PH', {minimumFractionDigits:2}) : '—');
                 }
-                if (row.assigned_to) {
-                    reportGrid += rmInfoItem('user-cog', 'Assigned To', row.assigned_to);
-                }
-                if (row.assigned_by) {
-                    reportGrid += rmInfoItem('user-tie', 'Assigned By', row.assigned_by);
-                }
             }
+            reportGrid += rmInfoItem('user-cog', 'Officer', row.assignment_officer || '');
+            reportGrid += rmInfoItem('user-tie', 'Supervisor', row.assigned_by || '');
             document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
             // Source & Department
@@ -2959,9 +2955,6 @@ if (isset($_SESSION['archive_message'])) {
             if (src === 'lgu') {
                 sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
                 sourceGrid += rmInfoItem('building', 'Department', row.department);
-                if (row.assigned_by) {
-                    sourceGrid += rmInfoItem('user-tie', 'Assigned By', row.assigned_by);
-                }
                 if (row.created_by_name) {
                     sourceGrid += rmInfoItem('user', 'Created By', row.created_by_name);
                 }
@@ -2992,9 +2985,6 @@ if (isset($_SESSION['archive_message'])) {
                 // details shown by the CIMM View modal before archiving.
                 sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
                 sourceGrid += rmInfoItem('building', 'Department', row.department);
-                if (row.assigned_by) {
-                    sourceGrid += rmInfoItem('user-tie', 'Assigned By', row.assigned_by);
-                }
                 sourceGrid += rmInfoItem('user', 'Reported By', row.reporter_name);
                 sourceGrid += rmInfoItem('hard-hat', 'Engineer', row.cimm_engineer_name || row.engineer);
                 if (row.cimm_status) {
@@ -3013,9 +3003,6 @@ if (isset($_SESSION['archive_message'])) {
             } else if (isIpmsArchive) {
                 // IPMS Infrastructure Projects: mirror Engineer & Schedule plus
                 // archive metadata from verification_monitoring viewInfraReport.
-                if (row.assigned_by) {
-                    sourceGrid += rmInfoItem('user-tie', 'Assigned By', row.assigned_by);
-                }
                 sourceGrid += rmInfoItem('hard-hat', 'Engineer', row.engineer || '—');
                 sourceGrid += rmInfoItem('calendar-plus', 'Start Date', formatDate(row.start_date || row.cimm_starting_date));
                 sourceGrid += rmInfoItem('calendar-minus', 'End Date', formatDate(row.end_date || row.cimm_estimated_end_date || row.due_date));

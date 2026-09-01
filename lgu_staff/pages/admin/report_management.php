@@ -1091,7 +1091,8 @@ function getLguReportsForManagement(
     bool $transport_only = false,
     int $limit = 10,
     int $offset = 0,
-    string $search = ''
+    string $search = '',
+    string $district_filter = 'all'
 ): array {
     global $conn;
 
@@ -1131,6 +1132,8 @@ function getLguReportsForManagement(
         $where .= " AND report_id LIKE '%{$like}%'";
     }
 
+    $where .= rgmap_sql_road_transport_district_clause($conn, $district_filter);
+
     $countRow = fetch_one("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE {$where}");
     $total = (int)($countRow['c'] ?? 0);
 
@@ -1161,6 +1164,15 @@ function rm_show_assignment_columns(string $user_role, bool $is_road_supervisor,
 
 function rm_should_annotate_assignments(string $user_role, bool $is_road_supervisor, bool $is_transport_supervisor): bool {
     return rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor);
+}
+
+/** Live assignment status plus historical Officer / Supervisor names for display. */
+function rm_annotate_assignment_display($conn, array &$rows): void {
+    if (empty($rows)) {
+        return;
+    }
+    annotate_report_assignment_status($conn, $rows);
+    rgmap_enrich_reports_assignment_display($conn, $rows);
 }
 
 function rm_assignment_supervisor_label(array $report): string {
@@ -1418,7 +1430,8 @@ function getCitizenReportsForManagement(
     bool $transport_only = false,
     int $limit = 10,
     int $offset = 0,
-    string $search = ''
+    string $search = '',
+    string $district_filter = 'all'
 ): array {
     global $conn;
 
@@ -1450,6 +1463,8 @@ function getCitizenReportsForManagement(
         $like = str_replace(['%', '_'], ['\\%', '\\_'], $like);
         $where .= " AND report_id LIKE '%{$like}%'";
     }
+
+    $where .= rgmap_sql_road_transport_district_clause($conn, $district_filter);
 
     $countRow = fetch_one("SELECT COUNT(*) AS c FROM road_transportation_reports WHERE {$where}");
     $total = (int)($countRow['c'] ?? 0);
@@ -1580,7 +1595,8 @@ function getCimmReportsForManagement(
     string $status_filter = 'all',
     int $limit = 10,
     int $offset = 0,
-    string $search = ''
+    string $search = '',
+    string $district_filter = 'all'
 ): array {
     $pdo = rgmap_verification_pdo();
 
@@ -1633,6 +1649,12 @@ function getCimmReportsForManagement(
     if ($search !== '') {
         $mapped = array_values(array_filter($mapped, static function ($r) use ($search) {
             return stripos((string)($r['report_id'] ?? ''), $search) !== false;
+        }));
+    }
+
+    if (rgmap_normalize_district_filter($district_filter) !== 'all') {
+        $mapped = array_values(array_filter($mapped, static function ($r) use ($district_filter) {
+            return rgmap_report_matches_district_filter($r, $district_filter);
         }));
     }
 
@@ -2027,6 +2049,7 @@ $source_aliases = [
 ];
 $source_filter = $source_aliases[$source_filter] ?? 'all';
 $_GET['source'] = $source_filter;
+$district_filter = rgmap_normalize_district_filter($_GET['district'] ?? 'all');
 
 // Road Operations Supervisors see only Road-relevant reports: Road reports in
 // the LGU Monitoring panel, all CIMM reports, and no Transportation reports.
@@ -2045,7 +2068,7 @@ function rm_paginate_your_reports($conn, array $all_rows, int $page, int $per_pa
         }
     }
     unset($r);
-    annotate_report_assignment_status($conn, $all_rows);
+    rm_annotate_assignment_display($conn, $all_rows);
     $filtered = $lgu_panel
         ? rgmap_filter_lgu_your_reports($conn, $all_rows)
         : rgmap_filter_reports_you_handle($conn, $all_rows);
@@ -2078,7 +2101,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $is_transport_supervisor,
                 500,
                 0,
-                $search_q
+                $search_q,
+                $district_filter
             );
             $paged = rm_paginate_your_reports($conn, $lgu_result['rows'], $ajax_page, $panel_per_page, 'road_transportation_reports', true);
             $rows = $paged['rows'];
@@ -2091,7 +2115,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $is_transport_supervisor,
                 $panel_per_page,
                 ($ajax_page - 1) * $panel_per_page,
-                $search_q
+                $search_q,
+                $district_filter
             );
             $total = (int)$lgu_result['total'];
             $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
@@ -2103,7 +2128,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                     $is_transport_supervisor,
                     $panel_per_page,
                     ($ajax_page - 1) * $panel_per_page,
-                    $search_q
+                    $search_q,
+                    $district_filter
                 );
                 $total = (int)$lgu_result['total'];
             }
@@ -2115,7 +2141,7 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                     }
                 }
                 unset($__r);
-                annotate_report_assignment_status($conn, $rows);
+                rm_annotate_assignment_display($conn, $rows);
             }
         }
         $pagination_html = ($total > $panel_per_page)
@@ -2148,7 +2174,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $is_transport_supervisor,
                 500,
                 0,
-                $search_q
+                $search_q,
+                $district_filter
             );
             $paged = rm_paginate_your_reports($conn, $citizen_result['rows'], $ajax_page, $panel_per_page);
             $rows = $paged['rows'];
@@ -2160,7 +2187,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $is_transport_supervisor,
                 $panel_per_page,
                 ($ajax_page - 1) * $panel_per_page,
-                $search_q
+                $search_q,
+                $district_filter
             );
             $total = (int)$citizen_result['total'];
             $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
@@ -2171,7 +2199,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                     $is_transport_supervisor,
                     $panel_per_page,
                     ($ajax_page - 1) * $panel_per_page,
-                    $search_q
+                    $search_q,
+                    $district_filter
                 );
                 $total = (int)$citizen_result['total'];
             }
@@ -2183,7 +2212,7 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                     }
                 }
                 unset($__r);
-                annotate_report_assignment_status($conn, $rows);
+                rm_annotate_assignment_display($conn, $rows);
             }
         }
         $pagination_html = ($total > $panel_per_page)
@@ -2211,7 +2240,7 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
         }
         $search_q = trim((string)($_GET['q'] ?? ''));
         if ($your_reports_only) {
-            $cimm_result = getCimmReportsForManagement($status_filter, 500, 0, $search_q);
+            $cimm_result = getCimmReportsForManagement($status_filter, 500, 0, $search_q, $district_filter);
             foreach ($cimm_result['rows'] as &$__cim) {
                 $__cim['_source_table'] = 'cimm_verification_reports';
             }
@@ -2231,7 +2260,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $status_filter,
                 $panel_per_page,
                 ($ajax_page - 1) * $panel_per_page,
-                $search_q
+                $search_q,
+                $district_filter
             );
             $total = (int)$cimm_result['total'];
             $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
@@ -2241,7 +2271,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                     $status_filter,
                     $panel_per_page,
                     ($ajax_page - 1) * $panel_per_page,
-                    $search_q
+                    $search_q,
+                    $district_filter
                 );
                 $total = (int)$cimm_result['total'];
             }
@@ -2251,7 +2282,7 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                     $__cim['_source_table'] = 'cimm_verification_reports';
                 }
                 unset($__cim);
-                annotate_report_assignment_status($conn, $rows);
+                rm_annotate_assignment_display($conn, $rows);
             }
         }
         $pagination_html = ($total > $panel_per_page)
@@ -2315,6 +2346,12 @@ if (!$is_transport_supervisor && ($source_filter === 'all' || $source_filter ===
                 static fn($r) => strtolower((string)($r['status'] ?? '')) === strtolower($status_filter)
             ));
         }
+        if ($district_filter !== 'all') {
+            $infra_reports_list = array_values(array_filter(
+                $infra_reports_list,
+                static fn($r) => rgmap_report_matches_district_filter($r, $district_filter)
+            ));
+        }
     } catch (Exception $e) {
         error_log('IPMS approved projects fetch failed: ' . $e->getMessage());
         $infra_reports_list = [];
@@ -2331,7 +2368,8 @@ if ($source_filter === 'all' || $source_filter === 'lgu_reports') {
             $is_transport_supervisor,
             500,
             0,
-            $lgu_search
+            $lgu_search,
+            $district_filter
         );
         $paged = rm_paginate_your_reports($conn, $lgu_result['rows'], $lgu_page, $panel_per_page, 'road_transportation_reports', true);
         $lgu_reports_list = $paged['rows'];
@@ -2344,7 +2382,8 @@ if ($source_filter === 'all' || $source_filter === 'lgu_reports') {
             $is_transport_supervisor,
             $panel_per_page,
             rm_panel_offset('lgu', $panel_per_page),
-            $lgu_search
+            $lgu_search,
+            $district_filter
         );
         $lgu_reports_total = $lgu_result['total'];
         $lgu_max_page = max(1, (int)ceil($lgu_reports_total / max(1, $panel_per_page)));
@@ -2356,7 +2395,8 @@ if ($source_filter === 'all' || $source_filter === 'lgu_reports') {
                 $is_transport_supervisor,
                 $panel_per_page,
                 ($lgu_page - 1) * $panel_per_page,
-                $lgu_search
+                $lgu_search,
+                $district_filter
             );
             $lgu_reports_total = $lgu_result['total'];
         }
@@ -2376,7 +2416,8 @@ if (!$is_road_supervisor && ($source_filter === 'all' || $source_filter === 'tra
             $is_transport_supervisor,
             500,
             0,
-            $citizen_search
+            $citizen_search,
+            $district_filter
         );
         $paged = rm_paginate_your_reports($conn, $citizen_result['rows'], $citizen_page, $panel_per_page);
         $citizen_reports = $paged['rows'];
@@ -2388,7 +2429,8 @@ if (!$is_road_supervisor && ($source_filter === 'all' || $source_filter === 'tra
             $is_transport_supervisor,
             $panel_per_page,
             rm_panel_offset('citizen', $panel_per_page),
-            $citizen_search
+            $citizen_search,
+            $district_filter
         );
         $citizen_reports_total = $citizen_result['total'];
         $citizen_max_page = max(1, (int)ceil($citizen_reports_total / max(1, $panel_per_page)));
@@ -2399,7 +2441,8 @@ if (!$is_road_supervisor && ($source_filter === 'all' || $source_filter === 'tra
                 $is_transport_supervisor,
                 $panel_per_page,
                 ($citizen_page - 1) * $panel_per_page,
-                $citizen_search
+                $citizen_search,
+                $district_filter
             );
             $citizen_reports_total = $citizen_result['total'];
         }
@@ -2430,8 +2473,8 @@ if (rm_should_annotate_assignments($user_role, $is_road_supervisor, $is_transpor
         }
     }
     unset($__cr);
-    annotate_report_assignment_status($conn, $lgu_reports_list);
-    annotate_report_assignment_status($conn, $citizen_reports);
+    rm_annotate_assignment_display($conn, $lgu_reports_list);
+    rm_annotate_assignment_display($conn, $citizen_reports);
 }
 
 // Fetch CIMM reports independently (paginated; not through get_reports).
@@ -2443,7 +2486,8 @@ if ($include_cimm && !$is_transport_supervisor) {
             $status_filter,
             $panel_per_page,
             rm_panel_offset('cimm', $panel_per_page),
-            $cimm_search
+            $cimm_search,
+            $district_filter
         );
         $cimm_reports_total = $cimm_result['total'];
         $cimm_max_page = max(1, (int)ceil($cimm_reports_total / max(1, $panel_per_page)));
@@ -2453,7 +2497,8 @@ if ($include_cimm && !$is_transport_supervisor) {
                 $status_filter,
                 $panel_per_page,
                 ($cimm_page - 1) * $panel_per_page,
-                $cimm_search
+                $cimm_search,
+                $district_filter
             );
             $cimm_reports_total = $cimm_result['total'];
         }
@@ -2476,14 +2521,14 @@ if ($is_road_supervisor || ($user_role ?? '') === 'system_admin') {
             $__cim['_source_table'] = 'cimm_verification_reports';
         }
         unset($__cim);
-        annotate_report_assignment_status($conn, $cimm_reports_list);
+        rm_annotate_assignment_display($conn, $cimm_reports_list);
     }
     if (!empty($infra_reports_list)) {
         foreach ($infra_reports_list as &$__inf) {
             $__inf['_source_table'] = 'ipms_road_projects';
         }
         unset($__inf);
-        annotate_report_assignment_status($conn, $infra_reports_list);
+        rm_annotate_assignment_display($conn, $infra_reports_list);
     }
 }
 
@@ -6305,6 +6350,15 @@ if ($focus_id > 0) {
                     </select>
                 </div>
                 <div>
+                    <label class="form-label" for="districtFilter">District</label>
+                    <select class="filter-select" id="districtFilter" onchange="filterReports()">
+                        <option value="all" <?php echo $district_filter === 'all' ? 'selected' : ''; ?>>All Districts</option>
+                        <?php foreach (rgmap_qc_district_filter_options() as $district_option): ?>
+                        <option value="<?php echo htmlspecialchars($district_option); ?>" <?php echo $district_filter === $district_option ? 'selected' : ''; ?>><?php echo htmlspecialchars($district_option); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
                     <label class="form-label">&nbsp;</label>
                     <div class="btn-wrapper">
                         <button type="button"
@@ -7343,9 +7397,16 @@ if ($focus_id > 0) {
         function filterReports() {
             const status = document.getElementById('statusFilter').value;
             const source = document.getElementById('sourceFilter').value;
+            const districtEl = document.getElementById('districtFilter');
+            const district = districtEl ? districtEl.value : 'all';
             const url = new URL(window.location);
             url.searchParams.set('status', status);
             url.searchParams.set('source', source);
+            if (district === 'all') {
+                url.searchParams.delete('district');
+            } else {
+                url.searchParams.set('district', district);
+            }
             url.searchParams.set('page', '1');
             url.searchParams.set('lgu_page', '1');
             url.searchParams.set('citizen_page', '1');
@@ -7374,6 +7435,7 @@ if ($focus_id > 0) {
             const url = new URL(window.location);
             url.searchParams.delete('status');
             url.searchParams.delete('source');
+            url.searchParams.delete('district');
             url.searchParams.delete('mine');
             url.searchParams.set('page', '1');
             url.searchParams.set('lgu_page', '1');
@@ -7413,6 +7475,12 @@ if ($focus_id > 0) {
         function rmInfoItem(icon, label, value) {
             var displayVal = (value && value !== '—' && value !== null) ? value : '—';
             return '<div class="rm-info-item"><div class="rm-info-icon"><i class="fas fa-' + icon + '"></i></div><div><div class="rm-info-label">' + label + '</div><div class="rm-info-value">' + displayVal + '</div></div></div>';
+        }
+
+        function rmAppendAssignmentFields(reportGrid, r) {
+            reportGrid += rmInfoItem('user-cog', 'Officer', r.assignment_officer || '');
+            reportGrid += rmInfoItem('user-tie', 'Supervisor', r.assigned_by || '');
+            return reportGrid;
         }
 
         function openViewReportModal() {
@@ -7511,9 +7579,10 @@ if ($focus_id > 0) {
             if (r.actual_cost) {
                 reportGrid += rmInfoItem('receipt', 'Actual Cost', '₱' + Number(r.actual_cost).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
             }
+            reportGrid = rmAppendAssignmentFields(reportGrid, r);
             document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
-            // Engineer & Schedule + assignment (same info as verification)
+            // Engineer & Schedule (same info as verification)
             var sourceGrid = '';
             sourceGrid += rmInfoItem('server', 'Source', 'IPMS');
             sourceGrid += rmInfoItem('hard-hat', 'Engineer', r.engineer || '—');
@@ -7525,12 +7594,6 @@ if ($focus_id > 0) {
                 sourceGrid += rmInfoItem('money-bill-wave', 'Budget', '—');
             }
             sourceGrid += rmInfoItem('users', 'Maintenance Team', r.maintenance_team || '—');
-            if (r.assignment_officer) {
-                sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assignment_officer);
-            }
-            if (r.assigned_by) {
-                sourceGrid += rmInfoItem('user-tie', 'Assigned By', r.assigned_by);
-            }
             document.getElementById('rm-source-grid').innerHTML = sourceGrid;
 
             // Location — start/end addresses (same as verification)
@@ -7728,6 +7791,7 @@ if ($focus_id > 0) {
                         if (r.severity) {
                             reportGrid += rmInfoItem('exclamation-circle', 'Severity', r.severity);
                         }
+                        reportGrid = rmAppendAssignmentFields(reportGrid, r);
                         document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
                         // Source & Department
@@ -7741,12 +7805,6 @@ if ($focus_id > 0) {
                         var sourceLabel = sourceLabels[r.source] || (r.report_source === 'local' ? 'LGU Monitoring' : 'Citizen');
                         sourceGrid += rmInfoItem('server', 'Source', sourceLabel);
                         sourceGrid += rmInfoItem('building', 'Department', r.department);
-                        if (r.assignment_officer || r.assigned_to) {
-                            sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assignment_officer || r.assigned_to);
-                        }
-                        if (r.assigned_by) {
-                            sourceGrid += rmInfoItem('user-tie', 'Assigned By', r.assigned_by);
-                        }
                         if (r.created_by_name) {
                             sourceGrid += rmInfoItem('user', 'Created By', r.created_by_name);
                         }
@@ -9441,6 +9499,7 @@ if ($focus_id > 0) {
             const pageNum = Math.max(1, parseInt(page, 10) || 1);
             const statusEl = document.getElementById('statusFilter');
             const sourceEl = document.getElementById('sourceFilter');
+            const districtEl = document.getElementById('districtFilter');
             const searchInput = document.getElementById(dom.search);
             const q = searchInput ? searchInput.value.trim() : '';
             const url = new URL(window.location.href);
@@ -9449,6 +9508,11 @@ if ($focus_id > 0) {
             url.searchParams.set('page', String(pageNum));
             if (statusEl) url.searchParams.set('status', statusEl.value || 'all');
             if (sourceEl) url.searchParams.set('source', sourceEl.value || 'all');
+            if (districtEl) {
+                const district = districtEl.value || 'all';
+                if (district === 'all') url.searchParams.delete('district');
+                else url.searchParams.set('district', district);
+            }
             // Always drive AJAX search from the input via `q` only — strip stale
             // panel_q params from the current URL so clearing the box returns
             // the unfiltered list.
@@ -9609,17 +9673,12 @@ if ($focus_id > 0) {
             if (r.budget_allocation) {
                 reportGrid += rmInfoItem('dollar-sign', 'Budget Allocation', '₱' + parseFloat(r.budget_allocation).toLocaleString('en-PH', {minimumFractionDigits:2}));
             }
+            reportGrid = rmAppendAssignmentFields(reportGrid, r);
             document.getElementById('rm-report-grid').innerHTML = reportGrid;
 
             // Source & Department
             var sourceGrid = '';
             sourceGrid += rmInfoItem('server', 'Source', 'CIMM');
-            if (r.assignment_officer || r.assigned_to) {
-                sourceGrid += rmInfoItem('user-cog', 'Assigned To', r.assignment_officer || r.assigned_to);
-            }
-            if (r.assigned_by) {
-                sourceGrid += rmInfoItem('user-tie', 'Assigned By', r.assigned_by);
-            }
             if (r.reporter_name) {
                 sourceGrid += rmInfoItem('user', 'Reported By', r.reporter_name);
             }

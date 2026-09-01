@@ -856,12 +856,13 @@ if (isset($_SESSION['verification_message'])) {
 }
 
 // Get filter parameters
-$status_filter = $_GET['status'] ?? 'pending';
+$status_filter = $_GET['status'] ?? 'all';
 $allowed_status_filters = ['all', 'pending', 'validated', 'awaiting', 'scheduled'];
 if (!in_array($status_filter, $allowed_status_filters, true)) {
-    $status_filter = 'pending';
+    $status_filter = 'all';
 }
 $source_filter = $_GET['source'] ?? 'all';
+$district_filter = rgmap_normalize_district_filter($_GET['district'] ?? 'all');
 
 $panel_per_page = 10;
 
@@ -879,7 +880,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
             $is_road_supervisor,
             $panel_per_page,
             ($ajax_page - 1) * $panel_per_page,
-            $search_q
+            $search_q,
+            $district_filter
         );
         $total = (int)$lgu_result['total'];
         $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
@@ -891,7 +893,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $is_road_supervisor,
                 $panel_per_page,
                 ($ajax_page - 1) * $panel_per_page,
-                $search_q
+                $search_q,
+                $district_filter
             );
             $total = (int)$lgu_result['total'];
         }
@@ -926,7 +929,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
             $conn,
             $panel_per_page,
             ($ajax_page - 1) * $panel_per_page,
-            $search_q
+            $search_q,
+            $district_filter
         );
         $total = (int)$citizen_result['total'];
         $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
@@ -936,7 +940,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $conn,
                 $panel_per_page,
                 ($ajax_page - 1) * $panel_per_page,
-                $search_q
+                $search_q,
+                $district_filter
             );
             $total = (int)$citizen_result['total'];
         }
@@ -971,7 +976,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
             $cimm_filter,
             $panel_per_page,
             ($ajax_page - 1) * $panel_per_page,
-            $search_q
+            $search_q,
+            $district_filter
         );
         $total = (int)$cimm_result['total'];
         $max_page = max(1, (int)ceil($total / max(1, $panel_per_page)));
@@ -981,7 +987,8 @@ if (($_GET['ajax'] ?? '') === 'panel_page') {
                 $cimm_filter,
                 $panel_per_page,
                 ($ajax_page - 1) * $panel_per_page,
-                $search_q
+                $search_q,
+                $district_filter
             );
             $total = (int)$cimm_result['total'];
         }
@@ -1028,7 +1035,8 @@ $lgu_result = getLguReportsForVerification(
     $is_road_supervisor,
     $panel_per_page,
     vm_panel_offset('lgu', $panel_per_page),
-    $lgu_search
+    $lgu_search,
+    $district_filter
 );
 $lgu_reports_total = (int)$lgu_result['total'];
 $lgu_reports_list = $lgu_result['rows'];
@@ -1041,7 +1049,8 @@ if ($lgu_page > $lgu_max_page) {
         $is_road_supervisor,
         $panel_per_page,
         ($lgu_page - 1) * $panel_per_page,
-        $lgu_search
+        $lgu_search,
+        $district_filter
     );
     $lgu_reports_total = (int)$lgu_result['total'];
     $lgu_reports_list = $lgu_result['rows'];
@@ -1065,7 +1074,8 @@ if (!$is_transport_supervisor) {
         $cimm_filter,
         $panel_per_page,
         vm_panel_offset('cimm', $panel_per_page),
-        $cimm_search
+        $cimm_search,
+        $district_filter
     );
     $cimm_reports_total = (int)$cimm_result['total'];
     $cimm_reports = $cimm_result['rows'];
@@ -1076,7 +1086,8 @@ if (!$is_transport_supervisor) {
             $cimm_filter,
             $panel_per_page,
             ($cimm_page - 1) * $panel_per_page,
-            $cimm_search
+            $cimm_search,
+            $district_filter
         );
         $cimm_reports_total = (int)$cimm_result['total'];
         $cimm_reports = $cimm_result['rows'];
@@ -1101,7 +1112,8 @@ if (!$is_road_supervisor) {
         $conn,
         $panel_per_page,
         vm_panel_offset('citizen', $panel_per_page),
-        $citizen_search
+        $citizen_search,
+        $district_filter
     );
     $citizen_reports_total = (int)$citizen_result['total'];
     $citizen_reports_list = $citizen_result['rows'];
@@ -1112,7 +1124,8 @@ if (!$is_road_supervisor) {
             $conn,
             $panel_per_page,
             ($citizen_page - 1) * $panel_per_page,
-            $citizen_search
+            $citizen_search,
+            $district_filter
         );
         $citizen_reports_total = (int)$citizen_result['total'];
         $citizen_reports_list = $citizen_result['rows'];
@@ -1129,6 +1142,12 @@ require_once __DIR__ . '/../api/ipms_road_projects_data.php';
 $infra_reports = [];
 try {
     $infra_reports = rgmap_infra_panel_rows();
+    if ($district_filter !== 'all') {
+        $infra_reports = array_values(array_filter(
+            $infra_reports,
+            static fn($r) => rgmap_report_matches_district_filter($r, $district_filter)
+        ));
+    }
 } catch (Exception $e) {
     error_log("IPMS road projects fetch failed: " . $e->getMessage());
 }
@@ -6563,6 +6582,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </select>
                     </div>
                     <div>
+                        <label class="form-label" for="districtFilter">District</label>
+                        <select class="filter-select" id="districtFilter" onchange="filterReports()">
+                            <option value="all" <?php echo $district_filter === 'all' ? 'selected' : ''; ?>>All Districts</option>
+                            <?php foreach (rgmap_qc_district_filter_options() as $district_option): ?>
+                            <option value="<?php echo htmlspecialchars($district_option); ?>" <?php echo $district_filter === $district_option ? 'selected' : ''; ?>><?php echo htmlspecialchars($district_option); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
                         <span class="form-label" aria-hidden="true">&nbsp;</span>
                         <div>
                             <button class="btn-secondary-custom" type="button" onclick="resetFilters()">
@@ -7136,9 +7164,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         function filterReports() {
             const status = document.getElementById('statusFilter').value;
             const source = document.getElementById('sourceFilter').value;
+            const districtEl = document.getElementById('districtFilter');
+            const district = districtEl ? districtEl.value : 'all';
             const url = new URL(window.location);
             url.searchParams.set('status', status);
             url.searchParams.set('source', source);
+            if (district === 'all') {
+                url.searchParams.delete('district');
+            } else {
+                url.searchParams.set('district', district);
+            }
+            url.searchParams.set('lgu_page', '1');
+            url.searchParams.set('citizen_page', '1');
+            url.searchParams.set('cimm_page', '1');
             window.location.href = url.toString();
         }
 
@@ -7146,6 +7184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             const url = new URL(window.location);
             url.searchParams.delete('status');
             url.searchParams.delete('source');
+            url.searchParams.delete('district');
             url.searchParams.delete('lgu_page');
             url.searchParams.delete('citizen_page');
             url.searchParams.delete('cimm_page');
@@ -7208,7 +7247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         function applyStatusFilter() {
             var urlParams = new URLSearchParams(window.location.search);
-            var statusFilter = urlParams.get('status') || 'pending';
+            var statusFilter = urlParams.get('status') || 'all';
             var stf = document.getElementById('statusFilter');
             if (stf && stf.querySelector('option[value="' + statusFilter + '"]')) {
                 stf.value = statusFilter;
