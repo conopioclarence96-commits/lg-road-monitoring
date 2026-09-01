@@ -1420,6 +1420,7 @@ if ($conn) {
                             <button type="button" class="remove-photo" style="display:none" onclick="event.stopPropagation(); removePhoto('before')"><i class="fas fa-times"></i></button>
                         </div>
                         <input type="hidden" id="beforePhotoPath" value="">
+                        <input type="hidden" id="beforePhotoFingerprint" value="">
                     </div>
 
                     <div class="form-group">
@@ -1432,6 +1433,7 @@ if ($conn) {
                             <button type="button" class="remove-photo" style="display:none" onclick="event.stopPropagation(); removePhoto('after')"><i class="fas fa-times"></i></button>
                         </div>
                         <input type="hidden" id="afterPhotoPath" value="">
+                        <input type="hidden" id="afterPhotoFingerprint" value="">
                     </div>
 
                     <div class="form-group full-width">
@@ -1813,6 +1815,58 @@ if ($conn) {
     setInterval(updateHeaderDateTime, 1000);
 
     // ─── Photo Upload ─────────────────────────────────────
+    const DUPLICATE_PHOTO_MSG = 'The same photo cannot be used for both Before and After. Please upload a different image for each field.';
+
+    async function hashFile(file) {
+        const buf = await file.arrayBuffer();
+        const hash = await crypto.subtle.digest('SHA-256', buf);
+        return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function getPhotoFingerprint(type) {
+        const el = document.getElementById(type + 'PhotoFingerprint');
+        return el ? el.value.trim() : '';
+    }
+
+    function setPhotoFingerprint(type, value) {
+        const el = document.getElementById(type + 'PhotoFingerprint');
+        if (el) el.value = value || '';
+    }
+
+    function beforeAfterPhotosAreIdentical() {
+        const beforePath = (document.getElementById('beforePhotoPath')?.value || '').trim();
+        const afterPath = (document.getElementById('afterPhotoPath')?.value || '').trim();
+        if (beforePath !== '' && afterPath !== '' && beforePath === afterPath) {
+            return true;
+        }
+        const beforeFp = getPhotoFingerprint('before');
+        const afterFp = getPhotoFingerprint('after');
+        return beforeFp !== '' && afterFp !== '' && beforeFp === afterFp;
+    }
+
+    async function wouldDuplicatePhoto(type, file) {
+        if (!file) return false;
+        const otherType = type === 'before' ? 'after' : 'before';
+        const otherInput = document.getElementById(otherType + 'PhotoInput');
+        const otherFile = otherInput?.files?.[0];
+        const fileHash = await hashFile(file);
+
+        if (otherFile) {
+            const otherHash = await hashFile(otherFile);
+            if (fileHash === otherHash) return true;
+        }
+
+        const otherFp = getPhotoFingerprint(otherType);
+        if (otherFp !== '' && fileHash === otherFp) return true;
+
+        return false;
+    }
+
+    function rejectDuplicatePhoto(type) {
+        showToast(DUPLICATE_PHOTO_MSG, 'error');
+        removePhoto(type);
+    }
+
     function applyUploadedPhoto(type, path) {
         const area = document.getElementById(type + 'PhotoArea');
         const preview = document.getElementById(type + 'PhotoPreview');
@@ -1826,6 +1880,10 @@ if ($conn) {
         area.querySelector('.upload-text').style.display = 'none';
         area.classList.add('has-image');
         area.querySelector('.remove-photo').style.display = 'flex';
+
+        if (beforeAfterPhotosAreIdentical()) {
+            rejectDuplicatePhoto(type);
+        }
     }
 
     function uploadPhotoFile(type, file) {
@@ -1840,10 +1898,21 @@ if ($conn) {
 
         return fetch(API, { method: 'POST', body: formData })
             .then(r => r.json())
-            .then(data => {
+            .then(async data => {
                 if (area) area.style.opacity = '1';
                 if (data.success) {
                     applyUploadedPhoto(type, data.path);
+                    if (file) {
+                        try {
+                            setPhotoFingerprint(type, await hashFile(file));
+                        } catch (e) {
+                            setPhotoFingerprint(type, '');
+                        }
+                    }
+                    if (beforeAfterPhotosAreIdentical()) {
+                        rejectDuplicatePhoto(type);
+                        return false;
+                    }
                     return true;
                 }
                 showToast(data.message || 'Upload failed', 'error');
@@ -1856,9 +1925,20 @@ if ($conn) {
             });
     }
 
-    function handlePhotoSelect(input, type) {
+    async function handlePhotoSelect(input, type) {
         const file = input.files[0];
         if (!file) return;
+        try {
+            if (await wouldDuplicatePhoto(type, file)) {
+                showToast(DUPLICATE_PHOTO_MSG, 'error');
+                input.value = '';
+                return;
+            }
+        } catch (e) {
+            showToast('Could not verify the selected photo. Please try again.', 'error');
+            input.value = '';
+            return;
+        }
         uploadPhotoFile(type, file);
     }
 
@@ -1870,6 +1950,7 @@ if ($conn) {
         const removeBtn = area.querySelector('.remove-photo');
 
         pathInput.value = '';
+        setPhotoFingerprint(type, '');
         preview.src = '';
         preview.style.display = 'none';
         input.value = '';
@@ -1966,6 +2047,10 @@ if ($conn) {
                 if (resp.data.photo) {
                     applyUploadedPhoto('after', resp.data.photo);
                     count++;
+                }
+                if (beforeAfterPhotosAreIdentical()) {
+                    showToast(DUPLICATE_PHOTO_MSG, 'error');
+                    removePhoto('after');
                 }
                 return count;
             })
@@ -2147,6 +2232,10 @@ if ($conn) {
         // the form only needs to point at them.
         if (data.before_photo) applyUploadedPhoto('before', data.before_photo);
         if (data.photo) applyUploadedPhoto('after', data.photo);
+        if (beforeAfterPhotosAreIdentical()) {
+            showToast(DUPLICATE_PHOTO_MSG, 'error');
+            removePhoto('after');
+        }
     }
 
     function loadApprovedTransparencyPrefill() {
@@ -2209,6 +2298,12 @@ if ($conn) {
 
         const afterPath = document.getElementById('afterPhotoPath').value;
         if (!isEditing && !afterPath) { showToast('After photo is required', 'error'); return; }
+
+        const beforePath = (document.getElementById('beforePhotoPath').value || '').trim();
+        if (beforePath !== '' && afterPath !== '' && beforeAfterPhotosAreIdentical()) {
+            showToast(DUPLICATE_PHOTO_MSG, 'error');
+            return;
+        }
 
         const formData = new FormData();
         formData.append('action', isEditing ? 'update' : 'create');

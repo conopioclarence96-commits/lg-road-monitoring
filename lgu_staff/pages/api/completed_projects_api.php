@@ -47,6 +47,35 @@ $is_admin = ($_SESSION['role'] === 'system_admin');
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
+/**
+ * True when before/after photo paths refer to the same image (same path or same file bytes).
+ */
+function transparency_before_after_photos_identical(string $before_photo, string $after_photo): bool {
+    $before_photo = trim($before_photo);
+    $after_photo = trim($after_photo);
+    if ($before_photo === '' || $after_photo === '') {
+        return false;
+    }
+    if ($before_photo === $after_photo) {
+        return true;
+    }
+    $root = realpath(__DIR__ . '/../../..');
+    if ($root === false) {
+        return false;
+    }
+    $before_path = $root . '/' . ltrim(str_replace('\\', '/', $before_photo), '/');
+    $after_path = $root . '/' . ltrim(str_replace('\\', '/', $after_photo), '/');
+    if (!is_file($before_path) || !is_file($after_path)) {
+        return false;
+    }
+    $before_size = filesize($before_path);
+    $after_size = filesize($after_path);
+    if ($before_size === false || $after_size === false || $before_size !== $after_size) {
+        return false;
+    }
+    return hash_file('sha256', $before_path) === hash_file('sha256', $after_path);
+}
+
 // Ensure table exists
 $conn->query("CREATE TABLE IF NOT EXISTS published_completed_projects (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -367,6 +396,11 @@ switch ($action) {
         $conducted_by = trim($_POST['progress_conducted_by'] ?? '');
         $photo       = trim($_POST['photo'] ?? '');
         $before_photo = trim($_POST['before_photo'] ?? '');
+        if (transparency_before_after_photos_identical($before_photo, $photo)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'The same photo cannot be used for both Before and After. Please upload a different image for each field.']);
+            exit;
+        }
         $is_published = isset($_POST['is_published']) ? 1 : 0;
         $source_report_id = posted_optional_int('source_report_id');
         $source_report_source = posted_optional_string('source_report_source');
@@ -424,6 +458,11 @@ switch ($action) {
         $conducted_by = trim($_POST['progress_conducted_by'] ?? ($existing['progress_conducted_by'] ?? ''));
         $photo       = trim($_POST['photo'] ?? '') !== '' ? trim($_POST['photo']) : $existing['photo'];
         $before_photo = trim($_POST['before_photo'] ?? '') !== '' ? trim($_POST['before_photo']) : $existing['before_photo'];
+        if (transparency_before_after_photos_identical((string)$before_photo, (string)$photo)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'The same photo cannot be used for both Before and After. Please upload a different image for each field.']);
+            exit;
+        }
         $is_published = isset($_POST['is_published']) ? 1 : 0;
         $was_published = !empty($existing['is_published']);
         $existing_source_id = isset($existing['source_report_id']) ? (int)$existing['source_report_id'] : null;

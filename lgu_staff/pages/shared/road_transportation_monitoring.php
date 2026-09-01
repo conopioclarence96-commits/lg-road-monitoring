@@ -6459,6 +6459,57 @@ if ($is_completed_projects_view || $is_system_admin) {
         let selectedFiles = [];
         let updateSelectedFiles = [];
         let updatePreviewCounter = 0;
+        const DUPLICATE_UPDATE_PHOTO_MSG = 'The same photo cannot be uploaded again in this progress update. Please choose a different image.';
+
+        async function hashUpdatePhotoFile(file) {
+            const buf = await file.arrayBuffer();
+            const hash = await crypto.subtle.digest('SHA-256', buf);
+            return Array.from(new Uint8Array(hash)).map(function(b) {
+                return b.toString(16).padStart(2, '0');
+            }).join('');
+        }
+
+        function updatePhotoHashExists(hash) {
+            if (!hash) return false;
+            return updateSelectedFiles.some(function(existing) {
+                return existing._updatePhotoHash === hash;
+            });
+        }
+
+        async function queueUpdatePhotoFiles(newFiles) {
+            var added = 0;
+            for (var i = 0; i < newFiles.length; i++) {
+                var f = newFiles[i];
+                var hash;
+                try {
+                    hash = await hashUpdatePhotoFile(f);
+                } catch (err) {
+                    showNotification('Could not verify the selected photo. Please try again.', 'error');
+                    continue;
+                }
+                if (updatePhotoHashExists(hash)) {
+                    showNotification(DUPLICATE_UPDATE_PHOTO_MSG, 'error');
+                    continue;
+                }
+                f._updatePhotoHash = hash;
+                updateSelectedFiles.push(f);
+                added++;
+            }
+            if (added > 0) {
+                renderUpdateFilePreviews();
+            }
+        }
+
+        function updateQueueHasDuplicatePhotos() {
+            var seen = {};
+            for (var i = 0; i < updateSelectedFiles.length; i++) {
+                var hash = updateSelectedFiles[i]._updatePhotoHash;
+                if (!hash) continue;
+                if (seen[hash]) return true;
+                seen[hash] = true;
+            }
+            return false;
+        }
         
         addPhotosBtn.addEventListener('click', function() {
             imageInput.click();
@@ -7511,6 +7562,11 @@ if ($is_completed_projects_view || $is_system_admin) {
                 return;
             }
 
+            if (updateQueueHasDuplicatePhotos()) {
+                showNotification(DUPLICATE_UPDATE_PHOTO_MSG, 'error');
+                return;
+            }
+
             const btn = document.getElementById('addUpdateSubmitBtn');
             const orig = btn.innerHTML;
             btn.disabled = true;
@@ -7609,14 +7665,10 @@ if ($is_completed_projects_view || $is_system_admin) {
         // File preview for add update modal — maintains persistent upload queue
         document.addEventListener('change', function(e) {
             if (e.target && e.target.matches && e.target.matches('#addUpdateForm input[type="file"]')) {
-                var newFiles = Array.from(e.target.files);
-                newFiles.forEach(function(f) {
-                    if (updateSelectedFiles.indexOf(f) === -1) {
-                        updateSelectedFiles.push(f);
-                    }
-                });
+                var newFiles = Array.from(e.target.files || []);
                 e.target.value = '';
-                renderUpdateFilePreviews();
+                if (!newFiles.length) return;
+                queueUpdatePhotoFiles(newFiles);
             }
         });
 
