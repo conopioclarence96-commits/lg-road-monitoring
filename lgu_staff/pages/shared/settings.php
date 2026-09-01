@@ -11,7 +11,7 @@ require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
 if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ?? '')) {
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -329,16 +329,17 @@ try {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - LGU Road Monitoring</title>
-    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../../css/theme-tokens.css">
-    <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
-    <link rel="stylesheet" href="../../../styles/transition.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
+    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
+    <link rel="stylesheet" href="styles/transition.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         body {

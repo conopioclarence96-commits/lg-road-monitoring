@@ -15,7 +15,7 @@ require_once 'functions.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header('Location: /lg-road-monitoring/lgu_staff/login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -538,46 +538,46 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
                 <div class="nav-section">
                     <div class="nav-section-title">Main</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/lgu/lgu_staff_dashboard.php" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
-                        <li><a href="../pages/admin/admin_dashboard.php" class="nav-link" target="_parent">🔧 Admin Dashboard</a></li>
-                        <li><a href="../pages/admin/manage_accounts.php" class="nav-link" target="_parent">👥 Manage Accounts</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('staff-dashboard')); ?>" class="nav-link" target="_parent">📊 Staff Dashboard</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('admin-dashboard')); ?>" class="nav-link" target="_parent">🔧 Admin Dashboard</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('manage-accounts')); ?>" class="nav-link" target="_parent">👥 Manage Accounts</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Monitoring</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/shared/road_transportation_monitoring.php" class="nav-link" target="_parent">🗺️ Road and Transportation Reporting</a></li>
-                        <li><a href="../pages/admin/verification_monitoring.php" class="nav-link" target="_parent">✅ Verification Reports</a></li>
-                        <li><a href="../pages/admin/report_management.php" class="nav-link" target="_parent">📊 Report Management</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('monitoring')); ?>" class="nav-link" target="_parent">🗺️ Road and Transportation Reporting</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('verification')); ?>" class="nav-link" target="_parent">✅ Verification Reports</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('report-management')); ?>" class="nav-link" target="_parent">📊 Report Management</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Transparency</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/shared/public_transparency.php" class="nav-link" target="_parent">👁️ Public Transparency</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('public-transparency')); ?>" class="nav-link" target="_parent">👁️ Public Transparency</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Reports</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/shared/analytics.php" class="nav-link" target="_parent">📊 Analytics</a></li>
-                        <li><a href="../pages/shared/sla_dashboard.php" class="nav-link" target="_parent">⚖️ SLA Compliance</a></li>
-                        <li><a href="../pages/admin/audit_trail.php" class="nav-link" target="_parent">📋 Audit Trail</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('analytics')); ?>" class="nav-link" target="_parent">📊 Analytics</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('sla-dashboard')); ?>" class="nav-link" target="_parent">⚖️ SLA Compliance</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('audit-trail')); ?>" class="nav-link" target="_parent">📋 Audit Trail</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">System</div>
                     <ul style="list-style: none;">
-                        <li><a href="../pages/shared/notifications.php" class="nav-link" target="_parent">🔔 Notifications</a></li>
-                        <li><a href="../pages/admin/archive.php" class="nav-link" target="_parent">📦 Archive</a></li>
-                        <li><a href="../pages/shared/settings.php" class="nav-link" target="_parent">⚙️ Settings</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('notifications')); ?>" class="nav-link" target="_parent">🔔 Notifications</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('archive')); ?>" class="nav-link" target="_parent">📦 Archive</a></li>
+                        <li><a href="<?php echo htmlspecialchars(rgmap_url('settings')); ?>" class="nav-link" target="_parent">⚙️ Settings</a></li>
                     </ul>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Account</div>
                     <ul style="list-style: none;">
                         <li>
-                            <a href="../logout.php" class="nav-link nav-link-logout" target="_parent">
+                            <a href="<?php echo htmlspecialchars(rgmap_url('logout')); ?>" class="nav-link nav-link-logout" target="_parent">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
                                     <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
                                     <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
@@ -639,7 +639,7 @@ $notification_count = getNotificationCount($user_role, $_SESSION['user_id'] ?? 0
                 <div class="nav-section-title">Account</div>
                 <ul style="list-style: none;">
                     <li>
-                        <a href="../logout.php" class="nav-link nav-link-logout" target="_parent">
+                        <a href="<?php echo htmlspecialchars(rgmap_url('logout')); ?>" class="nav-link nav-link-logout" target="_parent">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-box-arrow-right" viewBox="0 0 16 16">
                                 <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
                                 <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>

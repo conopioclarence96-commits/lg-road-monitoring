@@ -1,0 +1,221 @@
+# RGMap clean public URLs — internal PHP paths are rewritten, not renamed.
+# Works at site root (production) and under /lg-road-monitoring/ (local XAMPP).
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # --- Static assets (relative ../../css from flat clean routes) ---
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/css/(.*)$ [NC]
+    RewriteRule .* lgu_staff/css/%2 [L]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/assets/(.*)$ [NC]
+    RewriteRule .* lgu_staff/assets/%2 [L]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/js/(.*)$ [NC]
+    RewriteRule .* lgu_staff/js/%2 [L]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/uploads/(.*)$ [NC]
+    RewriteRule .* lgu_staff/uploads/%2 [L]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/styles/(.*)$ [NC]
+    RewriteRule .* styles/%2 [L]
+
+    # --- API (fetch ../api/... from flat routes) ---
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/api/(.+\.php)$ [NC]
+    RewriteRule .* lgu_staff/pages/api/%2 [L,QSA]
+
+    # --- GET/HEAD: legacy .php URLs → clean routes (THE_REQUEST runs before file handler) ---
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/login\.php[\s?] [NC]
+    RewriteRule ^ %1/login [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/logout\.php[\s?] [NC]
+    RewriteRule ^ %1/logout [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/change_password\.php[\s?] [NC]
+    RewriteRule ^ %1/change-password [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/forgot_password\.php[\s?] [NC]
+    RewriteRule ^ %1/forgot-password [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/stats\.php[\s?] [NC]
+    RewriteRule ^ %1/stats [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/admin_dashboard\.php[\s?] [NC]
+    RewriteRule ^ %1/admin-dashboard [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/lgu/lgu_staff_dashboard\.php[\s?] [NC]
+    RewriteRule ^ %1/staff-dashboard [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/manage_accounts\.php[\s?] [NC]
+    RewriteRule ^ %1/manage-accounts [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/account_approvals\.php[\s?] [NC]
+    RewriteRule ^ %1/account-approvals [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/create_staff_account\.php[\s?] [NC]
+    RewriteRule ^ %1/create-staff [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/send_registration_link\.php[\s?] [NC]
+    RewriteRule ^ %1/send-registration [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/shared/road_transportation_monitoring\.php[\s?] [NC]
+    RewriteRule ^ %1/monitoring [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/verification_monitoring\.php[\s?] [NC]
+    RewriteRule ^ %1/verification [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/report_management\.php[\s?] [NC]
+    RewriteRule ^ %1/reports [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/shared/completed_projects\.php[\s?] [NC]
+    RewriteRule ^ %1/completed-projects [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/shared/public_transparency\.php[\s?] [NC]
+    RewriteRule ^ %1/public-transparency [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/announcements\.php[\s?] [NC]
+    RewriteRule ^ %1/announcements [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/shared/analytics\.php[\s?] [NC]
+    RewriteRule ^ %1/analytics [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/audit_trail\.php[\s?] [NC]
+    RewriteRule ^ %1/audit-trail [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/shared/notifications\.php[\s?] [NC]
+    RewriteRule ^ %1/notifications [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/schedule_calendar\.php[\s?] [NC]
+    RewriteRule ^ %1/schedule-calendar [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/admin/archive\.php[\s?] [NC]
+    RewriteRule ^ %1/archive [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/lgu/officer_archive\.php[\s?] [NC]
+    RewriteRule ^ %1/officer-archive [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/shared/settings\.php[\s?] [NC]
+    RewriteRule ^ %1/settings [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/lgu/change_info\.php[\s?] [NC]
+    RewriteRule ^ %1/change-info [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/shared/sla_dashboard\.php[\s?] [NC]
+    RewriteRule ^ %1/sla-dashboard [R=301,L]
+
+    RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+    RewriteCond %{THE_REQUEST} \s(/lg-road-monitoring)?/lgu_staff/pages/shared/print_report\.php[\s?] [NC]
+    RewriteRule ^ %1/print-report [R=301,L]
+
+    # --- Skip real files/dirs (POST/AJAX may still hit .php directly) ---
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # --- Clean routes → internal PHP (browser URL stays clean) ---
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/login/?$ [NC]
+    RewriteRule .* lgu_staff/login.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/logout/?$ [NC]
+    RewriteRule .* lgu_staff/logout.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/change-password/?$ [NC]
+    RewriteRule .* lgu_staff/change_password.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/forgot-password/?$ [NC]
+    RewriteRule .* lgu_staff/forgot_password.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/admin-dashboard/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/admin_dashboard.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/staff-dashboard/?$ [NC]
+    RewriteRule .* lgu_staff/pages/lgu/lgu_staff_dashboard.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/manage-accounts/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/manage_accounts.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/account-approvals/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/account_approvals.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/create-staff/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/create_staff_account.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/send-registration/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/send_registration_link.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/monitoring/?$ [NC]
+    RewriteRule .* lgu_staff/pages/shared/road_transportation_monitoring.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/verification/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/verification_monitoring.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/reports/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/report_management.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/completed-projects/?$ [NC]
+    RewriteRule .* lgu_staff/pages/shared/completed_projects.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/public-transparency/?$ [NC]
+    RewriteRule .* lgu_staff/pages/shared/public_transparency.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/announcements/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/announcements.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/analytics/?$ [NC]
+    RewriteRule .* lgu_staff/pages/shared/analytics.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/audit-trail/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/audit_trail.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/notifications/?$ [NC]
+    RewriteRule .* lgu_staff/pages/shared/notifications.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/schedule-calendar/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/schedule_calendar.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/archive/?$ [NC]
+    RewriteRule .* lgu_staff/pages/admin/archive.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/officer-archive/?$ [NC]
+    RewriteRule .* lgu_staff/pages/lgu/officer_archive.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/settings/?$ [NC]
+    RewriteRule .* lgu_staff/pages/shared/settings.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/change-info/?$ [NC]
+    RewriteRule .* lgu_staff/pages/lgu/change_info.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/sla-dashboard/?$ [NC]
+    RewriteRule .* lgu_staff/pages/shared/sla_dashboard.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/stats/?$ [NC]
+    RewriteRule .* lgu_staff/stats.php [L,QSA]
+
+    RewriteCond %{REQUEST_URI} ^(/lg-road-monitoring)?/print-report/?$ [NC]
+    RewriteRule .* lgu_staff/pages/shared/print_report.php [L,QSA]
+</IfModule>

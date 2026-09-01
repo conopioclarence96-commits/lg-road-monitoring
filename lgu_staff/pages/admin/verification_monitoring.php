@@ -9,7 +9,7 @@ require_once __DIR__ . '/verification_panel_pagination.php';
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
-lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
+lgu_enforce_idle_timeout($session_timeout, rgmap_url('login', ['timeout' => 1]));
 
 // NOTE: cimm_reports (the local mock table) has been retired. CIMM reports now
 // come live from the real cimm_verification_reports table, populated by the
@@ -142,7 +142,7 @@ $conn->query("CREATE TABLE IF NOT EXISTS reports (
 // Check if user is logged in and has proper role
 $allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'];
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $allowed_roles)) {
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -662,7 +662,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $audit_stmt->execute();
 
             $_SESSION['verification_message'] = $vm_message;
-            header('Location: ../admin/verification_monitoring.php');
+            header('Location: ' . rgmap_url('verification'));
             exit();
         }
         
@@ -673,7 +673,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('i', $report_id);
             if (!$stmt->execute()) {
                 $_SESSION['verification_message'] = 'Failed to archive report: ' . $conn->error;
-                header('Location: ../admin/verification_monitoring.php');
+                header('Location: ' . rgmap_url('verification'));
                 exit();
             }
             $query = "DELETE FROM $table WHERE id = ?";
@@ -681,11 +681,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('i', $report_id);
             if (!$stmt->execute()) {
                 $_SESSION['verification_message'] = 'Failed to delete report after archiving: ' . $conn->error;
-                header('Location: ../admin/verification_monitoring.php');
+                header('Location: ' . rgmap_url('verification'));
                 exit();
             }
             $_SESSION['verification_message'] = 'Report archived successfully.';
-            header('Location: verification_monitoring.php');
+            header('Location: ' . rgmap_url('verification'));
             exit();
         }
         
@@ -701,7 +701,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 && !vm_lgu_road_cimm_status_is_scheduled($r['cimm_status'] ?? null)
             ) {
                 $_SESSION['verification_message'] = 'This road report cannot be verified yet. It must be scheduled by the external Engineering Office first.';
-                header('Location: ../admin/verification_monitoring.php');
+                header('Location: ' . rgmap_url('verification'));
                 exit();
             }
         }
@@ -797,7 +797,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        header('Location: ../admin/verification_monitoring.php');
+        header('Location: ' . rgmap_url('verification'));
         exit();
     }
 }
@@ -845,7 +845,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
         }
     }
 
-    header('Location: ../admin/verification_monitoring.php');
+    header('Location: ' . rgmap_url('verification'));
     exit();
 }
 
@@ -1380,18 +1380,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verification & Monitoring Reports | LGU Staff</title>
-    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="../../css/theme-tokens.css">
-    <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
-    <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
+    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
+    <link rel="stylesheet" href="styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
     <style>
         * {
             margin: 0;
@@ -8289,7 +8290,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
 
-            fetch('../api/ipms-road-projects-pull.php', { credentials: 'same-origin' })
+            fetch('api/ipms-road-projects-pull.php', { credentials: 'same-origin' })
                 .then(function(r) {
                     return r.json().then(function(j) {
                         return { ok: r.ok, j: j };
@@ -8299,7 +8300,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
                     if (!res.ok || !res.j || !res.j.success) {
                         throw new Error((res.j && res.j.message) || 'Sync failed');
                     }
-                    return fetch('../api/ipms-infra-panel-data.php', { credentials: 'same-origin' });
+                    return fetch('api/ipms-infra-panel-data.php', { credentials: 'same-origin' });
                 })
                 .then(function(r) {
                     return r.json().then(function(j) {
@@ -9038,7 +9039,7 @@ maintenance_team: <?php echo json_encode($ir['maintenance_team'] ?? '—'); ?>,
     <!-- Session timeout data -->
     <script id="sessionTimeoutData" data-timeout="<?php echo $session_timeout; ?>"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="../../js/session-timeout.js"></script>
+    <script src="lgu_staff/js/session-timeout.js"></script>
     <script>
         function updateDateTime() {
             const now = new Date();

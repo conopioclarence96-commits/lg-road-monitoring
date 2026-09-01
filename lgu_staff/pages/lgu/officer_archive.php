@@ -6,7 +6,7 @@ require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
 // Only Road Monitoring Officers may access this personal read-only archive.
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -14,7 +14,7 @@ $user_id = $_SESSION['user_id'];
 $user_role = $_SESSION['role'] ?? '';
 
 if ($user_role !== 'road_monitoring_officer') {
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -204,17 +204,18 @@ if ($archives) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Archive | LGU Staff</title>
-    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../css/theme-tokens.css">
-    <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
-    <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
+    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
+    <link rel="stylesheet" href="styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         body { background: #f6f7fb; min-height: 100vh; color: #0f172a; }
@@ -965,8 +966,8 @@ if ($archives) {
     <!-- Hidden timeline container used by progress-updates export -->
     <div id="updatesTimeline" style="display:none;"></div>
 
-    <script src="../../js/progress-updates.js?v=<?php echo @filemtime(__DIR__ . '/../../js/progress-updates.js') ?: time(); ?>"></script>
-    <script src="../../js/progress-updates-common.js?v=<?php echo @filemtime(__DIR__ . '/../../js/progress-updates-common.js') ?: time(); ?>"></script>
+    <script src="lgu_staff/js/progress-updates.js?v=<?php echo @filemtime(__DIR__ . '/../../js/progress-updates.js') ?: time(); ?>"></script>
+    <script src="lgu_staff/js/progress-updates-common.js?v=<?php echo @filemtime(__DIR__ . '/../../js/progress-updates-common.js') ?: time(); ?>"></script>
 
     <script>
         var archiveData = <?php

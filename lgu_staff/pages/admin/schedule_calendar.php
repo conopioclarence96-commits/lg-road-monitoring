@@ -5,7 +5,7 @@ require_once '../../includes/functions.php';
 require_once __DIR__ . '/../api/schedule_calendar_data.php';
 
 $session_timeout = 30 * 60;
-lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
+lgu_enforce_idle_timeout($session_timeout, rgmap_url('login', ['timeout' => 1]));
 
 $allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor'];
 if (!is_logged_in() || !in_array($_SESSION['role'] ?? '', $allowed_roles, true)) {
@@ -15,7 +15,7 @@ if (!is_logged_in() || !in_array($_SESSION['role'] ?? '', $allowed_roles, true))
         echo json_encode(['success' => false, 'message' => 'Unauthorized']);
         exit;
     }
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -122,17 +122,18 @@ if (($_GET['ajax'] ?? '') === 'calendar_search') {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Schedule Calendar | LGU Staff</title>
-    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../css/theme-tokens.css">
-    <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
-    <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
+    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
+    <link rel="stylesheet" href="styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         body { background: #f5f3ee; min-height: 100vh; color: var(--text-primary); }
@@ -854,7 +855,7 @@ if (($_GET['ajax'] ?? '') === 'calendar_search') {
                 }
 
                 setSearchMessage('Searching…');
-                fetch('schedule_calendar.php?ajax=calendar_search&q=' + encodeURIComponent(query), { credentials: 'same-origin' })
+                fetch(window.location.pathname + '?ajax=calendar_search&q=' + encodeURIComponent(query), { credentials: 'same-origin' })
                     .then(r => r.json())
                     .then(data => {
                         if (!data || !data.success) {
@@ -916,6 +917,8 @@ if (($_GET['ajax'] ?? '') === 'calendar_search') {
                 return new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
             }
 
+            const RM_CAL_REPORTS_URL = <?php echo json_encode(rgmap_url('report-management')); ?>;
+
             const rmCalSourceLabels = {
                 lgu: 'LGU',
                 cimm: 'CIMM',
@@ -927,7 +930,7 @@ if (($_GET['ajax'] ?? '') === 'calendar_search') {
                 let sourceParam = 'lgu_reports';
                 if (src === 'cimm') sourceParam = 'cimm';
                 else if (src === 'ipms') sourceParam = 'maintenance';
-                return 'report_management.php?source=' + encodeURIComponent(sourceParam)
+                return RM_CAL_REPORTS_URL + '?source=' + encodeURIComponent(sourceParam)
                     + '&id=' + encodeURIComponent(item.id)
                     + '&open=1';
             }
@@ -939,7 +942,7 @@ if (($_GET['ajax'] ?? '') === 'calendar_search') {
                 const badge = document.getElementById('rmCalBadge');
                 if (hint) hint.textContent = 'Loading schedule…';
 
-                const url = 'schedule_calendar.php?ajax=calendar_month&year=' + encodeURIComponent(year)
+                const url = window.location.pathname + '?ajax=calendar_month&year=' + encodeURIComponent(year)
                     + '&month=' + encodeURIComponent(month);
                 fetch(url, { credentials: 'same-origin' })
                     .then(r => r.json())
@@ -1067,7 +1070,7 @@ if (($_GET['ajax'] ?? '') === 'calendar_search') {
                 if (sub) sub.textContent = 'Active reports';
                 if (modal) modal.classList.add('active');
 
-                fetch('schedule_calendar.php?ajax=calendar_day&date=' + encodeURIComponent(date), { credentials: 'same-origin' })
+                fetch(window.location.pathname + '?ajax=calendar_day&date=' + encodeURIComponent(date), { credentials: 'same-origin' })
                     .then(r => r.json())
                     .then(data => {
                         if (!data || !data.success) {

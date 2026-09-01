@@ -4,7 +4,7 @@ require_once '../../includes/config.php';
 require_once '../../includes/functions.php';
 
 if (!is_logged_in()) {
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -63,18 +63,19 @@ $assigned_to = $report['assigned_to'] ?? $report['maintenance_team'] ?? 'Unassig
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Print Report - <?php echo htmlspecialchars($report['title']); ?></title>
-    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../css/theme-tokens.css">
-    <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
-    <link rel="stylesheet" href="../../css/enhanced-reports.css">
-    <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
+    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
+    <link rel="stylesheet" href="lgu_staff/css/enhanced-reports.css">
+    <link rel="stylesheet" href="styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
     <style>
         .report-container {
             max-width: 900px;
@@ -239,7 +240,7 @@ $assigned_to = $report['assigned_to'] ?? $report['maintenance_team'] ?? 'Unassig
             <button class="btn btn-primary" onclick="window.print()">
                 <i class="fas fa-print"></i> Print / PDF
             </button>
-            <a href="../admin/report_management.php" class="btn btn-outline">
+            <a href="<?php echo htmlspecialchars(rgmap_url('report-management')); ?>" class="btn btn-outline">
                 <i class="fas fa-list"></i> Report List
             </a>
         </div>
@@ -387,6 +388,6 @@ $assigned_to = $report['assigned_to'] ?? $report['maintenance_team'] ?? 'Unassig
         };
     </script>
 
-    <script src="../../js/page-transition.js"></script>
+    <script src="lgu_staff/js/page-transition.js"></script>
 </body>
 </html>

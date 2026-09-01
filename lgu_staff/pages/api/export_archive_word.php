@@ -6,7 +6,7 @@ require_once __DIR__ . '/progress_archive_helpers.php';
 
 // Only Road Operations Supervisors can export an archived report as Word.
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'road_ops_supervisor') {
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -108,6 +108,7 @@ w_row($rows_html, 'Archived At', $fmtDate($row['created_at'] ?? ''), $e);
 
 $doc_html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
 <meta charset="UTF-8">
 <title>Archived Report</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->

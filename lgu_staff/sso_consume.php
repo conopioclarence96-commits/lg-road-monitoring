@@ -101,5 +101,5 @@ $_SESSION['login_time'] = time();
 $_SESSION['last_activity'] = time();
 lgu_claim_user_session((int)$user['id']);
 
-header('Location: pages/admin/admin_dashboard.php');
+header('Location: ' . rgmap_url('admin-dashboard'));
 exit;

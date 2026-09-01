@@ -22,7 +22,7 @@ require_once __DIR__ . '/../api/ipms_road_projects_data.php';
 
 // Session timeout configuration
 $session_timeout = 30 * 60; // 30 minutes in seconds
-lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
+lgu_enforce_idle_timeout($session_timeout, rgmap_url('login', ['timeout' => 1]));
 
 // Ensure approved_at and rejected_at columns exist in users table
 if ($conn->connect_error === null) {
@@ -44,7 +44,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'system_admin') {
         echo json_encode(['success' => false, 'message' => 'Unauthorized']);
         exit;
     }
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -571,17 +571,18 @@ try {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - Account Management</title>
-    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../../css/theme-tokens.css">
-    <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
-    <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
+    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
+    <link rel="stylesheet" href="styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
@@ -1197,7 +1198,7 @@ try {
                 <div class="card panel-awaiting" data-source="road_transportation_reports">
                     <div class="card-header">
                         <h3 class="card-title"><span class="title-icon"><i class="fas fa-user-plus"></i></span> Awaiting for Assignments</h3>
-                        <a href="report_management.php?assignment=unassigned" class="btn-sm btn-primary"><i class="fas fa-arrow-right"></i> View All</a>
+                        <a href="<?php echo htmlspecialchars(rgmap_url('report-management', ['assignment' => 'unassigned'])); ?>" class="btn-sm btn-primary"><i class="fas fa-arrow-right"></i> View All</a>
                     </div>
                     <div class="table-container">
                         <table>
@@ -1252,7 +1253,7 @@ try {
                 <div class="card panel-announcements">
                     <div class="card-header">
                         <h3 class="card-title"><span class="title-icon"><i class="fas fa-bullhorn"></i></span> Announcements</h3>
-                        <a href="announcements.php" class="btn-sm btn-review" title="Manage announcements"><i class="fas fa-pen"></i> Manage</a>
+                        <a href="<?php echo htmlspecialchars(rgmap_url('announcements')); ?>" class="btn-sm btn-review" title="Manage announcements"><i class="fas fa-pen"></i> Manage</a>
                     </div>
                     <div class="activity-list ann-dash-list">
                         <?php if (empty($dashboard_announcements)): ?>
@@ -1335,7 +1336,7 @@ try {
                                         <div class="widget-title"><?php echo htmlspecialchars($pu['full_name']); ?></div>
                                         <div class="widget-meta"><?php echo htmlspecialchars($pu['role']); ?> &middot; <?php echo date('M d', strtotime($pu['created_at'])); ?></div>
                                     </div>
-                                    <a href="account_approvals.php" class="btn-sm btn-review"><i class="fas fa-clipboard-check"></i> Review</a>
+                                    <a href="<?php echo htmlspecialchars(rgmap_url('account-approvals')); ?>" class="btn-sm btn-review"><i class="fas fa-clipboard-check"></i> Review</a>
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -1362,7 +1363,7 @@ try {
                                         <div class="widget-title"><?php echo htmlspecialchars($hp['title'] ?? 'Untitled'); ?></div>
                                         <div class="widget-meta"><?php echo htmlspecialchars($hp['report_id'] ?? ''); ?> &middot; <?php echo htmlspecialchars($hp_status); ?></div>
                                     </div>
-                                    <a href="report_management.php?focus_report_id=<?php echo (int)($hp['id'] ?? 0); ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i> View</a>
+                                    <a href="<?php echo htmlspecialchars(rgmap_url('report-management', ['focus_report_id' => (int)($hp['id'] ?? 0)])); ?>" class="btn-sm btn-primary"><i class="fas fa-eye"></i> View</a>
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>

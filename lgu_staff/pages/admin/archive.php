@@ -6,7 +6,7 @@ require_once __DIR__ . '/../api/progress_archive_helpers.php';
 
 $archive_allowed_roles = ['system_admin', 'road_ops_supervisor', 'trans_ops_supervisor', 'trans_monitoring_officer', 'road_monitoring_officer'];
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', $archive_allowed_roles, true)) {
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit();
 }
 
@@ -272,7 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     // reports, regardless of the POST parameters they send.
     if (($is_trans_officer || $is_road_officer) && in_array($_POST['action'], ['restore', 'delete_forever'], true)) {
         $_SESSION['archive_message'] = 'You are not authorized to restore or delete archived reports.';
-        header('Location: archive.php');
+        header('Location: ' . rgmap_url('archive'));
         exit();
     }
 
@@ -293,7 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $owner = rgmap_get_report_owner_supervisor($conn, $own_id, $own_type);
                 $owner_name = trim((string)($owner['name'] ?? '')) ?: 'another supervisor';
                 $_SESSION['archive_message'] = "This archived report is managed by {$owner_name}. Only the supervisor who assigned it can restore or delete it.";
-                header('Location: archive.php');
+                header('Location: ' . rgmap_url('archive'));
                 exit();
             }
         }
@@ -312,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         if ($is_trans_role && $archive_table !== 'road_transportation_reports_archive') {
             $_SESSION['archive_message'] = 'You are not authorized to restore this archived report.';
-            header('Location: archive.php');
+            header('Location: ' . rgmap_url('archive'));
             exit();
         }
 
@@ -320,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $row = rgmap_archive_fetch_row($conn, $archive_table, $archive_id);
             if (!$row) {
                 $_SESSION['archive_message'] = 'Restore failed – record not found in archive.';
-                header('Location: archive.php');
+                header('Location: ' . rgmap_url('archive'));
                 exit();
             }
             try {
@@ -330,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 error_log('CIMM restore failed: ' . $e->getMessage());
                 $_SESSION['archive_message'] = 'Restore failed – the CIMM report may already exist.';
             }
-            header('Location: archive.php');
+            header('Location: ' . rgmap_url('archive'));
             exit();
         }
 
@@ -338,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $row = rgmap_archive_fetch_row($conn, $archive_table, $archive_id);
             if (!$row) {
                 $_SESSION['archive_message'] = 'Restore failed – record not found in archive.';
-                header('Location: archive.php');
+                header('Location: ' . rgmap_url('archive'));
                 exit();
             }
             try {
@@ -351,7 +351,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 error_log('IPMS restore failed: ' . $e->getMessage());
                 $_SESSION['archive_message'] = 'Restore failed – the infrastructure project may already exist.';
             }
-            header('Location: archive.php');
+            header('Location: ' . rgmap_url('archive'));
             exit();
         }
 
@@ -361,7 +361,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $row = $arch->get_result()->fetch_assoc();
         if (!$row) {
             $_SESSION['archive_message'] = 'Restore failed – record not found in archive.';
-            header('Location: archive.php');
+            header('Location: ' . rgmap_url('archive'));
             exit();
         }
 
@@ -547,7 +547,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 } else {
                     $_SESSION['archive_message'] = 'Restore failed – the report may already exist.';
                 }
-                header('Location: archive.php');
+                header('Location: ' . rgmap_url('archive'));
                 exit();
             }
 
@@ -563,7 +563,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt->execute(array_values($cimm_fields));
             } catch (Exception $e) {
                 $_SESSION['archive_message'] = 'Restore failed – the CIMM report may already exist.';
-                header('Location: archive.php');
+                header('Location: ' . rgmap_url('archive'));
                 exit();
             }
             if ($stmt->affected_rows > 0) {
@@ -581,7 +581,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } else {
                 $_SESSION['archive_message'] = 'Restore failed – the report may already exist.';
             }
-            header('Location: archive.php');
+            header('Location: ' . rgmap_url('archive'));
             exit();
         }
 
@@ -600,7 +600,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         if (empty($fields)) {
             $_SESSION['archive_message'] = 'Restore failed – could not map the archived record.';
-            header('Location: archive.php');
+            header('Location: ' . rgmap_url('archive'));
             exit();
         }
 
@@ -677,7 +677,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             } else {
                 $_SESSION['archive_message'] = 'Restore failed – the record may already exist.';
             }
-            header('Location: archive.php');
+            header('Location: ' . rgmap_url('archive'));
             exit();
         }
 
@@ -687,7 +687,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $stmt->execute($values);
         } catch (Exception $e) {
             $_SESSION['archive_message'] = 'Restore failed – the report may already exist (duplicate report_id).';
-            header('Location: archive.php');
+            header('Location: ' . rgmap_url('archive'));
             exit();
         }
         if ($stmt->affected_rows > 0) {
@@ -705,7 +705,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             $_SESSION['archive_message'] = 'Restore failed – the record may already exist.';
         }
-        header('Location: archive.php');
+        header('Location: ' . rgmap_url('archive'));
         exit();
     }
     if ($_POST['action'] === 'delete_forever' && isset($_POST['archive_id'])) {
@@ -716,7 +716,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         if ($is_trans_role && $archive_table !== 'road_transportation_reports_archive') {
             $_SESSION['archive_message'] = 'You are not authorized to delete this archived report.';
-            header('Location: archive.php');
+            header('Location: ' . rgmap_url('archive'));
             exit();
         }
         if ($archive_table === 'ipms_road_projects_archive') {
@@ -731,7 +731,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->bind_param('i', $archive_id);
         $stmt->execute();
         $_SESSION['archive_message'] = 'Report permanently deleted.';
-        header('Location: archive.php');
+        header('Location: ' . rgmap_url('archive'));
         exit();
     }
 }
@@ -846,18 +846,19 @@ if (isset($_SESSION['archive_message'])) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Archive | LGU Staff</title>
-    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="../../css/theme-tokens.css">
-    <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
-    <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
+    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
+    <link rel="stylesheet" href="styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
         body { background: #f5f3ee; min-height: 100vh; color: var(--text-primary); }
@@ -2576,8 +2577,8 @@ if (isset($_SESSION['archive_message'])) {
 
     <!-- Shared progress-updates scripts: provide the existing report export
          (exportUpdatesToExcel) and timeline rendering used by report_management.php -->
-    <script src="../../js/progress-updates.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates.js'); ?>"></script>
-    <script src="../../js/progress-updates-common.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates-common.js'); ?>"></script>
+    <script src="lgu_staff/js/progress-updates.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates.js'); ?>"></script>
+    <script src="lgu_staff/js/progress-updates-common.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-updates-common.js'); ?>"></script>
 
     <script>
         var staffChangeArchiveData = <?php echo json_encode($staff_change_archives ?: []); ?>;
@@ -2671,7 +2672,7 @@ if (isset($_SESSION['archive_message'])) {
                 reqHtml += '<div class="scr-compare-item" style="grid-column:1/-1;"><span class="scr-compare-label">New ID Photo</span>' + idPreview + '</div>';
             }
             if (data.profile_picture) {
-                reqHtml += '<div class="scr-compare-item" style="grid-column:1/-1;"><span class="scr-compare-label">New Profile Picture</span><div class="scr-media-preview"><img src="../../uploads/profile_pictures/' + escapeScr(data.profile_picture) + '" alt="New Profile" style="border-radius:50%;"><span class="scr-media-label">New profile picture uploaded</span></div></div>';
+                reqHtml += '<div class="scr-compare-item" style="grid-column:1/-1;"><span class="scr-compare-label">New Profile Picture</span><div class="scr-media-preview"><img src="lgu_staff/uploads/profile_pictures/' + escapeScr(data.profile_picture) + '" alt="New Profile" style="border-radius:50%;"><span class="scr-media-label">New profile picture uploaded</span></div></div>';
             }
             document.getElementById('scrRequestedGrid').innerHTML = reqHtml;
 

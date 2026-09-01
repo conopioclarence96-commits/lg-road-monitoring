@@ -14,10 +14,10 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/public_announcements.php';
 
 $session_timeout = 30 * 60;
-lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
+lgu_enforce_idle_timeout($session_timeout, rgmap_url('login', ['timeout' => 1]));
 
 if (!isset($_SESSION['user_id']) || !is_admin_or_staff_role($_SESSION['role'] ?? '')) {
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit;
 }
 
@@ -75,18 +75,19 @@ if ($conn) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Public Transparency – Completed Projects | LGU Staff</title>
-    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../css/theme-tokens.css">
-    <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
-    <link rel="stylesheet" href="../../css/public_transparency.css?v=<?php echo filemtime(__DIR__ . '/../../css/public_transparency.css'); ?>">
-    <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
+    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
+    <link rel="stylesheet" href="lgu_staff/css/public_transparency.css?v=<?php echo filemtime(__DIR__ . '/../../css/public_transparency.css'); ?>">
+    <link rel="stylesheet" href="styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
     <style>
         body { background: #f7f5f0; min-height: 100vh; color: #1e293b; }
         body.dark-mode { background: var(--bg-page); }
@@ -1794,7 +1795,7 @@ if ($conn) {
     <!-- Toast -->
     <div class="toast" id="toast"></div>
 
-    <script src="../../js/progress-export-import.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-export-import.js'); ?>"></script>
+    <script src="lgu_staff/js/progress-export-import.js?v=<?php echo filemtime(__DIR__ . '/../../js/progress-export-import.js'); ?>"></script>
     <script>
     const API = '../../pages/api/completed_projects_api.php';
     let isEditing = false;

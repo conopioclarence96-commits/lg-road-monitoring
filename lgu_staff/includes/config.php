@@ -2,6 +2,8 @@
 // Enable mysqli error reporting for proper exception handling
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+require_once __DIR__ . '/routes.php';
+
 /**
  * Read a config value from the root .env file (same convention as the
  * TOMTOM_API_KEY / BREVO_* reads below) falling back to a real process env
@@ -470,7 +472,7 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SES
                     echo json_encode(['success' => false, 'message' => 'You must change your password before continuing.']);
                     exit;
                 }
-                header('Location: ' . $mcp_root . '/lgu_staff/change_password.php');
+                header('Location: ' . rgmap_url('change-password'));
                 exit;
             }
         } catch (Exception $e) {
@@ -478,4 +480,6 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && isset($_SES
         }
     }
 }
+
+rgmap_enforce_clean_url();
 ?>

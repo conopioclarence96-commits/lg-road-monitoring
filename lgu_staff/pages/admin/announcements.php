@@ -14,10 +14,10 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/announcements.php';
 
 $session_timeout = 30 * 60;
-lgu_enforce_idle_timeout($session_timeout, '../../login.php?timeout=1');
+lgu_enforce_idle_timeout($session_timeout, rgmap_url('login', ['timeout' => 1]));
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'system_admin') {
-    header('Location: ../../login.php');
+    header('Location: ' . rgmap_url('login'));
     exit;
 }
 
@@ -31,18 +31,19 @@ $with_photo = count(array_filter($announcements, fn($a) => !empty($a['photo'])))
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php require_once __DIR__ . '/../../includes/page_head_base.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Announcements | Admin</title>
-    <link rel="icon" type="image/png" href="../../assets/img/infra-gov-logo.png">
+    <link rel="icon" type="image/png" href="lgu_staff/assets/img/infra-gov-logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../css/theme-tokens.css">
-    <link rel="stylesheet" href="../../css/theme-utilities.css">
-    <link rel="stylesheet" href="../../css/sidebar.css?v=6">
-    <link rel="stylesheet" href="../../css/announcements.css?v=<?php echo @filemtime(__DIR__ . '/../../css/announcements.css') ?: time(); ?>">
-    <link rel="stylesheet" href="../../../styles/transition.css">
-    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="../../css/dark-mode.css"><?php endif; ?>
+    <link rel="stylesheet" href="lgu_staff/css/theme-tokens.css">
+    <link rel="stylesheet" href="lgu_staff/css/theme-utilities.css">
+    <link rel="stylesheet" href="lgu_staff/css/sidebar.css?v=6">
+    <link rel="stylesheet" href="lgu_staff/css/announcements.css?v=<?php echo @filemtime(__DIR__ . '/../../css/announcements.css') ?: time(); ?>">
+    <link rel="stylesheet" href="styles/transition.css">
+    <?php if (!empty($_SESSION['darkmode'])): ?><link rel="stylesheet" href="lgu_staff/css/dark-mode.css"><?php endif; ?>
 </head>
 <body class="announcements-page<?php echo !empty($_SESSION['darkmode']) ? ' dark-mode' : ''; ?>">
     <?php include '../../includes/sidebar_nav.php'; ?>
