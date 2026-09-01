@@ -1,0 +1,6 @@
+# Clean URL rewrites were removed — use direct .php paths under /lgu_staff/.
+# This file replaces the old rewrite rules on production so .php URLs are not
+# redirected to /reports, /monitoring, etc.
+<IfModule mod_rewrite.c>
+    RewriteEngine Off
+</IfModule>
