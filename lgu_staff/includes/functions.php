@@ -1147,6 +1147,137 @@ function rgmap_filter_reports_you_handle($conn, array $reports, $user_id = null,
 }
 
 /**
+ * LGU "Your Reports": first-claim ownership plus reports this supervisor
+ * currently has staff assigned to (active report_assignments.assigned_by).
+ * Matches report_management.php LGU panel filtering.
+ *
+ * @return array
+ */
+function rgmap_filter_lgu_your_reports($conn, array $reports): array {
+    $owned = rgmap_filter_reports_you_handle($conn, $reports);
+    $keys = [];
+    foreach ($owned as $r) {
+        $table = rgmap_report_row_source_table($r);
+        $keys[$table . ':' . (int)($r['id'] ?? 0)] = true;
+    }
+
+    $user_id = (int)($_SESSION['user_id'] ?? 0);
+    if ($user_id > 0) {
+        try {
+            $active = fetch_all(
+                "SELECT report_type, report_id
+                   FROM report_assignments
+                  WHERE assigned_by = ? AND status = 'active'",
+                [$user_id],
+                'i'
+            );
+            foreach ($active as $row) {
+                $keys[(string)($row['report_type'] ?? '') . ':' . (int)($row['report_id'] ?? 0)] = true;
+            }
+        } catch (Exception $e) {
+            error_log('rgmap_filter_lgu_your_reports error: ' . $e->getMessage());
+        }
+    }
+
+    if (empty($keys)) {
+        return [];
+    }
+
+    return array_values(array_filter($reports, static function ($r) use ($keys) {
+        $table = rgmap_report_row_source_table($r);
+        return isset($keys[$table . ':' . (int)($r['id'] ?? 0)]);
+    }));
+}
+
+/**
+ * Whether a road_transportation_reports row belongs on the LGU Monitoring
+ * panel in report_management.php (excludes citizen + infrastructure_issue).
+ */
+function rgmap_is_lgu_monitoring_row(array $row): bool {
+    if (rgmap_report_row_source_table($row) !== 'road_transportation_reports') {
+        return false;
+    }
+    if (strtolower(trim((string)($row['source'] ?? ''))) === 'citizen') {
+        return false;
+    }
+    if ((int)($row['created_by'] ?? -1) === 0) {
+        return false;
+    }
+    if (strtolower(trim((string)($row['report_type'] ?? ''))) === 'infrastructure_issue') {
+        return false;
+    }
+    $report_source = strtolower(trim((string)($row['report_source'] ?? '')));
+    if ($report_source !== '' && $report_source !== 'local') {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Road Supervisor "Your Reports" — same union logic as report_management.php:
+ * - LGU Monitoring: rgmap_filter_lgu_your_reports()
+ * - CIMM + Infrastructure: rgmap_filter_reports_you_handle() (claimed only)
+ * - Excludes citizen reports (not in report_management for road supervisors)
+ *
+ * @return array
+ */
+function rgmap_filter_road_supervisor_your_reports($conn, array $reports): array {
+    if (empty($reports)) {
+        return [];
+    }
+
+    foreach ($reports as &$r) {
+        if (empty($r['_source_table'])) {
+            $r['_source_table'] = rgmap_report_row_source_table($r);
+        }
+    }
+    unset($r);
+
+    $lgu_rows = [];
+    $ownership_rows = [];
+    foreach ($reports as $r) {
+        $table = (string)($r['_source_table'] ?? '');
+        $src = strtolower(trim((string)($r['source'] ?? '')));
+
+        if ($src === 'citizen' || !rgmap_is_lgu_monitoring_row($r)) {
+            if ($table === 'cimm_verification_reports' || $src === 'cimm') {
+                $ownership_rows[] = $r;
+            } elseif ($table === 'ipms_road_projects' || $src === 'infrastructure') {
+                $ownership_rows[] = $r;
+            }
+            continue;
+        }
+        $lgu_rows[] = $r;
+    }
+
+    $allowed = [];
+    foreach (rgmap_filter_lgu_your_reports($conn, $lgu_rows) as $r) {
+        $t = rgmap_report_row_source_table($r);
+        $allowed[$t . ':' . (int)($r['id'] ?? 0)] = true;
+    }
+    foreach (rgmap_filter_reports_you_handle($conn, $ownership_rows) as $r) {
+        $t = rgmap_report_row_source_table($r);
+        $allowed[$t . ':' . (int)($r['id'] ?? 0)] = true;
+    }
+
+    if (empty($allowed)) {
+        return [];
+    }
+
+    return array_values(array_filter($reports, static function ($r) use ($allowed) {
+        $table = rgmap_report_row_source_table($r);
+        $src = strtolower(trim((string)($r['source'] ?? '')));
+        if ($src === 'citizen') {
+            return false;
+        }
+        if ($table === 'road_transportation_reports' && !rgmap_is_lgu_monitoring_row($r)) {
+            return false;
+        }
+        return isset($allowed[$table . ':' . (int)($r['id'] ?? 0)]);
+    }));
+}
+
+/**
  * SQL fragment (no leading AND) limiting archive_rows to reports the user handles.
  * Empty string when the filter should not apply.
  */
@@ -1359,7 +1490,8 @@ function annotate_report_assignment_status($conn, array &$reports) {
             ?? ($owners[$key]['name'] ?? '');
         $owner_id = (int)($owners[$key]['id'] ?? ($assigned[$key]['assigner_id'] ?? 0));
         $rr['assigned_by_id'] = $owner_id;
-        $rr['display_supervisor_id'] = (int)($assigned[$key]['assigner_id'] ?? $owner_id);
+        // Display id for Supervisor badge — active assignment only (not first-claim owner).
+        $rr['display_supervisor_id'] = (int)($assigned[$key]['assigner_id'] ?? 0);
         if ($role === 'system_admin' || !$is_supervisor) {
             $rr['can_manage_as_supervisor'] = true;
         } else {

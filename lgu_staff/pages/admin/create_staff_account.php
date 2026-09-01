@@ -695,7 +695,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-group">
                             <label for="role">Role</label>
                             <select id="role" name="role">
-                                <option value="lgu_staff">LGU Staff</option>
                                 <option value="system_admin">Admin</option>
                                 <option value="road_monitoring_officer">Road Monitoring Officer</option>
                                 <option value="road_ops_supervisor">Road Ops Supervisor</option>
@@ -847,7 +846,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 `;
                 document.getElementById('createForm').reset();
                 document.getElementById('department').value = 'LGU Services';
-                document.getElementById('role').value = 'lgu_staff';
+                document.getElementById('role').selectedIndex = 0;
                 resetFileDisplay();
             } else {
                 container.innerHTML = `
@@ -1067,7 +1066,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function resetForm() {
             document.getElementById('createForm').reset();
             document.getElementById('department').value = 'LGU Services';
-            document.getElementById('role').value = 'lgu_staff';
+            document.getElementById('role').selectedIndex = 0;
             document.getElementById('alertContainer').innerHTML = '';
             resetFileDisplay();
             closeAdminOtpModal();

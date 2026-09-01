@@ -62,7 +62,7 @@ if ($completed_only) {
 }
 
 // Helper function to get recent submissions with pagination
-function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false) {
+function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false, $skip_active_assignment_filter = false) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
@@ -117,6 +117,7 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         // 1. LGU Monitoring (Road & Transportation Monitoring) + Citizen reports
         $reports = array_merge($reports, $fetch(
             "SELECT t.id, t.report_id, t.title, t.report_type, t.report_category,
+                    t.report_source, t.created_by,
                     CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
                     t.status, t.priority, t.severity, t.created_at, t.completed_at, t.description,
                     t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
@@ -204,8 +205,9 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
         }
 
         // Live monitoring list: hide Unassigned reports until an officer is assigned.
-        // Completed Projects (completed_only=1) is unchanged.
-        if (!$completed_only) {
+        // Completed Projects (completed_only=1) is unchanged. Road Supervisor
+        // "Your Reports" uses ownership filtering instead (report_management.php).
+        if (!$completed_only && !$skip_active_assignment_filter) {
             $reports = filter_reports_with_active_assignment($conn, $reports);
         }
 
@@ -242,9 +244,20 @@ function getRecentSubmissionsPaginated($offset, $limit, $status_filter = 'all', 
 }
 
 try {
-    $fetch_limit = $your_reports_only ? max(200, $offset + $limit) : $limit;
+    $road_supervisor_your_reports = $your_reports_only && $is_road_supervisor;
+    $fetch_limit = $road_supervisor_your_reports ? max(500, $offset + $limit) : ($your_reports_only ? max(200, $offset + $limit) : $limit);
     $fetch_offset = $your_reports_only ? 0 : $offset;
-    $reports = getRecentSubmissionsPaginated($fetch_offset, $fetch_limit, $status_filter, $type_filter, $transport_only, $road_only, $assigned_to_user_id, $completed_only);
+    $reports = getRecentSubmissionsPaginated(
+        $fetch_offset,
+        $fetch_limit,
+        $status_filter,
+        $type_filter,
+        $transport_only,
+        $road_only,
+        $assigned_to_user_id,
+        $completed_only,
+        $road_supervisor_your_reports
+    );
 
     // Display-only Assignment Status (Assigned / Unassigned) for each report,
     // read live from report_assignments so it reflects Assign/Unassign changes.
@@ -260,6 +273,8 @@ try {
             }
             unset($__orr);
             $reports = filter_reports_assigned_to_user($conn, $reports, $officer_uid);
+        } elseif ($is_road_supervisor) {
+            $reports = rgmap_filter_road_supervisor_your_reports($conn, $reports);
         } else {
             $reports = rgmap_filter_reports_you_handle($conn, $reports);
         }

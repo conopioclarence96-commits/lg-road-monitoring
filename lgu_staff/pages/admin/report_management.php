@@ -1164,6 +1164,9 @@ function rm_should_annotate_assignments(string $user_role, bool $is_road_supervi
 }
 
 function rm_assignment_supervisor_label(array $report): string {
+    if (($report['assignment_status'] ?? 'unassigned') !== 'assigned') {
+        return 'Unassigned';
+    }
     $name = trim((string)($report['assigned_by'] ?? ''));
     return $name !== '' ? $name : 'Unassigned';
 }
@@ -1240,8 +1243,9 @@ function rm_render_assignment_name_badge(string $label, string $kind, int $user_
 function rm_render_assignment_column_cells(array $report): void {
     $supervisor = rm_assignment_supervisor_label($report);
     $officer = rm_assignment_officer_label($report);
-    $supervisor_id = (int)($report['display_supervisor_id'] ?? $report['assigned_by_id'] ?? 0);
-    $officer_id = (int)($report['assignment_officer_id'] ?? 0);
+    $is_assigned = (($report['assignment_status'] ?? 'unassigned') === 'assigned');
+    $supervisor_id = $is_assigned ? (int)($report['display_supervisor_id'] ?? 0) : 0;
+    $officer_id = $is_assigned ? (int)($report['assignment_officer_id'] ?? 0) : 0;
     ?>
                             <td><?php rm_render_assignment_name_badge($supervisor, 'supervisor', $supervisor_id); ?></td>
                             <td><?php rm_render_assignment_name_badge($officer, 'officer', $officer_id); ?></td>
@@ -2031,46 +2035,6 @@ $is_system_admin = ($user_role === 'system_admin');
 $is_transport_supervisor = ($user_role === 'trans_ops_supervisor');
 
 /**
- * LGU "Your Reports": first-claim ownership plus reports this supervisor
- * currently has staff assigned to (active report_assignments.assigned_by).
- */
-function rm_filter_lgu_your_reports($conn, array $reports): array {
-    $owned = rgmap_filter_reports_you_handle($conn, $reports);
-    $keys = [];
-    foreach ($owned as $r) {
-        $table = rgmap_report_row_source_table($r);
-        $keys[$table . ':' . (int)($r['id'] ?? 0)] = true;
-    }
-
-    $user_id = (int)($_SESSION['user_id'] ?? 0);
-    if ($user_id > 0) {
-        try {
-            $active = fetch_all(
-                "SELECT report_type, report_id
-                   FROM report_assignments
-                  WHERE assigned_by = ? AND status = 'active'",
-                [$user_id],
-                'i'
-            );
-            foreach ($active as $row) {
-                $keys[(string)($row['report_type'] ?? '') . ':' . (int)($row['report_id'] ?? 0)] = true;
-            }
-        } catch (Exception $e) {
-            error_log('rm_filter_lgu_your_reports error: ' . $e->getMessage());
-        }
-    }
-
-    if (empty($keys)) {
-        return [];
-    }
-
-    return array_values(array_filter($reports, static function ($r) use ($keys) {
-        $table = rgmap_report_row_source_table($r);
-        return isset($keys[$table . ':' . (int)($r['id'] ?? 0)]);
-    }));
-}
-
-/**
  * When "Your Reports" is on: annotate ownership, keep only handled rows, then
  * re-paginate in PHP. Expects $all_rows already loaded (large batch, offset 0).
  */
@@ -2083,7 +2047,7 @@ function rm_paginate_your_reports($conn, array $all_rows, int $page, int $per_pa
     unset($r);
     annotate_report_assignment_status($conn, $all_rows);
     $filtered = $lgu_panel
-        ? rm_filter_lgu_your_reports($conn, $all_rows)
+        ? rgmap_filter_lgu_your_reports($conn, $all_rows)
         : rgmap_filter_reports_you_handle($conn, $all_rows);
     $total = count($filtered);
     $page = max(1, $page);
@@ -2530,29 +2494,35 @@ if ($your_reports_only) {
         $cimm_pagination_html = '';
     }
     if (!empty($infra_reports_list)) {
-        // Keep projects this supervisor owns, plus unassigned/newly approved
-        // IPMS rows (claimable — same rule as can_manage_as_supervisor).
-        $owned_infra = rgmap_filter_reports_you_handle($conn, $infra_reports_list);
-        $owned_ids = [];
-        foreach ($owned_infra as $oir) {
-            $owned_ids[(int)($oir['id'] ?? 0)] = true;
-        }
-        $unassigned_infra = array_values(array_filter(
-            $infra_reports_list,
-            static function ($r) {
-                return ((int)($r['assigned_by_id'] ?? 0) <= 0)
-                    && strtolower((string)($r['assignment_status'] ?? 'unassigned')) === 'unassigned';
+        if ($is_road_supervisor) {
+            // Road Supervisor "Your Reports": only projects this supervisor
+            // has claimed (first assigner). Unassigned rows stay in All Reports.
+            $infra_reports_list = rgmap_filter_reports_you_handle($conn, $infra_reports_list);
+        } else {
+            // Non–Road Supervisor roles (e.g. system_admin): keep owned plus
+            // unassigned claimable IPMS rows — unchanged from prior behavior.
+            $owned_infra = rgmap_filter_reports_you_handle($conn, $infra_reports_list);
+            $owned_ids = [];
+            foreach ($owned_infra as $oir) {
+                $owned_ids[(int)($oir['id'] ?? 0)] = true;
             }
-        ));
-        $merged = $owned_infra;
-        foreach ($unassigned_infra as $uir) {
-            $uid = (int)($uir['id'] ?? 0);
-            if ($uid > 0 && empty($owned_ids[$uid])) {
-                $merged[] = $uir;
-                $owned_ids[$uid] = true;
+            $unassigned_infra = array_values(array_filter(
+                $infra_reports_list,
+                static function ($r) {
+                    return ((int)($r['assigned_by_id'] ?? 0) <= 0)
+                        && strtolower((string)($r['assignment_status'] ?? 'unassigned')) === 'unassigned';
+                }
+            ));
+            $merged = $owned_infra;
+            foreach ($unassigned_infra as $uir) {
+                $uid = (int)($uir['id'] ?? 0);
+                if ($uid > 0 && empty($owned_ids[$uid])) {
+                    $merged[] = $uir;
+                    $owned_ids[$uid] = true;
+                }
             }
+            $infra_reports_list = $merged;
         }
-        $infra_reports_list = $merged;
     }
 }
 
@@ -4034,6 +4004,32 @@ if ($focus_id > 0) {
             font-size: 18px;
             border: 2px solid transparent;
         }
+        #assignUserModal .usr-avatar-has-photo {
+            overflow: hidden;
+            padding: 0;
+        }
+        #assignUserModal .usr-avatar-has-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        #assignUserModal .usr-avatar-has-photo .usr-avatar-fallback { display: none; }
+        #assignUserModal .usr-avatar-has-photo img.is-broken { display: none; }
+        #assignUserModal .usr-avatar-has-photo img.is-broken + .usr-avatar-fallback { display: inline-flex; }
+        #assignUserModal .asm-selected-avatar-has-photo {
+            overflow: hidden;
+            padding: 0;
+        }
+        #assignUserModal .asm-selected-avatar-has-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        #assignUserModal .asm-selected-avatar-has-photo .usr-avatar-fallback { display: none; }
+        #assignUserModal .asm-selected-avatar-has-photo img.is-broken { display: none; }
+        #assignUserModal .asm-selected-avatar-has-photo img.is-broken + .usr-avatar-fallback { display: inline-flex; }
         #assignUserModal .usr-meta { flex: 1; min-width: 0; }
         #assignUserModal .usr-name {
             font-weight: 700;
@@ -7904,20 +7900,48 @@ if ($focus_id > 0) {
             return { roleIcon, roleColor };
         }
 
-        function updateAssignSelectedBar(name, roleLabel) {
+        function buildStaffAvatarMarkup(user) {
+            const { roleIcon, roleColor } = staffRoleVisual(user.role);
+            const style = 'background:' + roleColor + '15;color:' + roleColor + ';border-color:' + roleColor + '30;';
+            if (user.profile_picture_url) {
+                return '<div class="usr-avatar usr-avatar-has-photo" style="' + style + '">' +
+                    '<img src="' + escapeHtml(user.profile_picture_url) + '" alt="" onerror="this.classList.add(\'is-broken\')">' +
+                    '<i class="fas ' + roleIcon + ' usr-avatar-fallback"></i></div>';
+            }
+            return '<div class="usr-avatar" style="' + style + '"><i class="fas ' + roleIcon + '"></i></div>';
+        }
+
+        function updateAssignSelectedBar(name, roleLabel, profilePictureUrl, userRole) {
             const bar = document.getElementById('assignSelectedBar');
             const nameEl = document.getElementById('assignSelectedName');
             const roleEl = document.getElementById('assignSelectedRole');
+            const avatarEl = bar ? bar.querySelector('.asm-selected-avatar') : null;
             if (!bar || !nameEl || !roleEl) return;
             if (!name) {
                 bar.hidden = true;
                 nameEl.textContent = '—';
                 roleEl.textContent = '';
+                if (avatarEl) {
+                    avatarEl.classList.remove('asm-selected-avatar-has-photo');
+                    avatarEl.innerHTML = '<i class="fas fa-user"></i>';
+                }
                 return;
             }
             bar.hidden = false;
             nameEl.textContent = name;
             roleEl.textContent = roleLabel || '';
+            if (avatarEl) {
+                if (profilePictureUrl) {
+                    const visual = staffRoleVisual(userRole || '');
+                    avatarEl.classList.add('asm-selected-avatar-has-photo');
+                    avatarEl.innerHTML =
+                        '<img src="' + escapeHtml(profilePictureUrl) + '" alt="" onerror="this.classList.add(\'is-broken\')">' +
+                        '<i class="fas ' + visual.roleIcon + ' usr-avatar-fallback"></i>';
+                } else {
+                    avatarEl.classList.remove('asm-selected-avatar-has-photo');
+                    avatarEl.innerHTML = '<i class="fas fa-user"></i>';
+                }
+            }
         }
 
         function clearAssignSelection() {
@@ -8194,19 +8218,17 @@ if ($focus_id > 0) {
                                 userDiv.dataset.userId = String(user.id);
                                 userDiv.dataset.userName = user.full_name || '';
                                 userDiv.dataset.userRole = user.role || '';
+                                userDiv.dataset.profilePictureUrl = user.profile_picture_url || '';
                                 userDiv.onclick = function() {
                                     if (!user.already_assigned) {
                                         selectUserForAssignment(user.id, user.full_name, user.role, userDiv);
                                     }
                                 };
 
-                                const { roleIcon, roleColor } = staffRoleVisual(user.role);
                                 const roleLabel = formatStaffRoleLabel(user.role);
 
                                 userDiv.innerHTML = `
-                                    <div class="usr-avatar" style="background:${roleColor}15;color:${roleColor};border-color:${roleColor}30;">
-                                        <i class="fas ${roleIcon}"></i>
-                                    </div>
+                                    ${buildStaffAvatarMarkup(user)}
                                     <div class="usr-meta">
                                         <div class="usr-name">${escapeHtml(user.full_name)}</div>
                                         <div class="usr-email"><i class="fas fa-envelope"></i> ${escapeHtml(user.email)}</div>
@@ -8240,7 +8262,8 @@ if ($focus_id > 0) {
             }
 
             selectedUserForAssignment = { id: userId, name: userName, role: userRole || '' };
-            updateAssignSelectedBar(userName, formatStaffRoleLabel(userRole));
+            const profilePictureUrl = (cardEl && cardEl.dataset.profilePictureUrl) ? cardEl.dataset.profilePictureUrl : '';
+            updateAssignSelectedBar(userName, formatStaffRoleLabel(userRole), profilePictureUrl, userRole);
 
             const usersList = document.getElementById('availableUsersList');
             Array.from(usersList.children).forEach(child => {

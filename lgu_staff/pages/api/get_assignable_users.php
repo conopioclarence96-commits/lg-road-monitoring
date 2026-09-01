@@ -56,7 +56,7 @@ if ($report_category === 'road') {
 // Get users with the target role
 $users = [];
 try {
-    $stmt = $conn->prepare("SELECT id, full_name, email, role FROM users WHERE role = ? ORDER BY full_name ASC");
+    $stmt = $conn->prepare("SELECT id, full_name, email, role, profile_picture FROM users WHERE role = ? ORDER BY full_name ASC");
     $stmt->bind_param("s", $target_role);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -123,6 +123,20 @@ try {
             $already_assigned = false;
         }
         $row['already_assigned'] = $already_assigned;
+
+        // Same profile_picture storage/display as settings.php (users.profile_picture).
+        $profile_picture = trim((string)($row['profile_picture'] ?? ''));
+        $row['profile_picture_url'] = '';
+        if ($profile_picture !== ''
+            && strpos($profile_picture, '..') === false
+            && strpos($profile_picture, '/') === false
+            && strpos($profile_picture, '\\') === false) {
+            $profile_fs = __DIR__ . '/../../uploads/profile_pictures/' . $profile_picture;
+            if (is_file($profile_fs)) {
+                $row['profile_picture_url'] = '../../uploads/profile_pictures/' . rawurlencode($profile_picture);
+            }
+        }
+        unset($row['profile_picture']);
         
         $users[] = $row;
     }

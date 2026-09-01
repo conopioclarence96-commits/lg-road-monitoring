@@ -246,7 +246,7 @@ function getEnhancedStats() {
 //     in-progress on Active Monitoring (same as transport/CIMM), or
 //     status = 'completed' on Completed Projects
 //   - CIMM reports whose verification_status is 'Verified'
-function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false) {
+function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter = 'all', $transport_only = false, $road_only = false, $assigned_to_user_id = null, $completed_only = false, $skip_active_assignment_filter = false) {
     global $conn;
     $reports = [];
     if (!$conn) return $reports;
@@ -316,6 +316,7 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         //    state, matching report_management.php's LGU panel.
         $reports = array_merge($reports, $fetch(
             "SELECT t.id, t.report_id, t.title, t.report_type, t.report_category,
+                    t.report_source, t.created_by,
                     CASE WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source,
                     t.status, t.priority, t.severity, t.created_at, t.completed_at, t.description,
                     t.latitude, t.longitude, t.location, t.reporter_name, t.attachments, t.image_path,
@@ -403,8 +404,9 @@ function getRecentSubmissions($limit = 10, $status_filter = 'all', $type_filter 
         }
 
         // Live monitoring list: hide Unassigned reports until an officer is assigned.
-        // Completed Projects keeps the full finalized set.
-        if (!$completed_only) {
+        // Completed Projects keeps the full finalized set. Road Supervisor "Your
+        // Reports" uses ownership filtering instead (matches report_management.php).
+        if (!$completed_only && !$skip_active_assignment_filter) {
             $reports = filter_reports_with_active_assignment($conn, $reports);
         }
 
@@ -1144,10 +1146,11 @@ if ($focus_report_id > 0 && !$is_completed_projects_view) {
 $alerts = getActiveAlerts();
 $roads = getRoadStatus();
 $enhanced_stats = getEnhancedStats();
-$recent_fetch_limit = $your_reports_only ? 200 : 10;
+$recent_fetch_limit = ($your_reports_only && $is_road_supervisor) ? 500 : ($your_reports_only ? 200 : 10);
 // Officers: "Your Reports" filters to reports assigned to this user_id.
 // Default for officers/supervisors is Your Reports when mine is absent.
 $officer_assigned_user_id = null;
+$road_supervisor_your_reports = $your_reports_only && $is_road_supervisor;
 if ($your_reports_only
     && ($is_road_monitoring_officer || $is_transport_monitoring_officer)) {
     $officer_assigned_user_id = (int)($_SESSION['user_id'] ?? 0);
@@ -1159,7 +1162,8 @@ $recent_reports = getRecentSubmissions(
     $is_transport_supervisor,
     $is_road_only_role,
     $officer_assigned_user_id,
-    $is_completed_projects_view
+    $is_completed_projects_view,
+    $road_supervisor_your_reports
 );
 
 if ($focus_report_id > 0) {
@@ -1272,8 +1276,11 @@ if (!empty($your_reports_only)) {
         }
         unset($__orr);
         $recent_reports = filter_reports_assigned_to_user($conn, $recent_reports, $officer_uid);
+    } elseif ($is_road_supervisor) {
+        // Road Supervisor: same filter union as report_management.php.
+        $recent_reports = rgmap_filter_road_supervisor_your_reports($conn, $recent_reports);
     } else {
-        // Supervisors / admin: ownership via first assigned_by (unchanged).
+        // Other supervisors / admin: ownership via first assigned_by (unchanged).
         $recent_reports = rgmap_filter_reports_you_handle($conn, $recent_reports);
     }
     $recent_reports = array_slice($recent_reports, 0, 10);
