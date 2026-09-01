@@ -856,7 +856,11 @@ if (isset($_SESSION['verification_message'])) {
 }
 
 // Get filter parameters
-$status_filter = $_GET['status'] ?? 'all';
+$status_filter = $_GET['status'] ?? 'pending';
+$allowed_status_filters = ['all', 'pending', 'validated', 'awaiting', 'scheduled'];
+if (!in_array($status_filter, $allowed_status_filters, true)) {
+    $status_filter = 'pending';
+}
 $source_filter = $_GET['source'] ?? 'all';
 
 $panel_per_page = 10;
@@ -6539,7 +6543,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     <div>
                         <label class="form-label" for="statusFilter">Status Filter</label>
                         <select class="filter-select" id="statusFilter" onchange="filterReports()">
-                            <option value="pending" selected>Pending</option>
+                            <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Statuses</option>
+                            <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                            <option value="validated" <?php echo $status_filter === 'validated' ? 'selected' : ''; ?>>Validated</option>
+                            <option value="awaiting" <?php echo $status_filter === 'awaiting' ? 'selected' : ''; ?>>Awaiting</option>
+                            <option value="scheduled" <?php echo $status_filter === 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
                         </select>
                     </div>
                     <div>
@@ -6674,11 +6682,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     'maintenance' => 'Infrastructure',
                                 ];
 
-                                $lgu_filter_status = 'pending';
-                                if (in_array($report['status'], ['approved', 'completed'])) $lgu_filter_status = 'approved';
-                                elseif (in_array($report['status'], ['cancelled'])) $lgu_filter_status = 'rejected';
+                                $lgu_filter_status = vm_lgu_row_status_filter_key($report);
                             ?>
-                            <tr data-id="<?php echo (int)$report['id']; ?>" data-report-id="<?php echo (int)$report['id']; ?>" data-status="<?php echo $lgu_filter_status; ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>">
+                            <tr data-id="<?php echo (int)$report['id']; ?>" data-report-id="<?php echo (int)$report['id']; ?>" data-status="<?php echo htmlspecialchars($lgu_filter_status, ENT_QUOTES); ?>" data-source="<?php echo htmlspecialchars($report['source']); ?>" data-report-category="<?php echo htmlspecialchars((string)($report_category ?? ''), ENT_QUOTES); ?>">
                                 <td>
                                     <div class="lgu-action-group">
                                         <button class="lgu-action-btn" onclick="viewLguReport(<?php echo $report['id']; ?>)">
@@ -7198,25 +7204,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         })();
 
         // Apply status filter to hide/show rows in LGU, CIMM and Infra panels on page load
-        (function() {
-            var urlParams = new URLSearchParams(window.location.search);
-            var statusFilter = urlParams.get('status') || 'all';
-            // This page only lists pending reports now, so any stale
-            // non-pending status value (e.g. from an old URL) must not hide
-            // every row.
-            if (statusFilter !== 'pending') statusFilter = 'all';
-            if (statusFilter === 'all') return;
+        var vmRoadStatusFilters = ['validated', 'awaiting', 'scheduled'];
 
-            var tableIds = ['lguTable', 'deptTable', 'infraTable'];
-            tableIds.forEach(function(tableId) {
-                var table = document.getElementById(tableId);
-                if (table) {
+        function applyStatusFilter() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var statusFilter = urlParams.get('status') || 'pending';
+            var stf = document.getElementById('statusFilter');
+            if (stf && stf.querySelector('option[value="' + statusFilter + '"]')) {
+                stf.value = statusFilter;
+            }
+
+            if (statusFilter === 'all') {
+                ['lguTable', 'deptTable', 'infraTable', 'citizenTable'].forEach(function(tableId) {
+                    var table = document.getElementById(tableId);
+                    if (!table) return;
                     table.querySelectorAll('tbody tr[data-status]').forEach(function(row) {
-                        row.style.display = (row.getAttribute('data-status') === statusFilter) ? '' : 'none';
+                        row.style.display = '';
                     });
-                }
+                });
+                return;
+            }
+
+            ['lguTable', 'deptTable', 'infraTable', 'citizenTable'].forEach(function(tableId) {
+                var table = document.getElementById(tableId);
+                if (!table) return;
+                table.querySelectorAll('tbody tr[data-status]').forEach(function(row) {
+                    if (vmRoadStatusFilters.indexOf(statusFilter) !== -1 && tableId !== 'lguTable') {
+                        row.style.display = 'none';
+                        return;
+                    }
+                    row.style.display = (row.getAttribute('data-status') === statusFilter) ? '' : 'none';
+                });
             });
-        })();
+        }
+
+        applyStatusFilter();
 
         // Deep-link focus: ?focus_report_id= / ?source= + ?id= from a
         // notification "View" button. The backend already verified the record
@@ -7450,6 +7472,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 if (panel === 'lgu' && data.rows_json) mergePanelRowsJson(lguDataMap, data.rows_json);
                 if (panel === 'citizen' && data.rows_json) mergePanelRowsJson(citizenDataMap, data.rows_json);
                 if (panel === 'cimm' && data.rows_json) mergePanelRowsJson(cimmDataMap, data.rows_json);
+
+                applyStatusFilter();
 
                 const hist = new URL(window.location.href);
                 hist.searchParams.set(panel + '_page', String(data.page || pageNum));

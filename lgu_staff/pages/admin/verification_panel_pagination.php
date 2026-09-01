@@ -13,6 +13,44 @@ function vm_lgu_road_cimm_status_is_scheduled(?string $cimm_status): bool {
     return strtolower(trim((string)($cimm_status ?? ''))) === 'scheduled';
 }
 
+/**
+ * Status Filter key for LGU monitoring table rows (data-status).
+ * Road reports use the CIMM display statuses shown in the Status column;
+ * Transportation and other sources keep pending / approved / rejected.
+ */
+function vm_lgu_row_status_filter_key(array $report): string {
+    $category = strtolower(trim((string)($report['report_category'] ?? '')));
+    $localStatus = strtolower(trim((string)($report['status'] ?? '')));
+    $cimmLc = strtolower(trim((string)($report['cimm_status'] ?? '')));
+
+    if ($category === 'road') {
+        if ($cimmLc === 'approved') {
+            return 'validated';
+        }
+        if (in_array($cimmLc, ['pending', 'scheduled'], true)) {
+            return 'scheduled';
+        }
+        $can_verify = canVerifyReport($category, $report['report_source'] ?? null);
+        $pending_ext_verify = ($cimmLc !== 'scheduled')
+            && !$can_verify
+            && $localStatus === 'pending';
+        if ($pending_ext_verify || $cimmLc === 'awaiting engineer') {
+            return 'awaiting';
+        }
+        if ($cimmLc !== '') {
+            return 'road-other';
+        }
+    }
+
+    if (in_array($localStatus, ['approved', 'completed'], true)) {
+        return 'approved';
+    }
+    if ($localStatus === 'cancelled') {
+        return 'rejected';
+    }
+    return 'pending';
+}
+
 function vm_panel_page(string $panel): int {
     return max(1, (int)($_GET[$panel . '_page'] ?? 1));
 }
@@ -341,11 +379,9 @@ function vm_render_lgu_panel_tbody(array $reports, bool $is_transport_supervisor
                 && vm_lgu_road_cimm_status_is_scheduled($report['cimm_status'] ?? null)
                 && ($report['status'] ?? '') === 'pending');
 
-        $lgu_filter_status = 'pending';
-        if (in_array($report['status'], ['approved', 'completed'], true)) $lgu_filter_status = 'approved';
-        elseif (in_array($report['status'], ['cancelled'], true)) $lgu_filter_status = 'rejected';
+        $lgu_filter_status = vm_lgu_row_status_filter_key($report);
         ?>
-        <tr data-id="<?php echo (int)$report['id']; ?>" data-report-id="<?php echo (int)$report['id']; ?>" data-status="<?php echo $lgu_filter_status; ?>" data-source="<?php echo htmlspecialchars((string)($report['source'] ?? ''), ENT_QUOTES); ?>">
+        <tr data-id="<?php echo (int)$report['id']; ?>" data-report-id="<?php echo (int)$report['id']; ?>" data-status="<?php echo htmlspecialchars($lgu_filter_status, ENT_QUOTES); ?>" data-source="<?php echo htmlspecialchars((string)($report['source'] ?? ''), ENT_QUOTES); ?>" data-report-category="<?php echo htmlspecialchars((string)($report_category ?? ''), ENT_QUOTES); ?>">
             <td>
                 <div class="lgu-action-group">
                     <button class="lgu-action-btn" onclick="viewLguReport(<?php echo (int)$report['id']; ?>)">
