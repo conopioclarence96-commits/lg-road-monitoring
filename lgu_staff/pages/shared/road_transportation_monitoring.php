@@ -737,26 +737,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $street_name = sanitize_input($_POST['street_name'] ?? '');
 
                 // Combine issue type and specific type for detailed reporting.
-                // report_category (Road vs Transportation) is independent of the
-                // specific issue type — any issue type may be paired with either.
+                // report_category follows the selected Report type (Road / Transportation).
                 $full_issue_type = $specific_type ? $specific_type : $issue_type;
                 $report_category = ($issue_type === 'roads') ? 'road' : 'transportation';
                 $report_source = 'local';
 
                 $allowed_categories = ['roads', 'transportation'];
-                $allowed_issue_types = [
+                $transport_issue_types = [
                     'traffic_jam', 'accident', 'road_closure', 'traffic_light_outage',
                     'congestion', 'parking_violation', 'public_transport_issue',
                     'vehicle_breakdown', 'traffic_sign_issue',
+                ];
+                $road_issue_types = [
                     'potholes', 'road_damage', 'cracks', 'erosion', 'flooding',
                     'debris', 'shoulder_damage', 'marking_fade',
                 ];
+                $allowed_issue_types = array_merge($transport_issue_types, $road_issue_types);
                 if (!in_array($issue_type, $allowed_categories, true)) {
                     echo json_encode(['success' => false, 'message' => 'Please select Road or Transportation as the report type.']);
                     exit;
                 }
                 if ($specific_type === '' || !in_array($specific_type, $allowed_issue_types, true)) {
                     echo json_encode(['success' => false, 'message' => 'Please select a valid issue type.']);
+                    exit;
+                }
+                if ($issue_type === 'transportation' && !in_array($specific_type, $transport_issue_types, true)) {
+                    echo json_encode(['success' => false, 'message' => 'Please select a Transportation issue type.']);
+                    exit;
+                }
+                if ($issue_type === 'roads' && !in_array($specific_type, $road_issue_types, true)) {
+                    echo json_encode(['success' => false, 'message' => 'Please select a Road issue type.']);
                     exit;
                 }
 
@@ -4850,27 +4860,23 @@ if ($is_completed_projects_view || $is_system_admin) {
                         <label id="specific-type-label" for="specific-type" style="display: none; margin-top: 10px;">Issue type</label>
                         <select id="specific-type" name="specific_type" style="display: none;" required>
                             <option value="">— Select issue type —</option>
-                            <optgroup id="transportation-options" label="Transportation Issues">
-                                <option value="traffic_jam">Traffic Jam</option>
-                                <option value="accident">Vehicle Accident</option>
-                                <option value="road_closure">Road Closure</option>
-                                <option value="traffic_light_outage">Traffic Light Outage</option>
-                                <option value="congestion">Heavy Congestion</option>
-                                <option value="parking_violation">Illegal Parking</option>
-                                <option value="public_transport_issue">Public Transport Issue</option>
-                                <option value="vehicle_breakdown">Vehicle Breakdown</option>
-                                <option value="traffic_sign_issue">Traffic Sign Issue</option>
-                            </optgroup>
-                            <optgroup id="roads-options" label="Road Issues">
-                                <option value="potholes">Potholes</option>
-                                <option value="road_damage">Road Damage</option>
-                                <option value="cracks">Road Cracks</option>
-                                <option value="erosion">Road Erosion</option>
-                                <option value="flooding">Street Flooding</option>
-                                <option value="debris">Road Debris</option>
-                                <option value="shoulder_damage">Shoulder Damage</option>
-                                <option value="marking_fade">Faded Road Markings</option>
-                            </optgroup>
+                            <option value="traffic_jam" data-category="transportation">Traffic Jam</option>
+                            <option value="accident" data-category="transportation">Vehicle Accident</option>
+                            <option value="road_closure" data-category="transportation">Road Closure</option>
+                            <option value="traffic_light_outage" data-category="transportation">Traffic Light Outage</option>
+                            <option value="congestion" data-category="transportation">Heavy Congestion</option>
+                            <option value="parking_violation" data-category="transportation">Illegal Parking</option>
+                            <option value="public_transport_issue" data-category="transportation">Public Transport Issue</option>
+                            <option value="vehicle_breakdown" data-category="transportation">Vehicle Breakdown</option>
+                            <option value="traffic_sign_issue" data-category="transportation">Traffic Sign Issue</option>
+                            <option value="potholes" data-category="roads">Potholes</option>
+                            <option value="road_damage" data-category="roads">Road Damage</option>
+                            <option value="cracks" data-category="roads">Road Cracks</option>
+                            <option value="erosion" data-category="roads">Road Erosion</option>
+                            <option value="flooding" data-category="roads">Street Flooding</option>
+                            <option value="debris" data-category="roads">Road Debris</option>
+                            <option value="shoulder_damage" data-category="roads">Shoulder Damage</option>
+                            <option value="marking_fade" data-category="roads">Faded Road Markings</option>
                         </select>
                         <label for="severity">Severity</label>
                         <select id="severity" name="severity" required>
@@ -6351,17 +6357,29 @@ if ($is_completed_projects_view || $is_system_admin) {
             }, 30000);
         }
 
-        // Show all road + transportation issue types once a report type is chosen.
-        // Report type (Road / Transportation) does not filter the issue-type list.
+        // Filter Issue Type options to match the selected Report type.
+        // (Hiding optgroups via CSS does not work in most browsers.)
         function updateSpecificTypes() {
             const issueType = document.getElementById('issue-type').value;
             const specificTypeLabel = document.getElementById('specific-type-label');
             const specificType = document.getElementById('specific-type');
+            const category = issueType === 'roads' ? 'roads'
+                : (issueType === 'transportation' ? 'transportation' : '');
 
-            if (issueType === 'transportation' || issueType === 'roads') {
+            specificType.querySelectorAll('option[data-category]').forEach(function (opt) {
+                const match = category !== '' && opt.getAttribute('data-category') === category;
+                opt.hidden = !match;
+                opt.disabled = !match;
+            });
+
+            if (category) {
                 specificTypeLabel.style.display = 'block';
                 specificType.style.display = 'block';
                 specificType.required = true;
+                const selected = specificType.options[specificType.selectedIndex];
+                if (selected && selected.disabled) {
+                    specificType.value = '';
+                }
             } else {
                 specificTypeLabel.style.display = 'none';
                 specificType.style.display = 'none';
