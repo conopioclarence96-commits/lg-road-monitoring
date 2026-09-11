@@ -417,6 +417,69 @@ function getTimeAgoShort($datetime) {
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
+    <style>
+        html.dark-mode {
+            --dm-base: #090d16;
+            --dm-surface-1: #0f1420;
+            --dm-surface-2: #141a2a;
+            --dm-surface-3: #1b2337;
+            --dm-elevated: #1e293b;
+            --dm-elevated-hover: #222d45;
+            --dm-navbar: #0d1322;
+            --dm-footer: #0c1220;
+            --dm-border: rgba(47, 66, 98, 0.45);
+            --dm-border-strong: rgba(60, 90, 120, 0.55);
+            --dm-text-primary: #f1f5f9;
+            --dm-text-body: #cbd5e1;
+            --dm-text-secondary: #94a3b8;
+            --dm-text-tertiary: #64748b;
+            --dm-accent: #21a1d6;
+            --dm-accent-hover: #49b9e7;
+            --dm-accent-strong: #1381b6;
+            --dm-accent-focus: rgba(33, 161, 214, 0.35);
+            --dm-accent-glow: rgba(33, 161, 214, 0.55);
+            --dm-shadow-sm: 0 2px 6px rgba(9, 13, 22, 0.35);
+            --dm-shadow-base: 0 4px 12px rgba(9, 13, 22, 0.45);
+            --dm-shadow-elevated: 0 8px 24px rgba(9, 13, 22, 0.55);
+            --dm-shadow-strong: 0 20px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(60, 90, 120, 0.2);
+            --dm-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            --dm-glow-hover: 0 0 0 1px var(--dm-accent-focus), 0 6px 20px rgba(9, 13, 22, 0.5);
+            --dm-icon-glow: 0 0 10px var(--dm-accent-glow);
+        }
+        html.dark-mode .qc-navbar {
+            background: var(--dm-navbar) !important;
+            border-bottom: 1px solid var(--dm-border) !important;
+            box-shadow: var(--dm-shadow-base);
+        }
+        html.dark-mode .qc-navbar.scrolled {
+            box-shadow: var(--dm-shadow-strong);
+        }
+        html.dark-mode .qc-brand-text strong {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .qc-brand-text small {
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .qc-nav-links .nav-link {
+            color: var(--dm-text-body) !important;
+        }
+        html.dark-mode .qc-nav-links .nav-link:hover,
+        html.dark-mode .qc-nav-links .nav-link.active {
+            color: var(--dm-text-primary) !important;
+            background-color: var(--dm-accent-focus);
+        }
+        html.dark-mode .hamburger-btn {
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+        }
+        html.dark-mode .hamburger-btn .bar {
+            background: #fff !important;
+        }
+        html.dark-mode .hamburger-btn:hover {
+            background: rgba(255, 255, 255, 0.15) !important;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-light fixed-top qc-navbar">
@@ -840,6 +903,9 @@ function getTimeAgoShort($datetime) {
         });
         <?php endif; ?>
     </script>
+
+    <!-- Custom JavaScript -->
+    <script src="assets/js/main.js?v=<?php echo (int)(@filemtime(__DIR__ . '/assets/js/main.js') ?: time()); ?>"></script>
 
     <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>

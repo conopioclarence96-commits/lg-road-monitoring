@@ -36,9 +36,13 @@ $__hm_is_index = (basename($_SERVER['PHP_SELF'] ?? '') === 'index.php');
     <div class="side-menu-group">
         <h5 class="menu-label"><i class="fas fa-tasks"></i> Programs</h5>
         <ul class="side-menu-nav">
+            <li><a href="<?php echo $__hm_is_index ? '#updates' : $__hm_base . 'road-updates.php'; ?>"><i class="fas fa-road"></i> Road</a></li>
             <li><a href="<?php echo $__hm_base; ?>road-updates.php"><i class="fas fa-newspaper"></i> Road Updates</a></li>
             <li><a href="<?php echo $__hm_base; ?>public_reports.php"><i class="fas fa-map-marked-alt"></i> Road Status</a></li>
             <li><a href="<?php echo $__hm_base; ?>infrastructure_projects.php"><i class="fas fa-hard-hat"></i> Infrastructure Projects</a></li>
+            <?php if ($__hm_is_index): ?>
+                <li class="menu-divider" aria-hidden="true"></li>
+            <?php endif; ?>
             <li><a href="<?php echo $__hm_base; ?>transportation-updates.php"><i class="fas fa-bus"></i> Transportation Updates</a></li>
             <li><a href="<?php echo $__hm_base; ?>transportation-status.php"><i class="fas fa-traffic-light"></i> Transportation Status</a></li>
             <li><a href="<?php echo $__hm_base; ?>public_transparency_view.php"><i class="fas fa-balance-scale"></i> Transparency</a></li>

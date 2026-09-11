@@ -1825,16 +1825,24 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             background: #fff;
             border: 1px solid var(--qc-card-border);
             border-radius: 14px;
-            padding: 28px 22px;
-            text-align: center;
+            height: 100%;
+            perspective: 1000px;
+            perspective-origin: 50% 50%;
+            overflow: hidden;
+            transition: box-shadow 0.22s ease, border-color 0.22s ease;
+        }
+        .transport-card .transport-card-inner {
+            width: 100%;
             height: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+            text-align: center;
+            padding: 28px 22px;
+            transform-style: preserve-3d;
+            transition: transform 0.1s ease-out;
         }
         .transport-card:hover {
-            transform: translateY(-5px);
             box-shadow: 0 12px 28px rgba(17,82,114,0.12);
             border-color: var(--qc-primary-300);
         }
@@ -3048,10 +3056,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             border: 1px solid var(--dm-border) !important;
             border-radius: 14px;
             box-shadow: var(--dm-shadow-base);
-            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+            transition: box-shadow 0.22s ease, border-color 0.22s ease;
         }
         html.dark-mode .transport-card:hover {
-            transform: translateY(-5px);
             box-shadow: var(--dm-glow-hover);
             border-color: rgba(33, 161, 214, 0.4) !important;
         }
@@ -3070,6 +3077,17 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             background: var(--dm-accent) !important;
             color: var(--dm-base) !important;
             border-color: var(--dm-accent) !important;
+        }
+
+        /* Transport card — clean dark mode without neon glow */
+        html.dark-mode .transport-card:hover {
+            box-shadow: var(--dm-shadow-elevated);
+        }
+        html.dark-mode .transport-card .transport-icon {
+            box-shadow: var(--dm-shadow-sm);
+        }
+        html.dark-mode .transport-card .transport-icon i {
+            filter: none;
         }
 
         html.dark-mode .report-form {
@@ -4103,20 +4121,24 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             <div class="row g-4">
                 <div class="col-lg-6 col-md-6">
                     <div class="transport-card">
-                        <span class="transport-badge badge-bus"><i class="fas fa-check-circle me-1"></i> Free Ride</span>
-                        <div class="transport-icon"><i class="fas fa-bus"></i></div>
-                        <h5>QC Bus Service</h5>
-                        <p>8 free routes covering major corridors including Quezon Ave, Commonwealth, and EDSA. Low-floor, PWD-friendly units with fixed 20-min intervals.</p>
-                        <button type="button" class="transport-card-link" data-bs-toggle="modal" data-bs-target="#qcBusRoutesModal" aria-label="View QC Bus Routes details"><i class="fas fa-bus"></i> View QC Bus Routes</button>
+                        <div class="transport-card-inner">
+                            <span class="transport-badge badge-bus"><i class="fas fa-check-circle me-1"></i> Free Ride</span>
+                            <div class="transport-icon"><i class="fas fa-bus"></i></div>
+                            <h5>QC Bus Service</h5>
+                            <p>8 free routes covering major corridors including Quezon Ave, Commonwealth, and EDSA. Low-floor, PWD-friendly units with fixed 20-min intervals.</p>
+                            <button type="button" class="transport-card-link" data-bs-toggle="modal" data-bs-target="#qcBusRoutesModal" aria-label="View QC Bus Routes details"><i class="fas fa-bus"></i> View QC Bus Routes</button>
+                        </div>
                     </div>
                 </div>
                 <div class="col-lg-6 col-md-6">
                     <div class="transport-card">
-                        <span class="transport-badge badge-jeep"><i class="fas fa-route me-1"></i> Rationalized</span>
-                        <div class="transport-icon"><i class="fas fa-shuttle-van"></i></div>
-                        <h5>Jeepney Rationalization</h5>
-                        <p>City-approved consolidated routes with designated stops. Real-time dispatch from QC EDSA Carousel &amp; Litex terminals.</p>
-                        <button type="button" class="transport-card-link" data-bs-toggle="modal" data-bs-target="#jeepneyRoutesModal" aria-label="View Jeepney Lines details"><i class="fas fa-shuttle-van"></i> View Jeepney Lines</button>
+                        <div class="transport-card-inner">
+                            <span class="transport-badge badge-jeep"><i class="fas fa-route me-1"></i> Rationalized</span>
+                            <div class="transport-icon"><i class="fas fa-shuttle-van"></i></div>
+                            <h5>Jeepney Rationalization</h5>
+                            <p>City-approved consolidated routes with designated stops. Real-time dispatch from QC EDSA Carousel &amp; Litex terminals.</p>
+                            <button type="button" class="transport-card-link" data-bs-toggle="modal" data-bs-target="#jeepneyRoutesModal" aria-label="View Jeepney Lines details"><i class="fas fa-shuttle-van"></i> View Jeepney Lines</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -4666,6 +4688,48 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 if(tBtn && tBtn.classList.contains('is-off')) tBtn.click();
             }, 450);
         };
+
+        // 1. Public Transportation Widget — 3D tilt effect
+        var transportCards = document.querySelectorAll('.transport-card');
+        transportCards.forEach(function(card){
+            var inner = card.querySelector('.transport-card-inner');
+            if(!inner) return;
+
+            var MAX_TILT = 10;      // max rotation in degrees
+            var LIFT_Z = 20;         // translateZ for parallax lift (px)
+            var SCALE = 1.03;        // subtle scale on hover
+
+            function clamp(v, min, max){ return v < min ? min : (v > max ? max : v); }
+
+            function onMouseMove(e){
+                var rect = card.getBoundingClientRect();
+                var x = e.clientX - rect.left;
+                var y = e.clientY - rect.top;
+                var cx = rect.width / 2;
+                var cy = rect.height / 2;
+
+                var tiltY = clamp(((x - cx) / cx) * MAX_TILT, -MAX_TILT, MAX_TILT);
+                var tiltX = clamp(((cy - y) / cy) * MAX_TILT, -MAX_TILT, MAX_TILT);
+
+                inner.style.transform =
+                    'rotateX(' + tiltX + 'deg) ' +
+                    'rotateY(' + tiltY + 'deg) ' +
+                    'translateZ(' + LIFT_Z + 'px) ' +
+                    'scale(' + SCALE + ')';
+            }
+
+            function resetTilt(){
+                inner.style.transform = 'rotateX(0) rotateY(0) translateZ(0) scale(1)';
+            }
+
+            card.addEventListener('mousemove', onMouseMove);
+            card.addEventListener('mouseleave', resetTilt);
+            card.addEventListener('mouseenter', function(){
+                if(inner.style.transform === '' || inner.style.transform.indexOf('translateZ') === -1){
+                    inner.style.transform = 'translateZ(' + LIFT_Z + 'px) scale(' + SCALE + ')';
+                }
+            });
+        });
     })();
     </script>
 

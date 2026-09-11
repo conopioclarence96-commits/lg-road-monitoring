@@ -186,6 +186,12 @@
         padding: 4px 0 10px;
     }
 
+    .side-menu-nav li.menu-divider {
+        height: 1px;
+        margin: 10px 28px;
+        background: rgba(255, 255, 255, 0.18);
+    }
+
     .side-menu-footer {
         padding: 20px 24px;
         border-top: 1px solid rgba(255,255,255,0.15);
