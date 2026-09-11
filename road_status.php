@@ -41,18 +41,13 @@ if ($conn) {
 
         // 1. LGU Roads Reports — transportation + maintenance submitted by
         // road_ops_supervisor users (created_by references users.id; the
-        // INNER JOIN enforces the role)
+        // INNER JOIN enforces the role). These are displayed regardless of
+        // their status (pending / in-progress / completed).
         if ($type_filter === 'lgu') {
             // Transportation reports
             $t_conditions = [];
             $t_params   = [];
             $t_types    = '';
-
-            if ($status_filter !== 'all') {
-                $t_conditions[] = "t.status = ?";
-                $t_params[]     = $status_filter;
-                $t_types       .= "s";
-            }
             $t_conditions[] = "u.role = ?";
             $t_params[]     = 'road_ops_supervisor';
             $t_types       .= "s";
@@ -72,11 +67,6 @@ if ($conn) {
             $m_conditions = [];
             $m_params   = [];
             $m_types    = '';
-            if ($status_filter !== 'all') {
-                $m_conditions[] = "m.status = ?";
-                $m_params[]     = $status_filter;
-                $m_types       .= "s";
-            }
             $m_conditions[] = "u.role = ?";
             $m_params[]     = 'road_ops_supervisor';
             $m_types       .= "s";
@@ -134,9 +124,14 @@ if ($conn) {
             }
         }
 
-        // Apply status filter as a safeguard (LGU roads reports already filtered in SQL)
+        // Apply status filter only to CIMM / infrastructure sources. LGU roads
+        // reports (road_ops_supervisor role) always display regardless of status.
         if ($status_filter !== 'all') {
             $all_reports = array_values(array_filter($all_reports, function($r) use ($status_filter) {
+                $lgu_sources = ['lgu', 'maintenance'];
+                if (in_array($r['source'] ?? '', $lgu_sources, true)) {
+                    return true;
+                }
                 return ($r['status'] ?? '') === $status_filter;
             }));
         }
