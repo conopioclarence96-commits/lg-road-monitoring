@@ -1,4 +1,5 @@
 <?php
+session_start();
 require_once 'lgu_staff/includes/config.php';
 require_once 'lgu_staff/includes/functions.php';
 
@@ -688,38 +689,6 @@ function getTimeAgoShort($datetime) {
             url.searchParams.set('status', status);
             url.searchParams.set('type', type);
             window.location.href = url.toString();
-        }
-
-        function openDetail(data) {
-            currentData = data;
-            document.getElementById('modalTitle').textContent = data.title;
-            
-            const descEl = document.getElementById('modalDescription');
-            descEl.textContent = data.description || 'No description available.';
-            
-            const infoEl = document.getElementById('modalInfo');
-            const statusClass = (data.status === 'pending' ? 'bg-warning' : data.status === 'in-progress' ? 'bg-info' : data.status === 'completed' ? 'bg-success' : 'bg-secondary');
-            const priorityClass = (data.priority === 'high' || data.priority === 'critical') ? 'bg-danger' : data.priority === 'medium' ? 'bg-warning' : 'bg-success';
-            
-            infoEl.innerHTML = `
-                <div class="info-row"><span class="label"><i class="fas fa-flag"></i> Status</span><span class="value"><span class="badge ${statusClass}">${data.status}</span></span></div>
-                <div class="info-row"><span class="label"><i class="fas fa-exclamation-circle"></i> Priority</span><span class="value"><span class="badge ${priorityClass}">${data.priority}</span></span></div>
-                <div class="info-row"><span class="label"><i class="fas fa-map-marker-alt"></i> Location</span><span class="value">${data.location}</span></div>
-                <div class="info-row"><span class="label"><i class="fas fa-building"></i> Department</span><span class="value">${data.department}</span></div>
-                <div class="info-row"><span class="label"><i class="fas fa-tag"></i> Type</span><span class="value">${data.source}</span></div>
-                <div class="info-row"><span class="label"><i class="fas fa-clock"></i> Reported</span><span class="value">${data.reported_date || 'Not specified'}</span></div>
-                <div class="info-row"><span class="label"><i class="fas fa-user"></i> Reporter</span><span class="value">${data.reporter}</span></div>
-                <div class="info-row"><span class="label"><i class="fas fa-tachometer-alt"></i> Severity</span><span class="value">${data.severity}</span></div>
-            `;
-
-            if (data.has_photo) {
-                document.getElementById('modalPhoto').style.display = 'block';
-            } else {
-                document.getElementById('modalPhoto').style.display = 'none';
-            }
-
-            const modal = new bootstrap.Modal(document.getElementById('reportModal'));
-            modal.show();
         }
 
         document.querySelectorAll('.report-card').forEach(card => {
