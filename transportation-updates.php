@@ -82,8 +82,15 @@ function transport_updates_badge_class($type) {
     return isset($map[$key]) ? $map[$key] : 'advisory';
 }
 
+$current_user_role = $_SESSION['role'] ?? '';
+
+// The transportation reports section is restricted to the Transportation
+// Operations Supervisor role only; every other role (and logged-out
+// visitors) must not see the reports.
+$can_view_transport_updates = ($current_user_role === 'trans_ops_supervisor');
+
 $transport_updates = [];
-if ($database_available && $conn) {
+if ($can_view_transport_updates && $database_available && $conn) {
     try {
         $stmt = $conn->prepare("DESCRIBE road_transportation_reports");
         $stmt->execute();
@@ -340,6 +347,7 @@ if ($database_available && $conn) {
 
     <section class="section">
         <div class="container">
+            <?php if ($can_view_transport_updates): ?>
             <div class="row g-4">
                 <?php if (!empty($transport_updates)): ?>
                     <?php foreach ($transport_updates as $update): ?>
@@ -412,6 +420,15 @@ if ($database_available && $conn) {
                     <i class="fas fa-list"></i> View All Transportation Reports
                 </a>
             </div>
+            <?php else: ?>
+                <div class="col-12">
+                    <div class="alert alert-secondary text-center">
+                        <i class="fas fa-lock fa-3x mb-3"></i>
+                        <h5>Access Restricted</h5>
+                        <p class="mb-0">Transportation reports are only available to authorized personnel.</p>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
     </section>
 
