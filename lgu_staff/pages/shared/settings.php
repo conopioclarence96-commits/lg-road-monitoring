@@ -167,21 +167,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error_msg = 'No valid email is on file for this account. Contact an administrator.';
         } else {
-            $sendResult = handle_settings_password_otp($email);
-            if (empty($sendResult['success'])) {
-                $error_msg = $sendResult['message'] ?? 'Failed to send the verification code. Please try again.';
-                unset($_SESSION['settings_pw_change']);
-            } else {
-                $_SESSION['settings_pw_change'] = [
-                    'user_id' => (int)$user_id,
-                    'mode' => $mode,
-                    'step' => 'otp',
-                    'email' => $email,
-                    'otp_verified' => false,
-                    'started_at' => time(),
-                ];
-                $success_msg = $sendResult['message'] ?? 'A verification code was sent to your email. Enter it to continue.';
-            }
+            handle_settings_password_otp($email);
+            $_SESSION['settings_pw_change'] = [
+                'user_id' => (int)$user_id,
+                'mode' => $mode,
+                'step' => 'otp',
+                'email' => $email,
+                'otp_verified' => false,
+                'started_at' => time(),
+            ];
+            $success_msg = 'A verification code was sent to your email. Enter it to continue.';
         }
     }
 
@@ -198,12 +193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($email === '') {
                 $error_msg = 'Unable to resend the verification code.';
             } else {
-                $sendResult = handle_settings_password_otp($email);
-                if (empty($sendResult['success'])) {
-                    $error_msg = $sendResult['message'] ?? 'Failed to resend the verification code. Please try again.';
-                } else {
-                    $success_msg = 'A new verification code was sent to your email.';
-                }
+                handle_settings_password_otp($email);
+                $success_msg = 'A new verification code was sent to your email.';
             }
         }
     }
