@@ -2,22 +2,24 @@
 /**
  * Road Status — Quezon City Road &amp; Transportation Department.
  *
- * Public transparency module showing road condition / status entries
- * submitted by Road Operations Supervisors (transportation + maintenance
- * reports). All data-access logic, helper functions and interactive
- * components (detail modal, progress timeline, lightbox) are preserved.
+ * Public transparency module with three report sources: CIMM reports, LGU
+ * roads reports (transportation + maintenance submitted by Road Operations
+ * Supervisors) and infrastructure projects. All data-access logic, helper
+ * functions and interactive components (detail modal, progress timeline,
+ * lightbox) are preserved.
  */
 session_start();
 require_once 'lgu_staff/includes/config.php';
 require_once 'lgu_staff/includes/functions.php';
 
 $status_filter = isset($_GET['status']) ? sanitize_input($_GET['status']) : 'all';
-$type_filter = isset($_GET['type']) ? sanitize_input($_GET['type']) : 'all';
+$type_filter = isset($_GET['type']) ? sanitize_input($_GET['type']) : 'lgu';
 
-// Legacy query parameters from links that predate the Road Status module
-// (e.g. public_reports.php?type=cimm) fall back to showing every road report.
-if (in_array($type_filter, ['cimm', 'infrastructure'], true)) {
-    $type_filter = 'all';
+// Supported sources: CIMM reports, LGU roads reports, infrastructure projects.
+// Legacy / unexpected values (e.g. 'all', 'transportation', 'maintenance')
+// fall back to the LGU roads reports source.
+if (!in_array($type_filter, ['cimm', 'lgu', 'infrastructure'], true)) {
+    $type_filter = 'lgu';
 }
 $focus_report_id = isset($_GET['report_id']) ? intval($_GET['report_id']) : 0;
 
@@ -26,9 +28,22 @@ $stats = ['total_reports' => 0, 'problem_roads' => 0, 'under_construction' => 0,
 
 if ($conn) {
     try {
-        // 1. Transportation Reports — only those submitted by road_ops_supervisor users
-        // (created_by references users.id; the INNER JOIN enforces the role)
-        if ($type_filter === 'all' || $type_filter === 'transportation') {
+        // Status derivation for CIMM reports (mirrors the LGU monitoring module)
+        $cimm_status_sql = "CASE
+            WHEN resolution_status = 'Completed' THEN 'completed'
+            WHEN resolution_status IN ('In Progress', 'Pending Completion') THEN 'in-progress'
+            WHEN resolution_status = 'Cancelled' THEN 'cancelled'
+            WHEN resolution_status = 'Rejected' THEN 'cancelled'
+            WHEN resolution_status IN ('Scheduled', 'Approved') THEN 'pending'
+            WHEN approval_status = 'Rejected' THEN 'cancelled'
+            ELSE 'pending'
+        END";
+
+        // 1. LGU Roads Reports — transportation + maintenance submitted by
+        // road_ops_supervisor users (created_by references users.id; the
+        // INNER JOIN enforces the role)
+        if ($type_filter === 'lgu') {
+            // Transportation reports
             $t_conditions = [];
             $t_params   = [];
             $t_types    = '';
@@ -52,10 +67,8 @@ if ($conn) {
 
             $transport = !empty($t_params) ? fetch_all($t_query, $t_params, $t_types) : fetch_all($t_query);
             $all_reports = array_merge($all_reports, $transport ?: []);
-        }
 
-        // 2. Maintenance Reports — only those submitted by road_ops_supervisor users
-        if ($type_filter === 'all' || $type_filter === 'maintenance') {
+            // Maintenance reports
             $m_conditions = [];
             $m_params   = [];
             $m_types    = '';
@@ -78,7 +91,50 @@ if ($conn) {
             $all_reports = array_merge($all_reports, $maintenance ?: []);
         }
 
-        // Apply status filter as a safeguard (transport/maintenance already filtered in SQL)
+        // 2. Infrastructure Projects (ipms_road_projects)
+        if ($type_filter === 'infrastructure') {
+            $has_ipms = fetch_one("SHOW TABLES LIKE 'ipms_road_projects'");
+            if ($has_ipms) {
+                $i_query = "SELECT project_id AS id,
+                        CAST(project_id AS CHAR) AS report_id,
+                        project_name AS title,
+                        COALESCE(NULLIF(road_status, ''), 'No description') AS description,
+                        COALESCE(NULLIF(road_name, ''), project_name) AS location,
+                        start_lat AS latitude, start_lng AS longitude,
+                        priority, budget,
+                        CASE
+                            WHEN LOWER(road_status) LIKE '%completed%' THEN 'completed'
+                            WHEN LOWER(road_status) LIKE '%progress%' THEN 'in-progress'
+                            ELSE 'pending'
+                        END AS status,
+                        created_at, 'infrastructure' AS source
+                    FROM ipms_road_projects
+                    WHERE status = 'approved'
+                    ORDER BY created_at DESC LIMIT 50";
+                $infra = fetch_all($i_query);
+                $all_reports = array_merge($all_reports, $infra ?: []);
+            }
+        }
+
+        // 3. CIMM Reports (cimm_verification_reports)
+        if ($type_filter === 'cimm') {
+            $has_cimm = fetch_one("SHOW TABLES LIKE 'cimm_verification_reports'");
+            if ($has_cimm) {
+                $c_query = "SELECT id, reference_code AS report_id, infrastructure AS title,
+                        issue AS description, location,
+                        coord_lat AS latitude, coord_lng AS longitude,
+                        priority, {$cimm_status_sql} AS status,
+                        COALESCE(submitted_at, verified_at, synced_at, NOW()) AS created_at,
+                        'cimm' AS source
+                    FROM cimm_verification_reports
+                    WHERE infrastructure = 'Roads'
+                    ORDER BY created_at DESC LIMIT 50";
+                $cimm = fetch_all($c_query);
+                $all_reports = array_merge($all_reports, $cimm ?: []);
+            }
+        }
+
+        // Apply status filter as a safeguard (LGU roads reports already filtered in SQL)
         if ($status_filter !== 'all') {
             $all_reports = array_values(array_filter($all_reports, function($r) use ($status_filter) {
                 return ($r['status'] ?? '') === $status_filter;
@@ -509,9 +565,9 @@ function getTimeAgoShort($datetime) {
                 <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
             </select>
             <select id="typeFilter" onchange="applyFilters()">
-                <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
-                <option value="transportation" <?php echo $type_filter === 'transportation' ? 'selected' : ''; ?>>Transportation</option>
-                <option value="maintenance" <?php echo $type_filter === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
+                <option value="cimm" <?php echo $type_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
+                <option value="lgu" <?php echo $type_filter === 'lgu' ? 'selected' : ''; ?>>LGU Roads Reports</option>
+                <option value="infrastructure" <?php echo $type_filter === 'infrastructure' ? 'selected' : ''; ?>>Infrastructure Projects</option>
             </select>
             <span class="result-count"><i class="fas fa-list"></i> <?php echo count($all_reports); ?> report(s) found</span>
         </div>
