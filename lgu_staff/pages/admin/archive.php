@@ -2290,7 +2290,7 @@ if (isset($_SESSION['archive_message'])) {
                 </div>
                 <div class="filter-actions">
                     <label class="form-label">&nbsp;</label>
-                    <?php if (!$is_staff_info_archive): ?>
+                    <?php if (!$is_staff_info_archive && !$is_system_admin): ?>
                     <button type="button"
                         class="btn-your-reports"
                         id="yourReportsBtn"

@@ -6361,6 +6361,7 @@ if ($focus_id > 0) {
                 <div>
                     <label class="form-label">&nbsp;</label>
                     <div class="btn-wrapper">
+                        <?php if (!$is_system_admin): ?>
                         <button type="button"
                             class="btn-your-reports"
                             id="yourReportsBtn"
@@ -6372,6 +6373,7 @@ if ($focus_id > 0) {
                             <i class="fas fa-user-check"></i> Your Reports
                             <?php endif; ?>
                         </button>
+                        <?php endif; ?>
                         <button class="btn-secondary-custom" onclick="resetFilters()">
                             <i class="fas fa-arrow-clockwise"></i> Reset
                         </button>

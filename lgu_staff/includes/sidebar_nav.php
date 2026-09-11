@@ -863,6 +863,164 @@ if ($user_role !== 'system_admin') {
     </nav>
 </aside>
 
+<style>
+/* Logout confirmation — always loaded with sidebar (avoids stale sidebar.css cache) */
+.logout-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+.logout-modal-overlay.is-visible {
+    display: flex;
+}
+.logout-modal-card {
+    width: 100%;
+    max-width: 420px;
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #c8d0e0;
+    box-shadow: 0 16px 48px rgba(15, 23, 42, 0.22);
+    overflow: hidden;
+    animation: logoutModalIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes logoutModalIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.logout-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 22px;
+    background: #ffffff;
+    border-bottom: 2px solid rgba(55, 98, 200, 0.12);
+}
+.logout-modal-header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    color: #1e3c72;
+}
+.logout-modal-header-title i { color: #3762c8; font-size: 18px; }
+.logout-modal-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+.logout-modal-close:hover { color: #1e3c72; background: #f1f5f9; }
+.logout-modal-body { padding: 24px 22px 8px; text-align: center; }
+.logout-modal-icon-wrap {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eff6ff;
+    color: #3762c8;
+    font-size: 24px;
+}
+.logout-modal-message {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #475569;
+}
+.logout-modal-footer {
+    display: flex;
+    gap: 12px;
+    padding: 20px 22px 22px;
+    justify-content: flex-end;
+}
+.logout-modal-btn {
+    min-width: 108px;
+    padding: 11px 22px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+.logout-modal-btn:active { transform: translateY(1px); }
+.logout-modal-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.logout-modal-btn-no {
+    background: #f8fafc;
+    color: #334155;
+    border: 1px solid #e2e8f0;
+}
+.logout-modal-btn-no:hover { background: #f1f5f9; border-color: #cbd5e1; }
+.logout-modal-btn-yes {
+    background: linear-gradient(145deg, #1e3c72 0%, #3762c8 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(55, 98, 200, 0.28);
+}
+.logout-modal-btn-yes:hover {
+    background: linear-gradient(145deg, #163058 0%, #2d52b0 100%);
+    box-shadow: 0 6px 16px rgba(55, 98, 200, 0.32);
+}
+body.dark-mode .logout-modal-card { background: #1f2329; border-color: #3a3f4a; }
+body.dark-mode .logout-modal-header { background: #1f2329; border-bottom-color: #3a3f4a; }
+body.dark-mode .logout-modal-header-title { color: #e5e7eb; }
+body.dark-mode .logout-modal-close { color: #9ca3af; }
+body.dark-mode .logout-modal-close:hover { color: #e5e7eb; background: #2a2e36; }
+body.dark-mode .logout-modal-icon-wrap { background: rgba(55, 98, 200, 0.18); color: #93c5fd; }
+body.dark-mode .logout-modal-message { color: #9ca3af; }
+body.dark-mode .logout-modal-btn-no { background: #2a2e36; color: #e5e7eb; border-color: #3a3f4a; }
+body.dark-mode .logout-modal-btn-no:hover { background: #343a44; }
+@media (max-width: 480px) {
+    .logout-modal-overlay { padding: 16px; align-items: center; }
+    .logout-modal-card { max-width: none; border-radius: 14px; }
+    .logout-modal-footer { flex-direction: column-reverse; }
+    .logout-modal-btn { width: 100%; min-width: 0; }
+}
+</style>
+
+<div id="logoutModalOverlay" class="logout-modal-overlay" aria-hidden="true" hidden>
+    <div class="logout-modal-card" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+        <div class="logout-modal-header">
+            <h3 class="logout-modal-header-title" id="logoutModalTitle">
+                <i class="fas fa-sign-out-alt" aria-hidden="true"></i> Confirm Logout
+            </h3>
+            <button type="button" class="logout-modal-close" id="logoutModalClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="logout-modal-body">
+            <div class="logout-modal-icon-wrap" aria-hidden="true">
+                <i class="fas fa-sign-out-alt"></i>
+            </div>
+            <p class="logout-modal-message">Are you sure you want to log out of your account?</p>
+        </div>
+        <div class="logout-modal-footer">
+            <button type="button" class="logout-modal-btn logout-modal-btn-no" id="logoutModalCancel">No</button>
+            <button type="button" class="logout-modal-btn logout-modal-btn-yes" id="logoutModalConfirm">Yes</button>
+        </div>
+    </div>
+</div>
+
 <?php if (in_array($user_role, ['system_admin', 'road_ops_supervisor', 'road_monitoring_officer', 'trans_ops_supervisor', 'trans_monitoring_officer'], true)): ?>
 <!-- Mobile hamburger menu toggle (system_admin, road_ops_supervisor, road_monitoring_officer, trans_ops_supervisor, trans_monitoring_officer) -->
 <button type="button" class="admin-menu-toggle" id="adminMenuToggle" aria-label="Open navigation menu" aria-controls="sidebar" aria-expanded="false">
@@ -967,13 +1125,64 @@ function toggleManagingAccounts() {
 
 document.addEventListener('DOMContentLoaded', function() {
     var logoutBtn = document.getElementById('logoutBtn');
+    var logoutOverlay = document.getElementById('logoutModalOverlay');
+    if (logoutOverlay && logoutOverlay.parentNode !== document.body) {
+        document.body.appendChild(logoutOverlay);
+    }
+    var logoutClose = document.getElementById('logoutModalClose');
+    var logoutCancel = document.getElementById('logoutModalCancel');
+    var logoutConfirm = document.getElementById('logoutModalConfirm');
+    var pendingLogoutUrl = '';
+
+    function closeLogoutModal() {
+        if (!logoutOverlay) return;
+        logoutOverlay.classList.remove('is-visible');
+        logoutOverlay.setAttribute('aria-hidden', 'true');
+        logoutOverlay.setAttribute('hidden', '');
+        pendingLogoutUrl = '';
+        document.body.style.overflow = '';
+    }
+
+    function openLogoutModal(url) {
+        if (!logoutOverlay) {
+            window.location.href = url;
+            return;
+        }
+        pendingLogoutUrl = url;
+        logoutOverlay.removeAttribute('hidden');
+        logoutOverlay.classList.add('is-visible');
+        logoutOverlay.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        if (logoutCancel) logoutCancel.focus();
+    }
+
     if (logoutBtn) {
         logoutBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            if (!confirm('Are you sure you want to log out?')) return;
-            window.location.href = logoutBtn.href;
+            openLogoutModal(logoutBtn.href);
         });
     }
+
+    if (logoutClose) logoutClose.addEventListener('click', closeLogoutModal);
+    if (logoutCancel) logoutCancel.addEventListener('click', closeLogoutModal);
+
+    if (logoutConfirm) {
+        logoutConfirm.addEventListener('click', function() {
+            if (pendingLogoutUrl) window.location.href = pendingLogoutUrl;
+        });
+    }
+
+    if (logoutOverlay) {
+        logoutOverlay.addEventListener('click', function(e) {
+            if (e.target === logoutOverlay) closeLogoutModal();
+        });
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && logoutOverlay && logoutOverlay.classList.contains('is-visible')) {
+            closeLogoutModal();
+        }
+    });
 
     var maToggle = document.getElementById('managingAccountsToggle');
     if (maToggle) {

@@ -5017,6 +5017,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                         <?php endif; ?>
                         <option value="lgu">LGU Monitoring Reports</option>
                     </select>
+                    <?php if (!$is_system_admin): ?>
                     <button type="button"
                         class="btn-your-reports"
                         id="yourReportsBtn"
@@ -5028,6 +5029,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                         <i class="fas fa-user-check"></i> Your Reports
                         <?php endif; ?>
                     </button>
+                    <?php endif; ?>
                     <button type="button" class="btn-your-reports" onclick="resetFilters()" title="Reset Filters">
                         <i class="fas fa-arrow-clockwise"></i> Reset
                     </button>
