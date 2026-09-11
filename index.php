@@ -4007,7 +4007,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
     <!-- Road Updates Section -->
     <section class="section" id="updates" <?php echo ($access_settings['hide_updates'] ?? '0') === '1' ? 'style="display:none"' : ''; ?>>
         <div class="container">
-            <h2 class="section-title">Road Updates</h2>
+            <h2 class="section-title">Road and Transportation Updates</h2>
             <p class="section-subtitle">Stay informed about the latest road conditions and maintenance activities</p>
 
             <!-- 3. Quick-Access Category Filter Bar -->

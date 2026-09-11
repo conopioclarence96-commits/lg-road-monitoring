@@ -64,15 +64,15 @@ if ($database_available && $conn) {
             if ($row['Field'] === 'reported_date') $has_reported_date = true;
         }
         $stmt->close();
-        $select_fields = "id";
-        if ($has_title) $select_fields .= ", title";
-        if ($has_description) $select_fields .= ", description";
-        if ($has_reported_date) $select_fields .= ", reported_date";
-        if ($has_attachments) $select_fields .= ", attachments";
-        $select_fields .= ", image_path";
-        if ($has_title) $select_fields .= ", report_type, priority, status, location";
-        $order_field = $has_reported_date ? "reported_date" : "created_at";
-        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports ORDER BY $order_field DESC LIMIT 20");
+        $select_fields = "r.id";
+        if ($has_title) $select_fields .= ", r.title";
+        if ($has_description) $select_fields .= ", r.description";
+        if ($has_reported_date) $select_fields .= ", r.reported_date";
+        if ($has_attachments) $select_fields .= ", r.attachments";
+        $select_fields .= ", r.image_path";
+        if ($has_title) $select_fields .= ", r.report_type, r.priority, r.status, r.location";
+        $order_field = $has_reported_date ? "r.reported_date" : "r.created_at";
+        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports r INNER JOIN users u ON u.id = r.created_by WHERE u.role = 'road_ops_supervisor' ORDER BY $order_field DESC LIMIT 20");
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
