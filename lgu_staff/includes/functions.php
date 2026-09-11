@@ -1253,11 +1253,23 @@ function send_otp_to_email($email, $otpCode, $purpose = null) {
     ]));
 
     $response = curl_exec($ch);
+    $curlErr = curl_error($ch);
     curl_close($ch);
+
+    if ($response === false || $response === '') {
+        error_log('OTP API Response: curl failed' . ($curlErr !== '' ? (': ' . $curlErr) : ''));
+        return ['success' => false, 'code' => 'curl_error', 'message' => $curlErr !== '' ? $curlErr : 'Failed to reach email service.'];
+    }
 
     error_log("OTP API Response: " . $response);
 
-    return json_decode($response, true);
+    $decoded = json_decode($response, true);
+    return is_array($decoded) ? $decoded : ['success' => false, 'code' => 'invalid_response', 'message' => 'Invalid email service response.'];
+}
+
+/** True when a Brevo send_otp_to_email() payload indicates delivery was accepted. */
+function otp_email_was_accepted($response) {
+    return is_array($response) && !empty($response['messageId']);
 }
 
 function handle_registration_otp($email) {
@@ -1287,8 +1299,25 @@ function handle_password_reset_otp($email) {
 function handle_settings_password_otp($email) {
     $otpCode = generate_otp();
     store_otp($email, $otpCode, 'settings_password_change');
-    send_otp_to_email($email, $otpCode, 'settings_password_change');
-    return $otpCode;
+    $response = send_otp_to_email($email, $otpCode, 'settings_password_change');
+
+    if (!otp_email_was_accepted($response)) {
+        // Do not leave a usable OTP when the email never went out.
+        if (($_SESSION['otp_data']['purpose'] ?? '') === 'settings_password_change') {
+            unset($_SESSION['otp_data']);
+        }
+        $detail = is_array($response) ? (string)($response['message'] ?? $response['code'] ?? 'unknown') : 'unknown';
+        error_log('settings password OTP send failed for ' . $email . ': ' . $detail);
+        return [
+            'success' => false,
+            'message' => 'Failed to send the verification code to your email. Please try again in a moment.',
+        ];
+    }
+
+    return [
+        'success' => true,
+        'message' => 'A verification code was sent to your email. Enter it to continue.',
+    ];
 }
 
 function handle_admin_create_otp($email) {
