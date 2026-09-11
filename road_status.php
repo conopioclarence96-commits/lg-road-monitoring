@@ -1,9 +1,24 @@
 <?php
+/**
+ * Road Status — Quezon City Road &amp; Transportation Department.
+ *
+ * Public transparency module showing road condition / status entries
+ * submitted by Road Operations Supervisors (transportation + maintenance
+ * reports). All data-access logic, helper functions and interactive
+ * components (detail modal, progress timeline, lightbox) are preserved.
+ */
+session_start();
 require_once 'lgu_staff/includes/config.php';
 require_once 'lgu_staff/includes/functions.php';
 
 $status_filter = isset($_GET['status']) ? sanitize_input($_GET['status']) : 'all';
 $type_filter = isset($_GET['type']) ? sanitize_input($_GET['type']) : 'all';
+
+// Legacy query parameters from links that predate the Road Status module
+// (e.g. public_reports.php?type=cimm) fall back to showing every road report.
+if (in_array($type_filter, ['cimm', 'infrastructure'], true)) {
+    $type_filter = 'all';
+}
 $focus_report_id = isset($_GET['report_id']) ? intval($_GET['report_id']) : 0;
 
 $all_reports = [];
@@ -11,49 +26,96 @@ $stats = ['total_reports' => 0, 'problem_roads' => 0, 'under_construction' => 0,
 
 if ($conn) {
     try {
-        // Transportation reports only (citizen + LGU submissions with
-        // report_category = 'transportation'), mirroring the staff module's
-        // Recent Submissions filter for transportation roles.
-        if ($type_filter === 'all' || $type_filter === 'citizen' || $type_filter === 'lgu') {
-            $t_conditions = ["report_category = 'transportation'"];
+        // 1. Transportation Reports — only those submitted by road_ops_supervisor users
+        // (created_by references users.id; the INNER JOIN enforces the role)
+        if ($type_filter === 'all' || $type_filter === 'transportation') {
+            $t_conditions = [];
             $t_params   = [];
             $t_types    = '';
 
             if ($status_filter !== 'all') {
-                $t_conditions[] = "status = ?";
+                $t_conditions[] = "t.status = ?";
                 $t_params[]     = $status_filter;
                 $t_types       .= "s";
             }
-            if ($type_filter === 'citizen') {
-                $t_conditions[] = "(created_by IS NULL OR created_by = 0)";
-            } elseif ($type_filter === 'lgu') {
-                $t_conditions[] = "(created_by IS NOT NULL AND created_by != 0)";
-            }
+            $t_conditions[] = "u.role = ?";
+            $t_params[]     = 'road_ops_supervisor';
+            $t_types       .= "s";
             $t_where = " WHERE " . implode(' AND ', $t_conditions);
 
-            $t_query = "SELECT id, report_id, title, description, location, latitude, longitude,
-                    priority, status, severity, image_path, attachments, reporter_name,
-                    reported_date, created_at, department,
-                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source
-                FROM road_transportation_reports" . $t_where . " ORDER BY created_at DESC LIMIT 50";
+            $t_query = "SELECT t.id, t.report_id, t.title, t.description, t.location, t.latitude, t.longitude,
+                    t.priority, t.status, t.severity, t.image_path, t.attachments, t.reporter_name,
+                    t.reported_date, t.created_at, t.department,
+                    'lgu' AS source
+                FROM road_transportation_reports t
+                INNER JOIN users u ON u.id = t.created_by" . $t_where . " ORDER BY t.created_at DESC LIMIT 50";
 
             $transport = !empty($t_params) ? fetch_all($t_query, $t_params, $t_types) : fetch_all($t_query);
             $all_reports = array_merge($all_reports, $transport ?: []);
         }
 
-        // Stats (always from transportation-category reports, unaffected by filters)
-        $stats['total_reports']       = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE report_category = 'transportation'")['c'] ?? 0;
-        $stats['problem_roads']       = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE report_category = 'transportation' AND status IN ('pending','in-progress') AND priority IN ('high','critical')")['c'] ?? 0;
-        $stats['under_construction']  = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE report_category = 'transportation' AND status = 'in-progress'")['c'] ?? 0;
-        $stats['resolved_issues']     = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE report_category = 'transportation' AND status = 'completed'")['c'] ?? 0;
+        // 2. Maintenance Reports — only those submitted by road_ops_supervisor users
+        if ($type_filter === 'all' || $type_filter === 'maintenance') {
+            $m_conditions = [];
+            $m_params   = [];
+            $m_types    = '';
+            if ($status_filter !== 'all') {
+                $m_conditions[] = "m.status = ?";
+                $m_params[]     = $status_filter;
+                $m_types       .= "s";
+            }
+            $m_conditions[] = "u.role = ?";
+            $m_params[]     = 'road_ops_supervisor';
+            $m_types       .= "s";
+            $m_where = " WHERE " . implode(' AND ', $m_conditions);
+
+            $m_query = "SELECT m.id, m.report_id, m.title, m.description, m.location, m.priority, m.status,
+                    m.created_at, m.department, 'maintenance' AS source
+                FROM road_maintenance_reports m
+                INNER JOIN users u ON u.id = m.created_by" . $m_where . " ORDER BY m.created_at DESC LIMIT 50";
+
+            $maintenance = !empty($m_params) ? fetch_all($m_query, $m_params, $m_types) : fetch_all($m_query);
+            $all_reports = array_merge($all_reports, $maintenance ?: []);
+        }
+
+        // Apply status filter as a safeguard (transport/maintenance already filtered in SQL)
+        if ($status_filter !== 'all') {
+            $all_reports = array_values(array_filter($all_reports, function($r) use ($status_filter) {
+                return ($r['status'] ?? '') === $status_filter;
+            }));
+        }
+
+        // Stats (also restricted to reports submitted by road_ops_supervisor users)
+        $supervisor_ids = "(SELECT id FROM users WHERE role = 'road_ops_supervisor')";
+        $supervisor_where = "WHERE created_by IN $supervisor_ids";
+        $stats['total_reports']       = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports $supervisor_where")['c'] + fetch_one("SELECT COUNT(*) as c FROM road_maintenance_reports $supervisor_where")['c'];
+        $stats['problem_roads']       = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports $supervisor_where AND status IN ('pending','in-progress') AND priority IN ('high','critical')")['c'] ?? 0;
+        $stats['under_construction']  = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports $supervisor_where AND status = 'in-progress'")['c'] ?? 0;
+        $stats['resolved_issues']     = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports $supervisor_where AND status = 'completed'")['c'] ?? 0;
     } catch (Exception $e) {
-        error_log("Public transportation reports error: " . $e->getMessage());
+        error_log("Road status error: " . $e->getMessage());
     }
 }
 
 usort($all_reports, function($a, $b) {
     return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
 });
+
+function getReportPhoto($report) {
+    $raw = null;
+    if (!empty($report['image_path'])) {
+        $raw = $report['image_path'];
+    } elseif (!empty($report['attachments'])) {
+        $atts = json_decode($report['attachments'], true);
+        if (is_array($atts)) {
+            foreach ($atts as $att) {
+                $path = $att['file_path'] ?? $att['file'] ?? '';
+                if ($path) { $raw = $path; break; }
+            }
+        }
+    }
+    return road_updates_resolve_image_url($raw, '');
+}
 
 /**
  * Resolve an image path stored in the DB (e.g. uploads/report_images/X.jpg) to a
@@ -62,7 +124,7 @@ usort($all_reports, function($a, $b) {
  * probe both candidates and return the first file that exists. Returns '' when
  * no candidate file is found so the caller can skip the broken image.
  */
-function transport_status_resolve_image_url($path, $basePath) {
+function road_updates_resolve_image_url($path, $basePath) {
     if (empty($path) || $path === '0' || strtolower((string)$path) === 'null') return '';
     if (preg_match('#^https?://#i', $path)) return $path;
     if (strpos($path, 'data:') === 0) return $path;
@@ -81,22 +143,6 @@ function transport_status_resolve_image_url($path, $basePath) {
     return '';
 }
 
-function getTransportReportPhoto($report) {
-    $raw = null;
-    if (!empty($report['image_path'])) {
-        $raw = $report['image_path'];
-    } elseif (!empty($report['attachments'])) {
-        $atts = json_decode($report['attachments'], true);
-        if (is_array($atts)) {
-            foreach ($atts as $att) {
-                $path = $att['file_path'] ?? $att['file'] ?? '';
-                if ($path) { $raw = $path; break; }
-            }
-        }
-    }
-    return transport_status_resolve_image_url($raw, '');
-}
-
 function getStatusBadge($status) {
     $map = ['pending' => 'warning', 'in-progress' => 'info', 'completed' => 'success', 'cancelled' => 'secondary', 'approved' => 'success', 'rejected' => 'danger'];
     $class = $map[$status] ?? 'secondary';
@@ -111,7 +157,7 @@ function getPriorityBadge($priority) {
 
 function getSeverityIcon($status) {
     if (in_array($status, ['in-progress', 'pending'])) {
-        return '<i class="fas fa-exclamation-triangle text-danger" title="Active Issue"></i>';
+        return '<i class="fas fa-exclamation-triangle text-danger" title="Problem Road"></i>';
     }
     if ($status === 'completed') {
         return '<i class="fas fa-check-circle text-success" title="Resolved"></i>';
@@ -126,22 +172,6 @@ function getTimeAgoShort($datetime) {
     if ($diff < 86400) return floor($diff / 3600) . 'h ago';
     return date('M d', strtotime($datetime));
 }
-
-function getTransportTypeLabel($type) {
-    $map = [
-        'traffic_jam' => 'Traffic Jam',
-        'accident' => 'Vehicle Accident',
-        'road_closure' => 'Road Closure',
-        'traffic_light_outage' => 'Traffic Light Outage',
-        'congestion' => 'Heavy Congestion',
-        'parking_violation' => 'Illegal Parking',
-        'public_transport_issue' => 'Public Transport Issue',
-        'vehicle_breakdown' => 'Vehicle Breakdown',
-        'traffic_sign_issue' => 'Traffic Sign Issue',
-    ];
-    $key = strtolower((string)$type);
-    return $map[$key] ?? (ucfirst(str_replace('_', ' ', $key)));
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -149,7 +179,7 @@ function getTransportTypeLabel($type) {
     <?php include __DIR__ . '/includes/a11y_head.php'; ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transportation Status - Quezon City</title>
+    <title>Road Status - Quezon City</title>
     <link rel="icon" type="image/png" href="assets/img/infra-gov-logo.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -357,6 +387,69 @@ function getTransportTypeLabel($type) {
     </style>
     <?php include __DIR__ . '/includes/a11y_css.php'; ?>
     <?php include __DIR__ . '/includes/hamburger_menu_css.php'; ?>
+    <style>
+        html.dark-mode {
+            --dm-base: #090d16;
+            --dm-surface-1: #0f1420;
+            --dm-surface-2: #141a2a;
+            --dm-surface-3: #1b2337;
+            --dm-elevated: #1e293b;
+            --dm-elevated-hover: #222d45;
+            --dm-navbar: #0d1322;
+            --dm-footer: #0c1220;
+            --dm-border: rgba(47, 66, 98, 0.45);
+            --dm-border-strong: rgba(60, 90, 120, 0.55);
+            --dm-text-primary: #f1f5f9;
+            --dm-text-body: #cbd5e1;
+            --dm-text-secondary: #94a3b8;
+            --dm-text-tertiary: #64748b;
+            --dm-accent: #21a1d6;
+            --dm-accent-hover: #49b9e7;
+            --dm-accent-strong: #1381b6;
+            --dm-accent-focus: rgba(33, 161, 214, 0.35);
+            --dm-accent-glow: rgba(33, 161, 214, 0.55);
+            --dm-shadow-sm: 0 2px 6px rgba(9, 13, 22, 0.35);
+            --dm-shadow-base: 0 4px 12px rgba(9, 13, 22, 0.45);
+            --dm-shadow-elevated: 0 8px 24px rgba(9, 13, 22, 0.55);
+            --dm-shadow-strong: 0 20px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(60, 90, 120, 0.2);
+            --dm-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            --dm-glow-hover: 0 0 0 1px var(--dm-accent-focus), 0 6px 20px rgba(9, 13, 22, 0.5);
+            --dm-icon-glow: 0 0 10px var(--dm-accent-glow);
+        }
+        html.dark-mode .qc-navbar {
+            background: var(--dm-navbar) !important;
+            border-bottom: 1px solid var(--dm-border) !important;
+            box-shadow: var(--dm-shadow-base);
+        }
+        html.dark-mode .qc-navbar.scrolled {
+            box-shadow: var(--dm-shadow-strong);
+        }
+        html.dark-mode .qc-brand-text strong {
+            color: var(--dm-text-primary) !important;
+        }
+        html.dark-mode .qc-brand-text small {
+            color: var(--dm-accent) !important;
+        }
+        html.dark-mode .qc-nav-links .nav-link {
+            color: var(--dm-text-body) !important;
+        }
+        html.dark-mode .qc-nav-links .nav-link:hover,
+        html.dark-mode .qc-nav-links .nav-link.active {
+            color: var(--dm-text-primary) !important;
+            background-color: var(--dm-accent-focus);
+        }
+        html.dark-mode .hamburger-btn {
+            border-color: rgba(255, 255, 255, 0.3) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+        }
+        html.dark-mode .hamburger-btn .bar {
+            background: #fff !important;
+        }
+        html.dark-mode .hamburger-btn:hover {
+            background: rgba(255, 255, 255, 0.15) !important;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-light fixed-top qc-navbar">
@@ -378,8 +471,8 @@ function getTransportTypeLabel($type) {
 
     <div class="hero-bar">
         <div class="container">
-            <h1><i class="fas fa-bus"></i> Transportation Status & Public Reports</h1>
-            <p>Transparent view of all traffic issues and transportation concerns across the city</p>
+            <h1><i class="fas fa-map-marked-alt"></i> Road Status</h1>
+            <p>Real-time status of road issues, ongoing maintenance work, and completed repairs tracked by the department</p>
         </div>
     </div>
 
@@ -392,11 +485,11 @@ function getTransportTypeLabel($type) {
                 </div>
                 <div class="col-3 col-md-3 stat-chip">
                     <div class="num" style="color:#dc3545;"><?php echo number_format($stats['problem_roads']); ?></div>
-                    <div class="lbl">High Priority Issues</div>
+                    <div class="lbl">Problem Roads</div>
                 </div>
                 <div class="col-3 col-md-3 stat-chip">
                     <div class="num" style="color:#d97706;"><?php echo number_format($stats['under_construction']); ?></div>
-                    <div class="lbl">In Progress</div>
+                    <div class="lbl">Under Construction</div>
                 </div>
                 <div class="col-3 col-md-3 stat-chip">
                     <div class="num" style="color:#28a745;"><?php echo number_format($stats['resolved_issues']); ?></div>
@@ -416,9 +509,9 @@ function getTransportTypeLabel($type) {
                 <option value="completed" <?php echo $status_filter === 'completed' ? 'selected' : ''; ?>>Completed</option>
             </select>
             <select id="typeFilter" onchange="applyFilters()">
-                <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Sources</option>
-                <option value="citizen" <?php echo $type_filter === 'citizen' ? 'selected' : ''; ?>>Citizen Reports</option>
-                <option value="lgu" <?php echo $type_filter === 'lgu' ? 'selected' : ''; ?>>LGU Reports</option>
+                <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
+                <option value="transportation" <?php echo $type_filter === 'transportation' ? 'selected' : ''; ?>>Transportation</option>
+                <option value="maintenance" <?php echo $type_filter === 'maintenance' ? 'selected' : ''; ?>>Maintenance</option>
             </select>
             <span class="result-count"><i class="fas fa-list"></i> <?php echo count($all_reports); ?> report(s) found</span>
         </div>
@@ -432,7 +525,7 @@ function getTransportTypeLabel($type) {
         <?php else: ?>
         <div class="report-grid">
             <?php foreach ($all_reports as $r):
-                $photo = getTransportReportPhoto($r);
+                $photo = getReportPhoto($r);
                 $is_problem = in_array($r['status'] ?? '', ['pending', 'in-progress']);
                 $is_construction = ($r['status'] ?? '') === 'in-progress';
                 $is_resolved = ($r['status'] ?? '') === 'completed';
@@ -443,7 +536,7 @@ function getTransportTypeLabel($type) {
                 'location' => $r['location'] ?? 'Not specified',
                 'status' => $r['status'] ?? 'pending',
                 'priority' => $r['priority'] ?? 'medium',
-                'source' => $r['source'] ?? 'citizen',
+                'source' => $r['source'] ?? 'transportation',
                 'reported_date' => $r['reported_date'] ?? $r['created_at'] ?? '',
                 'reporter' => $r['reporter_name'] ?? 'Anonymous',
                 'department' => $r['department'] ?? 'Not specified',
@@ -455,11 +548,11 @@ function getTransportTypeLabel($type) {
                 <?php if ($photo): ?>
                 <img src="<?php echo htmlspecialchars($photo); ?>" alt="Report photo" class="report-img" loading="lazy" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
                 <div class="report-img-placeholder" style="display:none;">
-                    <i class="fas fa-bus"></i>
+                    <i class="fas fa-road"></i>
                 </div>
                 <?php else: ?>
                 <div class="report-img-placeholder">
-                    <i class="fas fa-bus"></i>
+                    <i class="fas fa-road"></i>
                 </div>
                 <?php endif; ?>
                 
@@ -469,7 +562,7 @@ function getTransportTypeLabel($type) {
                         <?php echo getStatusBadge($r['status'] ?? 'pending'); ?>
                         <?php echo getPriorityBadge($r['priority'] ?? 'medium'); ?>
                         <?php if ($is_construction): ?>
-                        <span class="road-marker construction"><i class="fas fa-hourglass-half"></i> In Progress</span>
+                        <span class="road-marker construction"><i class="fas fa-hard-hat"></i> Construction</span>
                         <?php elseif ($is_problem): ?>
                         <span class="road-marker problem"><i class="fas fa-exclamation-circle"></i> Problem</span>
                         <?php elseif ($is_resolved): ?>
@@ -483,7 +576,7 @@ function getTransportTypeLabel($type) {
                     </div>
                     <div class="report-footer">
                         <span><i class="far fa-clock"></i> <?php echo getTimeAgoShort($r['reported_date'] ?? $r['created_at'] ?? ''); ?></span>
-                        <span class="report-source"><i class="fas fa-tag"></i> <?php echo ucfirst($r['source'] ?? 'citizen'); ?> Report</span>
+                        <span class="report-source"><i class="fas fa-tag"></i> <?php echo ucfirst($r['source'] ?? 'transportation'); ?></span>
                     </div>
                 </div>
             </div>
@@ -534,8 +627,6 @@ function getTransportTypeLabel($type) {
                 <a href="index.php">Home</a>
                 <a href="road-updates.php">Road Updates</a>
                 <a href="road_status.php">Road Status</a>
-                <a href="transportation-updates.php">Transportation Updates</a>
-                <a href="transportation-status.php">Transportation Status</a>
                 <a href="about.php">About</a>
                 <a href="contact.php">Contact</a>
                 <a href="public_transparency_view.php">Transparency</a>
@@ -568,6 +659,16 @@ function getTransportTypeLabel($type) {
             window.location.href = url.toString();
         }
 
+        document.querySelectorAll('.report-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                if (e.target.closest('.badge') || e.target.closest('.road-marker')) return;
+            });
+        });
+
+        /* Progress Timeline */
+        let citizenTimelineVisible = false;
+        let citizenUpdatesLoaded = false;
+
         function openDetail(data) {
             currentData = data;
             document.getElementById('modalTitle').textContent = data.title;
@@ -584,7 +685,7 @@ function getTransportTypeLabel($type) {
                 <div class="info-row"><span class="label"><i class="fas fa-exclamation-circle"></i> Priority</span><span class="value"><span class="badge ${priorityClass}">${data.priority}</span></span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-map-marker-alt"></i> Location</span><span class="value">${data.location}</span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-building"></i> Department</span><span class="value">${data.department}</span></div>
-                <div class="info-row"><span class="label"><i class="fas fa-tag"></i> Source</span><span class="value">${data.source}</span></div>
+                <div class="info-row"><span class="label"><i class="fas fa-tag"></i> Type</span><span class="value">${data.source}</span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-clock"></i> Reported</span><span class="value">${data.reported_date || 'Not specified'}</span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-user"></i> Reporter</span><span class="value">${data.reporter}</span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-tachometer-alt"></i> Severity</span><span class="value">${data.severity}</span></div>
@@ -610,16 +711,6 @@ function getTransportTypeLabel($type) {
             modal.show();
         }
 
-        document.querySelectorAll('.report-card').forEach(card => {
-            card.addEventListener('click', function(e) {
-                if (e.target.closest('.badge') || e.target.closest('.road-marker')) return;
-            });
-        });
-
-        /* Citizen Progress Timeline */
-        let citizenTimelineVisible = false;
-        let citizenUpdatesLoaded = false;
-
         function toggleCitizenTimeline() {
             const container = document.getElementById('citizenTimeline');
             const btn = document.getElementById('toggleTimelineBtn');
@@ -641,7 +732,8 @@ function getTransportTypeLabel($type) {
             const container = document.getElementById('citizenTimeline');
             container.innerHTML = '<div style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin fa-2x" style="color:#3762c8;"></i></div>';
 
-            fetch(`lgu_staff/pages/api/progress_update_api.php?action=get_updates&report_id=${currentData.db_id}&report_type=transportation`)
+            const reportType = currentData.source === 'maintenance' ? 'maintenance' : 'transportation';
+            fetch(`lgu_staff/pages/api/progress_update_api.php?action=get_updates&report_id=${currentData.db_id}&report_type=${reportType}`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
@@ -748,6 +840,9 @@ function getTransportTypeLabel($type) {
         });
         <?php endif; ?>
     </script>
+
+    <!-- Custom JavaScript -->
+    <script src="assets/js/main.js?v=<?php echo (int)(@filemtime(__DIR__ . '/assets/js/main.js') ?: time()); ?>"></script>
 
     <script src="lgu_staff/js/page-transition.js"></script>
     <?php include __DIR__ . '/includes/a11y_js.php'; ?>

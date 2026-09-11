@@ -72,7 +72,7 @@ $__pd_base = isset($basePath) ? $basePath : '';
             </a>
         </li>
         <li>
-            <a class="dropdown-item" href="<?php echo $__pd_base; ?>public_reports.php">
+            <a class="dropdown-item" href="<?php echo $__pd_base; ?>road_status.php">
                 <i class="fas fa-map-marked-alt"></i> Road Status
             </a>
         </li>

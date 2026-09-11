@@ -34,7 +34,7 @@ $all_pages = [
     ['title' => 'Contact', 'url' => 'index.php#contact', 'icon' => 'fa-envelope', 'kw' => 'contact phone email hotline office location address', 'desc' => 'Contact information and office location'],
     ['title' => 'Make a Report', 'url' => 'index.php#home', 'icon' => 'fa-pen-alt', 'kw' => 'report issue citizen make report pin map photo complaint file', 'desc' => 'Open the citizen report form'],
     ['title' => 'Road Updates', 'url' => 'road-updates.php', 'icon' => 'fa-newspaper', 'kw' => 'road updates listing all announcements', 'desc' => 'All road updates in one place'],
-    ['title' => 'Road Status & Public Reports', 'url' => 'public_reports.php', 'icon' => 'fa-map-marked-alt', 'kw' => 'road status reports browse map filter pending in-progress completed pothole flood', 'desc' => 'Browse and filter every public road report'],
+    ['title' => 'Road Status', 'url' => 'road_status.php', 'icon' => 'fa-map-marked-alt', 'kw' => 'road status reports browse map filter pending in-progress completed pothole flood', 'desc' => 'Browse and filter road status reports'],
     ['title' => 'Infrastructure Projects', 'url' => 'infrastructure_projects.php', 'icon' => 'fa-hard-hat', 'kw' => 'infrastructure projects ipms road projects budget construction approved', 'desc' => 'Approved IPMS road projects'],
     ['title' => 'Transportation Updates', 'url' => 'transportation-updates.php', 'icon' => 'fa-bus', 'kw' => 'transportation updates transit bus terminal commute', 'desc' => 'Public transportation updates'],
     ['title' => 'Transportation Status', 'url' => 'transportation-status.php', 'icon' => 'fa-traffic-light', 'kw' => 'transportation status traffic condition status congestion', 'desc' => 'Current transportation conditions'],
@@ -240,7 +240,7 @@ function highlight($text, $q) {
                     <i class="fas fa-inbox"></i>
                     <h5>No results for &ldquo;<?php echo $q_safe; ?>&rdquo;</h5>
                     <p class="mb-0">Try different keywords: <em>traffic, road, report, pothole, construction, transparency, about, contact</em>.</p>
-                    <div class="mt-3"><a href="public_reports.php" class="btn btn-primary"><i class="fas fa-map-marked-alt"></i> Browse All Road Reports</a></div>
+                    <div class="mt-3"><a href="road_status.php" class="btn btn-primary"><i class="fas fa-map-marked-alt"></i> Browse All Road Reports</a></div>
                 </div>
             <?php else: ?>
 
@@ -270,10 +270,10 @@ function highlight($text, $q) {
                                         <span class="r-badge report"><i class="fas fa-road"></i> <?php echo htmlspecialchars($r['status'] ?? 'report'); ?></span>
                                         <?php if(!empty($r['priority'])): ?><span class="r-badge" style="background:#fde68a;color:#92400e;"><?php echo htmlspecialchars($r['priority']); ?></span><?php endif; ?>
                                     </div>
-                                    <p class="r-title"><a href="public_reports.php?report_id=<?php echo (int)$r['id']; ?>"><?php echo highlight($r['title'] ?? 'Untitled', $q); ?></a></p>
+                                    <p class="r-title"><a href="road_status.php?report_id=<?php echo (int)$r['id']; ?>"><?php echo highlight($r['title'] ?? 'Untitled', $q); ?></a></p>
                                     <p class="r-desc"><?php echo highlight(mb_substr($r['description'] ?? '',0,180), $q); ?></p>
                                     <p class="r-meta"><i class="fas fa-map-marker-alt" style="color:#dc3545"></i> <?php echo highlight($r['location'] ?? '—', $q); ?></p>
-                                    <a href="public_reports.php?report_id=<?php echo (int)$r['id']; ?>" class="btn btn-sm mt-2" style="background:var(--qc-primary-800);color:#fff;"><i class="fas fa-eye"></i> View Report</a>
+                                    <a href="road_status.php?report_id=<?php echo (int)$r['id']; ?>" class="btn btn-sm mt-2" style="background:var(--qc-primary-800);color:#fff;"><i class="fas fa-eye"></i> View Report</a>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -304,7 +304,7 @@ function highlight($text, $q) {
                             <div class="col-md-6 col-lg-4">
                                 <div class="result-card">
                                     <div class="r-meta"><span class="r-badge cimm"><i class="fas fa-clipboard-check"></i> CIMM</span></div>
-                                    <p class="r-title"><a href="public_reports.php?type=cimm"><?php echo highlight($c['title'] ?? 'Roads', $q); ?></a> <small>· <?php echo htmlspecialchars($c['report_id']); ?></small></p>
+                                    <p class="r-title"><a href="road_status.php?type=cimm"><?php echo highlight($c['title'] ?? 'Roads', $q); ?></a> <small>· <?php echo htmlspecialchars($c['report_id']); ?></small></p>
                                     <p class="r-desc"><?php echo highlight(mb_substr($c['description'] ?? '',0,180), $q); ?></p>
                                     <p class="r-meta"><i class="fas fa-map-marker-alt"></i> <?php echo highlight($c['location'] ?? '', $q); ?></p>
                                 </div>
@@ -331,7 +331,7 @@ function highlight($text, $q) {
 
                 <div class="text-center mt-4">
                     <a href="index.php" class="btn btn-outline-secondary"><i class="fas fa-home"></i> Back to Home</a>
-                    <a href="public_reports.php" class="btn btn-primary ms-2" style="background:var(--qc-primary-800);border:none"><i class="fas fa-list"></i> Browse All Reports</a>
+                    <a href="road_status.php" class="btn btn-primary ms-2" style="background:var(--qc-primary-800);border:none"><i class="fas fa-list"></i> Browse All Reports</a>
                 </div>
             <?php endif; ?>
         </div>
@@ -349,7 +349,7 @@ function highlight($text, $q) {
                 </div>
             </div>
             <div class="footer-links-row" style="margin-top:14px">
-                <a href="index.php">Home</a><a href="road-updates.php">Road Updates</a><a href="public_reports.php">Road Status</a><a href="about.php">About</a><a href="contact.php">Contact</a><a href="public_transparency_view.php">Transparency</a>
+                <a href="index.php">Home</a><a href="road-updates.php">Road Updates</a><a href="road_status.php">Road Status</a><a href="about.php">About</a><a href="contact.php">Contact</a><a href="public_transparency_view.php">Transparency</a>
             </div>
             <div class="footer-divider"></div>
             <p class="footer-copyright"><i class="fas fa-copyright"></i> 2026 Road and Transportation Department. All rights reserved.</p>

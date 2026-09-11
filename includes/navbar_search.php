@@ -170,7 +170,7 @@ $__ns_base = isset($basePath) ? $basePath : '';
         { title: 'Contact', url: 'index.php#contact', icon: 'fa-envelope', kw: 'contact phone email hotline office location address' },
         { title: 'Make a Report', url: 'index.php#home', icon: 'fa-pen-alt', kw: 'report issue citizen make report pin map photo complaint file' },
         { title: 'Road Updates', url: 'road-updates.php', icon: 'fa-newspaper', kw: 'road updates listing all announcements' },
-        { title: 'Road Status & Public Reports', url: 'public_reports.php', icon: 'fa-map-marked-alt', kw: 'road status reports browse map filter pending in-progress completed pothole flood' },
+        { title: 'Road Status', url: 'road_status.php', icon: 'fa-map-marked-alt', kw: 'road status reports browse map filter pending in-progress completed pothole flood' },
         { title: 'Infrastructure Projects', url: 'infrastructure_projects.php', icon: 'fa-hard-hat', kw: 'infrastructure projects ipms road projects budget construction approved' },
         { title: 'Transportation Updates', url: 'transportation-updates.php', icon: 'fa-bus', kw: 'transportation updates transit bus terminal commute' },
         { title: 'Transportation Status', url: 'transportation-status.php', icon: 'fa-traffic-light', kw: 'transportation status traffic condition status congestion' },
@@ -229,10 +229,10 @@ $__ns_base = isset($basePath) ? $basePath : '';
         } else if (typeLabel === 'project' || report.source === 'infrastructure') {
             el.href = pageUrl('infrastructure_projects.php');
         } else if (report.source === 'cimm') {
-            el.href = pageUrl('public_reports.php?type=cimm');
+            el.href = pageUrl('road_status.php?type=cimm');
         } else {
-            // transportation / maintenance reports open detail on public_reports
-            el.href = pageUrl('public_reports.php?report_id=' + encodeURIComponent(report.id));
+            // transportation / maintenance reports open detail on road_status
+            el.href = pageUrl('road_status.php?report_id=' + encodeURIComponent(report.id));
         }
         return el;
     }

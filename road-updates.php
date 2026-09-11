@@ -373,7 +373,7 @@ if ($database_available && $conn) {
                 <?php endif; ?>
             </div>
             <div class="text-center mt-4">
-                <a href="public_reports.php" class="btn btn-lg" style="background: var(--qc-primary-800); border: none; padding: 13px 28px; border-radius: 8px; font-weight: 700;">
+                <a href="road_status.php" class="btn btn-lg" style="background: var(--qc-primary-800); border: none; padding: 13px 28px; border-radius: 8px; font-weight: 700;">
                     <i class="fas fa-list"></i> View All Road Reports
                 </a>
             </div>
@@ -395,7 +395,7 @@ if ($database_available && $conn) {
             <div class="footer-links-row">
                 <a href="index.php">Home</a>
                 <a href="road-updates.php">Road Updates</a>
-                <a href="public_reports.php">Road Status</a>
+                <a href="road_status.php">Road Status</a>
                 <a href="about.php">About</a>
                 <a href="contact.php">Contact</a>
                 <a href="public_transparency_view.php">Transparency</a>

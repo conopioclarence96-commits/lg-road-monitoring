@@ -433,7 +433,7 @@ if (strpos($scriptName, '/lgu_staff/') !== false) {
             <div class="footer-links-row">
                 <a href="index.php">Home</a>
                 <a href="road-updates.php">Road Updates</a>
-                <a href="public_reports.php">Road Status</a>
+                <a href="road_status.php">Road Status</a>
                 <a href="about.php">About</a>
                 <a href="contact.php">Contact</a>
                 <a href="public_transparency_view.php">Transparency</a>

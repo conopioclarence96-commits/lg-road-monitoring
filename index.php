@@ -3860,7 +3860,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 Monitor road conditions in real-time and report road problems to help us maintain safe and efficient transportation infrastructure for our community.
             </p>
             <div class="hero-buttons">
-                <a href="public_reports.php" class="btn btn-primary-hero btn-hero">
+                <a href="road_status.php" class="btn btn-primary-hero btn-hero">
                     <i class="fas fa-map-marked-alt"></i> Browse All Reports
                 </a>
                 <a href="road-updates.php" class="btn btn-secondary-hero btn-hero">
@@ -4106,7 +4106,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <button type="button" class="btn btn-sm btn-outline-dark" onclick="document.querySelector('.filter-pill[data-filter=all]').click()">Show All</button>
             </div>
             <div class="text-center mt-4">
-                <a href="public_reports.php" class="btn btn-primary-hero btn-hero" style="font-size: 1rem; padding: 12px 28px;">
+                <a href="road_status.php" class="btn btn-primary-hero btn-hero" style="font-size: 1rem; padding: 12px 28px;">
                     <i class="fas fa-list"></i> View All Road Reports
                 </a>
             </div>
@@ -4413,7 +4413,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             </h3>
                             <div id="faqOne" class="accordion-collapse collapse show" aria-labelledby="faqOneHeading" data-bs-parent="#commuterFaqAccordion">
                                 <div class="accordion-body">
-                                    <strong>5-day contest window.</strong> Bring your ticket, valid ID, and supporting evidence (dashcam, photo) to the QC Department of Public Order &amp; Safety (DPOS) at QC Hall Compound, 8AM–5PM Mon–Fri. You may also file via email at <a href="mailto:roads@lgu.gov.ph">roads@lgu.gov.ph</a>. Adjudication is typically <strong>3–5 working days</strong>; fines are held in abeyance until resolution. Tip: keep your citation number — you can track status at the <a href="public_reports.php">Road Reports portal</a>.
+                                    <strong>5-day contest window.</strong> Bring your ticket, valid ID, and supporting evidence (dashcam, photo) to the QC Department of Public Order &amp; Safety (DPOS) at QC Hall Compound, 8AM–5PM Mon–Fri. You may also file via email at <a href="mailto:roads@lgu.gov.ph">roads@lgu.gov.ph</a>. Adjudication is typically <strong>3–5 working days</strong>; fines are held in abeyance until resolution. Tip: keep your citation number — you can track status at the <a href="road_status.php">Road Reports portal</a>.
                                 </div>
                             </div>
                         </div>
@@ -4439,7 +4439,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             </h3>
                             <div id="faqThree" class="accordion-collapse collapse" aria-labelledby="faqThreeHeading" data-bs-parent="#commuterFaqAccordion">
                                 <div class="accordion-body">
-                                    <strong>Standard SLA: 24–48 hours</strong> for signal bulb/controller faults, <strong>72 hours</strong> for knocked-down poles or power-feed damage. Emergency blinking-red mode is deployed within <strong>4 hours</strong> and manual enforcers are dispatched. Track progress on <a href="public_reports.php">Browse All Reports</a> — look for status <em>In-Progress</em> → <em>Completed</em>. For outages blocking intersections, call <strong>(02) 8988-1234</strong>.
+                                    <strong>Standard SLA: 24–48 hours</strong> for signal bulb/controller faults, <strong>72 hours</strong> for knocked-down poles or power-feed damage. Emergency blinking-red mode is deployed within <strong>4 hours</strong> and manual enforcers are dispatched. Track progress on <a href="road_status.php">Browse All Reports</a> — look for status <em>In-Progress</em> → <em>Completed</em>. For outages blocking intersections, call <strong>(02) 8988-1234</strong>.
                                 </div>
                             </div>
                         </div>
@@ -4561,7 +4561,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             <div class="footer-links-row">
                 <a href="#home">Home</a>
                 <a href="road-updates.php">Road Updates</a>
-                <a href="public_reports.php">Road Status</a>
+                <a href="road_status.php">Road Status</a>
                 <a href="about.php">About</a>
                 <a href="contact.php">Contact</a>
             </div>

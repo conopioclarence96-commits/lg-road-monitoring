@@ -430,7 +430,7 @@ if ($database_available && $conn) {
             <div class="footer-links-row">
                 <a href="index.php">Home</a>
                 <a href="road-updates.php">Road Updates</a>
-                <a href="public_reports.php">Road Status</a>
+                <a href="road_status.php">Road Status</a>
                 <a href="transportation-updates.php">Transportation Updates</a>
                 <a href="transportation-status.php">Transportation Status</a>
                 <a href="about.php">About</a>
