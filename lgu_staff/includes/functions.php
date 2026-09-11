@@ -156,6 +156,9 @@ function lgu_claim_user_session($user_id) {
         $stmt->bind_param('si', $sid, $user_id);
         $ok = $stmt->execute();
         $stmt->close();
+        if ($ok) {
+            lgu_record_login_device($user_id, $sid);
+        }
         return (bool)$ok;
     } catch (Exception $e) {
         error_log('lgu_claim_user_session: ' . $e->getMessage());
@@ -193,6 +196,9 @@ function lgu_release_user_session($user_id, $only_session_id = null) {
         }
         $ok = $stmt->execute();
         $stmt->close();
+        if ($ok) {
+            lgu_mark_login_device_inactive($user_id, $only_session_id);
+        }
         return (bool)$ok;
     } catch (Exception $e) {
         error_log('lgu_release_user_session: ' . $e->getMessage());
@@ -214,6 +220,454 @@ function lgu_logout_current_session() {
             setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
         }
         session_destroy();
+    }
+}
+
+/** Client IP for approximate location labels (never shown as sensitive auth data). */
+function lgu_client_ip_address() {
+    $candidates = [
+        $_SERVER['HTTP_CF_CONNECTING_IP'] ?? '',
+        $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '',
+        $_SERVER['REMOTE_ADDR'] ?? '',
+    ];
+    foreach ($candidates as $raw) {
+        $raw = trim((string)$raw);
+        if ($raw === '') {
+            continue;
+        }
+        if (strpos($raw, ',') !== false) {
+            $raw = trim(explode(',', $raw)[0]);
+        }
+        if (filter_var($raw, FILTER_VALIDATE_IP)) {
+            return $raw;
+        }
+    }
+    return '';
+}
+
+/** Parse User-Agent into simple device + browser labels (Facebook-style). */
+function lgu_parse_client_device_info($user_agent = null) {
+    $ua = (string)($user_agent ?? ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    $device = 'Unknown device';
+    $browser = 'Unknown browser';
+    $icon = 'fa-desktop';
+
+    if (preg_match('/iPhone/i', $ua)) {
+        $device = 'iPhone';
+        $icon = 'fa-mobile-alt';
+    } elseif (preg_match('/iPad/i', $ua)) {
+        $device = 'iPad';
+        $icon = 'fa-tablet-alt';
+    } elseif (preg_match('/Android/i', $ua)) {
+        $device = preg_match('/Mobile/i', $ua) ? 'Android' : 'Android tablet';
+        $icon = preg_match('/Mobile/i', $ua) ? 'fa-mobile-alt' : 'fa-tablet-alt';
+    } elseif (preg_match('/Macintosh|Mac OS X/i', $ua)) {
+        $device = 'Mac';
+        $icon = 'fa-laptop';
+    } elseif (preg_match('/Windows/i', $ua)) {
+        $device = 'Windows PC';
+        $icon = 'fa-desktop';
+    } elseif (preg_match('/Linux/i', $ua)) {
+        $device = 'Linux PC';
+        $icon = 'fa-desktop';
+    } elseif (preg_match('/CrOS/i', $ua)) {
+        $device = 'Chromebook';
+        $icon = 'fa-laptop';
+    }
+
+    if (preg_match('/Edg\//i', $ua)) {
+        $browser = 'Edge';
+    } elseif (preg_match('/OPR\/|Opera/i', $ua)) {
+        $browser = 'Opera';
+    } elseif (preg_match('/Chrome\//i', $ua) && !preg_match('/Edg\//i', $ua)) {
+        $browser = 'Chrome';
+    } elseif (preg_match('/Safari\//i', $ua) && !preg_match('/Chrome\//i', $ua)) {
+        $browser = 'Safari';
+    } elseif (preg_match('/Firefox\//i', $ua)) {
+        $browser = 'Firefox';
+    } elseif (preg_match('/MSIE|Trident/i', $ua)) {
+        $browser = 'Internet Explorer';
+    }
+
+    return [
+        'device' => $device,
+        'browser' => $browser,
+        'icon' => $icon,
+    ];
+}
+
+/** Approximate city/country from IP. Best-effort only; never blocks auth. */
+function lgu_approx_location_from_ip($ip) {
+    $ip = trim((string)$ip);
+    if ($ip === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+        return 'Unknown location';
+    }
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+        return 'Local network';
+    }
+
+    $url = 'http://ip-api.com/json/' . rawurlencode($ip) . '?fields=status,city,regionName,country';
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout' => 1.2,
+            'ignore_errors' => true,
+        ],
+    ]);
+    $raw = @file_get_contents($url, false, $ctx);
+    if ($raw === false || $raw === '') {
+        return 'Unknown location';
+    }
+    $data = json_decode($raw, true);
+    if (!is_array($data) || ($data['status'] ?? '') !== 'success') {
+        return 'Unknown location';
+    }
+
+    $city = trim((string)($data['city'] ?? ''));
+    if ($city === '') {
+        $city = trim((string)($data['regionName'] ?? ''));
+    }
+    $country = trim((string)($data['country'] ?? ''));
+    if ($city !== '' && $country !== '') {
+        return $city . ', ' . $country;
+    }
+    if ($country !== '') {
+        return $country;
+    }
+    if ($city !== '') {
+        return $city;
+    }
+    return 'Unknown location';
+}
+
+/** Record/update the current login device row after a successful session claim. */
+function lgu_record_login_device($user_id, $session_id = null) {
+    global $conn;
+    $user_id = (int)$user_id;
+    if ($user_id <= 0 || !$conn) {
+        return false;
+    }
+    $session_id = trim((string)($session_id ?? ((session_status() === PHP_SESSION_ACTIVE) ? session_id() : '')));
+    if ($session_id === '') {
+        return false;
+    }
+
+    $info = lgu_parse_client_device_info();
+    $ip = lgu_client_ip_address();
+    $location = lgu_approx_location_from_ip($ip);
+    $device = $info['device'];
+    $browser = $info['browser'];
+
+    try {
+        // Keep only one "active" device row under the existing single-session model.
+        $deactivate = $conn->prepare(
+            "UPDATE user_login_devices
+             SET is_active = 0
+             WHERE user_id = ? AND session_id != ?"
+        );
+        if ($deactivate) {
+            $deactivate->bind_param('is', $user_id, $session_id);
+            $deactivate->execute();
+            $deactivate->close();
+        }
+
+        $existing = $conn->prepare(
+            "SELECT id FROM user_login_devices WHERE user_id = ? AND session_id = ? LIMIT 1"
+        );
+        if (!$existing) {
+            return false;
+        }
+        $existing->bind_param('is', $user_id, $session_id);
+        $existing->execute();
+        $row = $existing->get_result()->fetch_assoc();
+        $existing->close();
+
+        if ($row) {
+            $upd = $conn->prepare(
+                "UPDATE user_login_devices
+                 SET device_label = ?, browser_label = ?, location_label = ?, ip_address = ?,
+                     is_active = 1, last_active = NOW()
+                 WHERE id = ?"
+            );
+            if (!$upd) {
+                return false;
+            }
+            $id = (int)$row['id'];
+            $upd->bind_param('ssssi', $device, $browser, $location, $ip, $id);
+            $ok = $upd->execute();
+            $upd->close();
+            return (bool)$ok;
+        }
+
+        $ins = $conn->prepare(
+            "INSERT INTO user_login_devices
+                (user_id, session_id, device_label, browser_label, location_label, ip_address, is_active, last_active)
+             VALUES (?, ?, ?, ?, ?, ?, 1, NOW())"
+        );
+        if (!$ins) {
+            return false;
+        }
+        $ins->bind_param('isssss', $user_id, $session_id, $device, $browser, $location, $ip);
+        $ok = $ins->execute();
+        $ins->close();
+
+        // Keep history short — Facebook-style recent devices only.
+        $trim = $conn->prepare(
+            "DELETE FROM user_login_devices
+             WHERE user_id = ?
+               AND id NOT IN (
+                   SELECT id FROM (
+                       SELECT id FROM user_login_devices
+                       WHERE user_id = ?
+                       ORDER BY last_active DESC, id DESC
+                       LIMIT 8
+                   ) keep_rows
+               )"
+        );
+        if ($trim) {
+            $trim->bind_param('ii', $user_id, $user_id);
+            $trim->execute();
+            $trim->close();
+        }
+
+        return (bool)$ok;
+    } catch (Exception $e) {
+        error_log('lgu_record_login_device: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** Mark device row(s) inactive when a session lock is released. */
+function lgu_mark_login_device_inactive($user_id, $only_session_id = null) {
+    global $conn;
+    $user_id = (int)$user_id;
+    if ($user_id <= 0 || !$conn) {
+        return false;
+    }
+    try {
+        if ($only_session_id !== null && $only_session_id !== '') {
+            $stmt = $conn->prepare(
+                "UPDATE user_login_devices
+                 SET is_active = 0, last_active = NOW()
+                 WHERE user_id = ? AND session_id = ?"
+            );
+            if (!$stmt) {
+                return false;
+            }
+            $stmt->bind_param('is', $user_id, $only_session_id);
+        } else {
+            $stmt = $conn->prepare(
+                "UPDATE user_login_devices
+                 SET is_active = 0, last_active = NOW()
+                 WHERE user_id = ? AND is_active = 1"
+            );
+            if (!$stmt) {
+                return false;
+            }
+            $stmt->bind_param('i', $user_id);
+        }
+        $ok = $stmt->execute();
+        $stmt->close();
+        return (bool)$ok;
+    } catch (Exception $e) {
+        error_log('lgu_mark_login_device_inactive: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** Refresh current-device activity for Settings display. */
+function lgu_touch_login_device($user_id) {
+    global $conn;
+    $user_id = (int)$user_id;
+    if ($user_id <= 0 || !$conn || session_status() !== PHP_SESSION_ACTIVE) {
+        return false;
+    }
+    $sid = session_id();
+    if ($sid === '') {
+        return false;
+    }
+
+    try {
+        $stmt = $conn->prepare(
+            "UPDATE user_login_devices
+             SET last_active = NOW(), is_active = 1
+             WHERE user_id = ? AND session_id = ?"
+        );
+        if ($stmt) {
+            $stmt->bind_param('is', $user_id, $sid);
+            $stmt->execute();
+            $affected = $stmt->affected_rows;
+            $stmt->close();
+            if ($affected > 0) {
+                return true;
+            }
+        }
+        // First visit after this feature was added — create the current device row.
+        return lgu_record_login_device($user_id, $sid);
+    } catch (Exception $e) {
+        error_log('lgu_touch_login_device: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** Relative “Active …” label for a login device. */
+function lgu_login_device_active_label($last_active, $is_current = false) {
+    if ($is_current) {
+        return 'Active now';
+    }
+    $ts = strtotime((string)$last_active);
+    if (!$ts) {
+        return 'Last active unknown';
+    }
+    $diff = max(0, time() - $ts);
+    if ($diff < 120) {
+        return 'Active now';
+    }
+    if ($diff < 3600) {
+        $mins = (int)floor($diff / 60);
+        return 'Active ' . $mins . ' minute' . ($mins === 1 ? '' : 's') . ' ago';
+    }
+    if ($diff < 86400) {
+        $hrs = (int)floor($diff / 3600);
+        return 'Active ' . $hrs . ' hour' . ($hrs === 1 ? '' : 's') . ' ago';
+    }
+    if ($diff < 172800 && date('Y-m-d', $ts) === date('Y-m-d', strtotime('yesterday'))) {
+        return 'Active yesterday';
+    }
+    if ($diff < 604800) {
+        $days = (int)floor($diff / 86400);
+        return 'Active ' . $days . ' day' . ($days === 1 ? '' : 's') . ' ago';
+    }
+    return 'Active on ' . date('M j, Y', $ts);
+}
+
+/**
+ * Devices for Settings → Where You’re Logged In.
+ * Never exposes session IDs, tokens, or passwords.
+ */
+function lgu_list_login_devices($user_id) {
+    global $conn;
+    $user_id = (int)$user_id;
+    $devices = [];
+    if ($user_id <= 0 || !$conn) {
+        return $devices;
+    }
+
+    $current_sid = (session_status() === PHP_SESSION_ACTIVE) ? session_id() : '';
+    try {
+        $stmt = $conn->prepare(
+            "SELECT id, session_id, device_label, browser_label, location_label, is_active, last_active
+             FROM user_login_devices
+             WHERE user_id = ?
+             ORDER BY is_active DESC, last_active DESC, id DESC
+             LIMIT 8"
+        );
+        if (!$stmt) {
+            return $devices;
+        }
+        $stmt->bind_param('i', $user_id);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        foreach ($rows as $row) {
+            $is_current = ($current_sid !== '' && hash_equals((string)$row['session_id'], $current_sid));
+            $device_label = (string)($row['device_label'] ?? 'Unknown device');
+            $icon = 'fa-desktop';
+            if (stripos($device_label, 'iPhone') !== false
+                || (stripos($device_label, 'Android') !== false && stripos($device_label, 'tablet') === false)
+            ) {
+                $icon = 'fa-mobile-alt';
+            } elseif (stripos($device_label, 'iPad') !== false || stripos($device_label, 'tablet') !== false) {
+                $icon = 'fa-tablet-alt';
+            } elseif (stripos($device_label, 'Mac') !== false || stripos($device_label, 'Chromebook') !== false) {
+                $icon = 'fa-laptop';
+            }
+
+            $is_active = ((int)($row['is_active'] ?? 0) === 1) || $is_current;
+            $devices[] = [
+                'id' => (int)$row['id'],
+                'device' => $device_label,
+                'browser' => (string)($row['browser_label'] ?? 'Unknown browser'),
+                'location' => (string)($row['location_label'] ?? 'Unknown location'),
+                'icon' => $icon,
+                'is_current' => $is_current,
+                'is_active' => $is_active,
+                'active_label' => lgu_login_device_active_label($row['last_active'] ?? '', $is_current),
+                'can_logout' => $is_active && !$is_current,
+            ];
+        }
+    } catch (Exception $e) {
+        error_log('lgu_list_login_devices: ' . $e->getMessage());
+    }
+
+    return $devices;
+}
+
+/**
+ * End another still-active login device (if any).
+ * Compatible with the existing single-session lock — does not alter login policy.
+ */
+function lgu_logout_other_login_device($user_id, $device_row_id) {
+    global $conn;
+    $user_id = (int)$user_id;
+    $device_row_id = (int)$device_row_id;
+    if ($user_id <= 0 || $device_row_id <= 0 || !$conn) {
+        return ['success' => false, 'message' => 'Invalid request.'];
+    }
+
+    $current_sid = (session_status() === PHP_SESSION_ACTIVE) ? session_id() : '';
+    try {
+        $stmt = $conn->prepare(
+            "SELECT id, session_id, is_active
+             FROM user_login_devices
+             WHERE id = ? AND user_id = ?
+             LIMIT 1"
+        );
+        if (!$stmt) {
+            return ['success' => false, 'message' => 'Unable to log out that device.'];
+        }
+        $stmt->bind_param('ii', $device_row_id, $user_id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) {
+            return ['success' => false, 'message' => 'Device not found.'];
+        }
+        $sid = (string)($row['session_id'] ?? '');
+        if ($current_sid !== '' && hash_equals($sid, $current_sid)) {
+            return ['success' => false, 'message' => 'Use Logout in the sidebar to sign out of this device.'];
+        }
+        if ((int)($row['is_active'] ?? 0) !== 1) {
+            return ['success' => false, 'message' => 'That device is already signed out.'];
+        }
+
+        // Best-effort destroy of the other PHP session file.
+        $path = lgu_php_session_file_path($sid);
+        if ($path && is_file($path)) {
+            @unlink($path);
+        }
+
+        $upd = $conn->prepare(
+            "UPDATE user_login_devices
+             SET is_active = 0, last_active = NOW()
+             WHERE id = ? AND user_id = ?"
+        );
+        if ($upd) {
+            $upd->bind_param('ii', $device_row_id, $user_id);
+            $upd->execute();
+            $upd->close();
+        }
+
+        // Clear account lock only if it still points at that other session.
+        if ($sid !== '') {
+            lgu_release_user_session($user_id, $sid);
+        }
+
+        return ['success' => true, 'message' => 'Signed out of that device.'];
+    } catch (Exception $e) {
+        error_log('lgu_logout_other_login_device: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'Unable to log out that device.'];
     }
 }
 
@@ -760,6 +1214,9 @@ function send_otp_to_email($email, $otpCode, $purpose = null) {
     if ($purpose === 'create_admin_account') {
         $intro = 'You are creating a new <strong>Admin</strong> account in the LGU Road Monitoring system. Use the verification code below to confirm this action.';
         $subject = 'Admin account creation verification code';
+    } elseif ($purpose === 'settings_password_change') {
+        $intro = 'You requested a <strong>password change</strong> in Settings. Use the verification code below to confirm it is you before continuing.';
+        $subject = 'Password change verification code';
     } else {
         $intro = 'You requested to sign in or register on the LGU Portal. Use the verification code below to complete your process.';
         $subject = 'Hello from Road and Transportation Department!';
@@ -823,6 +1280,14 @@ function handle_password_reset_otp($email) {
     $otpCode = generate_otp();
     store_otp($email, $otpCode, 'password_reset');
     send_otp_to_email($email, $otpCode, 'password_reset');
+    return $otpCode;
+}
+
+/** OTP for Settings password change / password-change request (identity check only). */
+function handle_settings_password_otp($email) {
+    $otpCode = generate_otp();
+    store_otp($email, $otpCode, 'settings_password_change');
+    send_otp_to_email($email, $otpCode, 'settings_password_change');
     return $otpCode;
 }
 

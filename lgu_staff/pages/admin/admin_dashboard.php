@@ -566,6 +566,41 @@ try {
 } catch (Exception $e) {
     error_log("Reports last 30 days error: " . $e->getMessage());
 }
+
+// Report Type Analytics — same dataset and calculations as analytics.php (default 30-day period).
+$type_analytics_period_days = 30;
+$type_analytics_date_floor = date('Y-m-d 00:00:00', strtotime('-' . $type_analytics_period_days . ' days'));
+$type_analytics_where = "WHERE created_at >= '$type_analytics_date_floor'";
+$type_analytics_counts = [];
+foreach (fetch_all("SELECT report_type FROM road_transportation_reports $type_analytics_where") ?: [] as $type_row) {
+    $type_key = $type_row['report_type'] ?? 'Unknown';
+    $type_analytics_counts[$type_key] = ($type_analytics_counts[$type_key] ?? 0) + 1;
+}
+foreach (fetch_all("SELECT report_type FROM road_maintenance_reports $type_analytics_where") ?: [] as $type_row) {
+    $type_key = $type_row['report_type'] ?? 'Unknown';
+    $type_analytics_counts[$type_key] = ($type_analytics_counts[$type_key] ?? 0) + 1;
+}
+$type_analytics_labels_map = [
+    'traffic' => 'Traffic', 'road_damage' => 'Road Damage', 'maintenance' => 'Maintenance',
+    'infrastructure_issue' => 'Infrastructure Issue', 'maintenance_request' => 'Maintenance Request',
+    'monthly' => 'Monthly', 'safety' => 'Safety', 'budget' => 'Budget',
+    'traffic_violation' => 'Traffic Violation', 'routine' => 'Routine', 'emergency' => 'Emergency',
+    'preventive' => 'Preventive', 'corrective' => 'Corrective', 'scheduled' => 'Scheduled',
+    'accident' => 'Accident', 'congestion' => 'Congestion', 'pothole' => 'Pothole',
+    'traffic_light_outage' => 'Traffic Light Outage',
+];
+$type_analytics_labels = [];
+foreach (array_keys($type_analytics_counts) as $type_key) {
+    $type_analytics_labels[] = $type_analytics_labels_map[$type_key] ?? ucwords(str_replace('_', ' ', (string)$type_key));
+}
+$type_analytics_values = array_values($type_analytics_counts);
+$type_analytics_palette = ['#3762c8', '#059669', '#d97706', '#dc2626', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+$type_analytics_bar_colors = array_slice(
+    array_merge($type_analytics_palette, $type_analytics_palette, $type_analytics_palette),
+    0,
+    max(1, count($type_analytics_counts))
+);
+$type_analytics_chart_height = max(260, min(520, count($type_analytics_counts) * 34 + 48));
 ?>
 
 <!DOCTYPE html>
@@ -743,6 +778,20 @@ try {
         .admin-dash .panel-announcements .title-icon { background: rgba(14, 165, 233, 0.15); color: #0284c7; }
         .admin-dash .panel-approvals .title-icon { background: var(--color-warning-bg); color: var(--color-warning); }
         .admin-dash .panel-priority .title-icon { background: var(--color-danger-bg); color: var(--color-danger); }
+        .admin-dash .panel-type-analytics::after { background: #6366f1; }
+        .admin-dash .panel-type-analytics .title-icon { background: rgba(99, 102, 241, 0.12); color: #6366f1; }
+        .admin-dash .panel-period-note {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .admin-dash .chart-container-type {
+            position: relative;
+            width: 100%;
+            min-height: 260px;
+        }
+        .admin-dash .panel-type-analytics { margin-bottom: 20px; }
         .admin-dash .card-title i { color: inherit; font-size: 13px; }
 
         .chart-container { position: relative; width: 100%; height: 260px; }
@@ -924,6 +973,7 @@ try {
             .main-grid { grid-template-columns: 1fr; }
             .chart-grid { grid-template-columns: 1fr; }
             .chart-grid .chart-card:first-child { grid-column: 1 / -1; }
+            .admin-dash .panel-type-analytics .chart-container-type { min-height: 240px; }
         }
         @media (max-width: 768px) {
             .admin-dash { margin-left: 0; padding: 16px; }
@@ -970,6 +1020,7 @@ try {
             }
             .admin-dash .card-header { gap: 8px; }
             .admin-dash .card-title { font-size: 13px; }
+            .admin-dash .panel-period-note { font-size: 11px; white-space: normal; }
         }
         @media (max-width: 480px) {
             /* Very narrow screens stay 3x2 as well (overrides the generic
@@ -1390,6 +1441,15 @@ try {
                 </div>
             </div>
         </div>
+        <div class="card panel-chart panel-type-analytics" data-source="road_transportation_reports, road_maintenance_reports">
+            <div class="card-header">
+                <h3 class="card-title"><span class="title-icon"><i class="fas fa-chart-bar"></i></span> Reports by Type</h3>
+                <span class="panel-period-note">Last <?php echo (int)$type_analytics_period_days; ?> days</span>
+            </div>
+            <div class="chart-container-type" style="height: <?php echo (int)$type_analytics_chart_height; ?>px;">
+                <canvas id="reportsByTypeAnalyticsChart"></canvas>
+            </div>
+        </div>
         <div class="card panel-chart" data-source="road_transportation_reports">
             <div class="card-header">
                 <h3 class="card-title"><span class="title-icon"><i class="fas fa-calendar-alt"></i></span> Monthly Trend</h3>
@@ -1436,6 +1496,9 @@ try {
         const reportsByStatus = <?php echo json_encode($report_stats['by_status']); ?>;
         const reportsByMonth = <?php echo json_encode($report_stats['by_month']); ?>;
         const reportsByType = <?php echo json_encode($report_stats['by_type']); ?>;
+        const typeAnalyticsLabels = <?php echo json_encode($type_analytics_labels ?: []); ?>;
+        const typeAnalyticsData = <?php echo json_encode($type_analytics_values ?: []); ?>;
+        const typeAnalyticsColors = <?php echo json_encode($type_analytics_bar_colors); ?>;
         const reportsBySource = <?php echo json_encode($reports_by_source); ?>;
         const reportsByCategory = <?php echo json_encode($reports_by_category); ?>;
         const reportsLast30Days = <?php echo json_encode($reports_last_30_days); ?>;
@@ -1690,6 +1753,40 @@ try {
                 cutout: '55%'
             }
         });
+
+        // Reports by Type — same horizontal bar chart as analytics.php (30-day window).
+        const reportsByTypeAnalyticsEl = document.getElementById('reportsByTypeAnalyticsChart');
+        if (reportsByTypeAnalyticsEl && window.Chart) {
+            new Chart(reportsByTypeAnalyticsEl.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: typeAnalyticsLabels.length ? typeAnalyticsLabels : ['No data'],
+                    datasets: [{
+                        label: 'Count',
+                        data: typeAnalyticsData.length ? typeAnalyticsData : [0],
+                        backgroundColor: typeAnalyticsColors,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1, font: { size: 11 }, color: chartText },
+                            grid: { color: chartGrid }
+                        },
+                        y: {
+                            ticks: { font: { size: 11 }, color: chartText },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
 
         // Auto-hide messages after 5 seconds
         setTimeout(() => {

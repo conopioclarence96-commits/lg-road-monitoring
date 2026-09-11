@@ -143,20 +143,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
     }
 
-    if ($action === 'request_password_change') {
+    if ($action === 'pw_cancel') {
+        unset($_SESSION['settings_pw_change']);
+        if (($_SESSION['otp_data']['purpose'] ?? '') === 'settings_password_change') {
+            unset($_SESSION['otp_data']);
+        }
+        $success_msg = 'Password change cancelled.';
+    }
+
+    if ($action === 'pw_verify_current') {
         $current = $_POST['current_password'] ?? '';
+        $mode = ($_SESSION['role'] ?? '') === 'system_admin' ? 'admin' : 'request';
+
+        $stmt = $conn->prepare("SELECT password, email FROM users WHERE id = ? LIMIT 1");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $email = trim((string)($user['email'] ?? ''));
+        if (!$user || !password_verify($current, $user['password'] ?? '')) {
+            $error_msg = 'Current password is incorrect.';
+        } elseif ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error_msg = 'No valid email is on file for this account. Contact an administrator.';
+        } else {
+            handle_settings_password_otp($email);
+            $_SESSION['settings_pw_change'] = [
+                'user_id' => (int)$user_id,
+                'mode' => $mode,
+                'step' => 'otp',
+                'email' => $email,
+                'otp_verified' => false,
+                'started_at' => time(),
+            ];
+            $success_msg = 'A verification code was sent to your email. Enter it to continue.';
+        }
+    }
+
+    if ($action === 'pw_resend_otp') {
+        $pending = $_SESSION['settings_pw_change'] ?? null;
+        if (!is_array($pending)
+            || (int)($pending['user_id'] ?? 0) !== (int)$user_id
+            || ($pending['step'] ?? '') !== 'otp'
+        ) {
+            $error_msg = 'No active password verification. Start again with your current password.';
+            unset($_SESSION['settings_pw_change']);
+        } else {
+            $email = trim((string)($pending['email'] ?? ''));
+            if ($email === '') {
+                $error_msg = 'Unable to resend the verification code.';
+            } else {
+                handle_settings_password_otp($email);
+                $success_msg = 'A new verification code was sent to your email.';
+            }
+        }
+    }
+
+    if ($action === 'pw_verify_otp') {
+        $pending = $_SESSION['settings_pw_change'] ?? null;
+        $otp = trim((string)($_POST['otp_code'] ?? ''));
+        if (!is_array($pending)
+            || (int)($pending['user_id'] ?? 0) !== (int)$user_id
+            || ($pending['step'] ?? '') !== 'otp'
+        ) {
+            $error_msg = 'No active password verification. Start again with your current password.';
+            unset($_SESSION['settings_pw_change']);
+        } else {
+            $result = verify_otp_code($otp, 'settings_password_change');
+            if (!empty($result['success'])) {
+                $_SESSION['settings_pw_change']['step'] = 'new_password';
+                $_SESSION['settings_pw_change']['otp_verified'] = true;
+                $_SESSION['settings_pw_change']['verified_at'] = time();
+                $success_msg = 'Email verified. Enter your new password to finish.';
+            } else {
+                $error_msg = $result['message'] ?? 'Invalid verification code.';
+                if (stripos($error_msg, 'expired') !== false || stripos($error_msg, 'No active') !== false) {
+                    $_SESSION['settings_pw_change']['step'] = 'otp';
+                }
+            }
+        }
+    }
+
+    if ($action === 'request_password_change') {
+        $pending = $_SESSION['settings_pw_change'] ?? null;
         $new = $_POST['new_password'] ?? '';
         $confirm = $_POST['confirm_password'] ?? '';
 
-        $stmt = $conn->prepare("SELECT password FROM users WHERE id = ?");
-        $stmt->bind_param("i", $user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-        $stmt->close();
-
-        if (!password_verify($current, $user['password'])) {
-            $error_msg = 'Current password is incorrect.';
+        if (!is_array($pending)
+            || (int)($pending['user_id'] ?? 0) !== (int)$user_id
+            || ($pending['mode'] ?? '') !== 'request'
+            || empty($pending['otp_verified'])
+            || ($pending['step'] ?? '') !== 'new_password'
+        ) {
+            $error_msg = 'Verify your email with the OTP before submitting a password change request.';
+        } elseif ((int)($pending['verified_at'] ?? 0) < (time() - 900)) {
+            $error_msg = 'Verification expired. Please start again with your current password.';
+            unset($_SESSION['settings_pw_change']);
         } elseif (strlen($new) < 8) {
             $error_msg = 'New password must be at least 8 characters.';
         } elseif ($new !== $confirm) {
@@ -170,6 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->execute()) {
                 log_audit_action($user_id, 'Password Change Requested', 'Staff requested password change via settings');
                 $success_msg = 'Your password change request has been submitted and is pending admin review.';
+                unset($_SESSION['settings_pw_change']);
             } else {
                 $error_msg = 'Failed to submit request. Please try again.';
             }
@@ -178,19 +261,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'change_password') {
-        $current = $_POST['current_password'] ?? '';
+        $pending = $_SESSION['settings_pw_change'] ?? null;
         $new = $_POST['new_password'] ?? '';
         $confirm = $_POST['confirm_password'] ?? '';
 
-        $stmt = $conn->prepare("SELECT password FROM users WHERE id = ?");
-        $stmt->bind_param("i", $user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-        $stmt->close();
-
-        if (!password_verify($current, $user['password'])) {
-            $error_msg = 'Current password is incorrect.';
+        if (!is_array($pending)
+            || (int)($pending['user_id'] ?? 0) !== (int)$user_id
+            || ($pending['mode'] ?? '') !== 'admin'
+            || empty($pending['otp_verified'])
+            || ($pending['step'] ?? '') !== 'new_password'
+        ) {
+            $error_msg = 'Verify your email with the OTP before changing your password.';
+        } elseif ((int)($pending['verified_at'] ?? 0) < (time() - 900)) {
+            $error_msg = 'Verification expired. Please start again with your current password.';
+            unset($_SESSION['settings_pw_change']);
         } elseif (strlen($new) < 8) {
             $error_msg = 'New password must be at least 8 characters.';
         } elseif ($new !== $confirm) {
@@ -204,6 +288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             log_audit_action($user_id, 'Password Changed', 'Changed account password');
             $success_msg = 'Password changed successfully.';
+            unset($_SESSION['settings_pw_change']);
         }
     }
 
@@ -287,6 +372,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Content-Type: application/json');
         echo json_encode(['success' => true]);
         exit;
+    }
+
+    if ($action === 'logout_login_device') {
+        $device_id = (int)($_POST['device_id'] ?? 0);
+        $result = lgu_logout_other_login_device($user_id, $device_id);
+        if (!empty($result['success'])) {
+            $success_msg = $result['message'] ?? 'Signed out of that device.';
+        } else {
+            $error_msg = $result['message'] ?? 'Unable to log out that device.';
+        }
+    }
+}
+
+// Keep the current device row fresh for the Where You’re Logged In list.
+lgu_touch_login_device($user_id);
+$login_devices = lgu_list_login_devices($user_id);
+
+// Password-change OTP wizard state (Settings Security card only).
+$pw_change = $_SESSION['settings_pw_change'] ?? null;
+if (is_array($pw_change)) {
+    if ((int)($pw_change['user_id'] ?? 0) !== (int)$user_id
+        || (int)($pw_change['started_at'] ?? 0) < (time() - 900)
+    ) {
+        unset($_SESSION['settings_pw_change']);
+        $pw_change = null;
+    }
+}
+$pw_step = is_array($pw_change) ? (string)($pw_change['step'] ?? 'current') : 'current';
+$pw_mode = is_array($pw_change) ? (string)($pw_change['mode'] ?? '') : '';
+$pw_email_masked = '';
+if (is_array($pw_change) && !empty($pw_change['email'])) {
+    $em = (string)$pw_change['email'];
+    $at = strpos($em, '@');
+    if ($at !== false && $at > 1) {
+        $pw_email_masked = substr($em, 0, 1) . str_repeat('*', max(1, $at - 2)) . substr($em, $at - 1);
+    } else {
+        $pw_email_masked = $em;
     }
 }
 
@@ -697,6 +819,142 @@ try {
             font-size: 12px; color: #94a3b8;
         }
         .twofa-section .switch { margin-left: 16px; }
+        .login-devices-intro {
+            font-size: 13px;
+            color: #64748b;
+            margin: 0 0 14px;
+            line-height: 1.5;
+        }
+        .login-devices-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            border: 1px solid #e8edf5;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .login-device-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 16px;
+            border-bottom: 1px solid #eef2f7;
+        }
+        .login-device-item:last-child { border-bottom: none; }
+        .login-device-item.is-current {
+            background: #f8fafc;
+        }
+        .login-device-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: #eff4ff;
+            color: #3762c8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .login-device-body { flex: 1; min-width: 0; }
+        .login-device-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0 0 3px;
+        }
+        .login-device-location {
+            font-size: 13px;
+            color: #64748b;
+            margin: 0 0 4px;
+        }
+        .login-device-meta {
+            font-size: 12px;
+            color: #94a3b8;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+        }
+        .login-device-current-badge {
+            display: inline-flex;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: #059669;
+            background: rgba(5, 150, 105, 0.1);
+            border-radius: 999px;
+            padding: 2px 8px;
+        }
+        .login-device-actions {
+            flex-shrink: 0;
+            align-self: center;
+        }
+        .btn-logout-device {
+            padding: 7px 12px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #dc2626;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-logout-device:hover {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+        .login-devices-empty {
+            padding: 18px 16px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+        .pw-step-note {
+            font-size: 13px;
+            color: #64748b;
+            margin: 0 0 14px;
+            line-height: 1.5;
+        }
+        .pw-step-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #3762c8;
+            background: rgba(55, 98, 200, 0.1);
+            border-radius: 999px;
+            padding: 4px 10px;
+            margin-bottom: 12px;
+        }
+        .pw-otp-input {
+            letter-spacing: 6px;
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            max-width: 220px;
+        }
+        .pw-otp-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-top: 12px;
+        }
+        .pw-otp-resend {
+            border: none;
+            background: none;
+            color: #3762c8;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            padding: 0;
+        }
+        .pw-otp-resend:hover { text-decoration: underline; }
         .twofa-badge {
             display: inline-flex; align-items: center; gap: 4px;
             padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
@@ -745,6 +1003,29 @@ try {
         body.dark-mode .twofa-section .twofa-info strong { color: #e4e6ea; }
         body.dark-mode .twofa-section .twofa-info small { color: #9ca3af; }
         body.dark-mode .security-divider { background: #2d323b; }
+        body.dark-mode .login-devices-intro { color: #9ca3af; }
+        body.dark-mode .login-devices-list {
+            background: #1a1d23;
+            border-color: #2d323b;
+        }
+        body.dark-mode .login-device-item { border-bottom-color: #2d323b; }
+        body.dark-mode .login-device-item.is-current { background: #1e2229; }
+        body.dark-mode .login-device-icon {
+            background: rgba(55, 98, 200, 0.18);
+            color: #93c5fd;
+        }
+        body.dark-mode .login-device-title { color: #e4e6ea; }
+        body.dark-mode .login-device-location { color: #9ca3af; }
+        body.dark-mode .login-device-meta { color: #6b7280; }
+        body.dark-mode .btn-logout-device {
+            background: #1a1d23;
+            border-color: #3a3f4a;
+            color: #fca5a5;
+        }
+        body.dark-mode .btn-logout-device:hover {
+            background: rgba(220, 38, 38, 0.12);
+            border-color: #7f1d1d;
+        }
         body.dark-mode .btn-secondary { background: #374151; }
         body.dark-mode .btn-secondary:hover { background: #4b5563; }
         body.dark-mode .tab-btn { color: #9ca3af; }
@@ -1181,18 +1462,48 @@ try {
                             <h3>Security</h3>
                         </div>
                         <div class="account-card-body">
-                            <!-- Password Change -->
+                            <!-- Password Change (Current password → Email OTP → New password) -->
+                            <?php if ($pw_step === 'otp'): ?>
+                            <div class="pw-step-badge"><i class="fas fa-envelope"></i> Step 2 of 3 · Email verification</div>
+                            <p class="pw-step-note">
+                                Enter the 6-digit code sent to
+                                <strong><?php echo htmlspecialchars($pw_email_masked !== '' ? $pw_email_masked : 'your registered email'); ?></strong>.
+                                This only confirms it is you<?php echo ($pw_mode === 'request') ? ' before submitting your password change request' : ' before you set a new password'; ?>.
+                            </p>
+                            <form method="POST">
+                                <input type="hidden" name="action" value="pw_verify_otp">
+                                <div class="form-group">
+                                    <label for="pwOtpCode">Verification Code</label>
+                                    <input type="text" name="otp_code" id="pwOtpCode" class="form-control pw-otp-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="••••••" autocomplete="one-time-code" required>
+                                </div>
+                                <div class="pw-otp-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Verify Code</button>
+                                </div>
+                            </form>
+                            <div class="pw-otp-actions" style="margin-top:10px;">
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="action" value="pw_resend_otp">
+                                    <button type="submit" class="pw-otp-resend"><i class="fas fa-redo"></i> Resend code</button>
+                                </form>
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="action" value="pw_cancel">
+                                    <button type="submit" class="btn btn-secondary btn-sm">Cancel</button>
+                                </form>
+                            </div>
+
+                            <?php elseif ($pw_step === 'new_password'): ?>
+                            <div class="pw-step-badge"><i class="fas fa-key"></i> Step 3 of 3 · New password</div>
+                            <p class="pw-step-note">
+                                <?php if ($user_data['role'] === 'system_admin'): ?>
+                                    Email verified. Enter and confirm your new password to save it.
+                                <?php else: ?>
+                                    Email verified. Enter your new password to submit a change request for admin review.
+                                <?php endif; ?>
+                            </p>
                             <?php if ($user_data['role'] === 'system_admin'): ?>
                             <form method="POST">
                                 <input type="hidden" name="action" value="change_password">
-                                <div class="form-grid-3">
-                                    <div class="form-group">
-                                        <label for="currentPassword">Current Password</label>
-                                        <div class="password-wrapper">
-                                            <input type="password" name="current_password" id="currentPassword" class="form-control" placeholder="Enter current password" required>
-                                            <button type="button" class="password-toggle" onclick="togglePassword('currentPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
-                                        </div>
-                                    </div>
+                                <div class="form-grid-2">
                                     <div class="form-group">
                                         <label for="newPassword">New Password</label>
                                         <div class="password-wrapper">
@@ -1209,20 +1520,17 @@ try {
                                     </div>
                                 </div>
                                 <div class="form-actions">
-                                    <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Update Password</button>
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Save New Password</button>
                                 </div>
+                            </form>
+                            <form method="POST" style="margin-top:10px;">
+                                <input type="hidden" name="action" value="pw_cancel">
+                                <button type="submit" class="btn btn-secondary btn-sm">Cancel</button>
                             </form>
                             <?php else: ?>
                             <form method="POST">
                                 <input type="hidden" name="action" value="request_password_change">
-                                <div class="form-grid-3">
-                                    <div class="form-group">
-                                        <label for="staffCurrentPassword">Current Password</label>
-                                        <div class="password-wrapper">
-                                            <input type="password" name="current_password" id="staffCurrentPassword" class="form-control" placeholder="Enter current password" required>
-                                            <button type="button" class="password-toggle" onclick="togglePassword('staffCurrentPassword', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
-                                        </div>
-                                    </div>
+                                <div class="form-grid-2">
                                     <div class="form-group">
                                         <label for="staffNewPassword">New Password</label>
                                         <div class="password-wrapper">
@@ -1240,6 +1548,31 @@ try {
                                 </div>
                                 <div class="form-actions">
                                     <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Request Change Password</button>
+                                </div>
+                            </form>
+                            <form method="POST" style="margin-top:10px;">
+                                <input type="hidden" name="action" value="pw_cancel">
+                                <button type="submit" class="btn btn-secondary btn-sm">Cancel</button>
+                            </form>
+                            <?php endif; ?>
+
+                            <?php else: ?>
+                            <div class="pw-step-badge"><i class="fas fa-shield-alt"></i> Step 1 of 3 · Current password</div>
+                            <p class="pw-step-note">
+                                Enter your current password. We’ll email a one-time code to verify it’s you before
+                                <?php echo ($user_data['role'] === 'system_admin') ? 'you can set a new password.' : 'you can submit a password change request.'; ?>
+                            </p>
+                            <form method="POST">
+                                <input type="hidden" name="action" value="pw_verify_current">
+                                <div class="form-group" style="max-width:360px;">
+                                    <label for="currentPasswordStep">Current Password</label>
+                                    <div class="password-wrapper">
+                                        <input type="password" name="current_password" id="currentPasswordStep" class="form-control" placeholder="Enter current password" required>
+                                        <button type="button" class="password-toggle" onclick="togglePassword('currentPasswordStep', this)" tabindex="-1"><i class="fas fa-eye"></i></button>
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-envelope"></i> Send Verification Code</button>
                                 </div>
                             </form>
                             <?php endif; ?>
@@ -1277,6 +1610,53 @@ try {
                                     </label>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+
+                    <!-- Where You’re Logged In -->
+                    <div class="account-card">
+                        <div class="account-card-header">
+                            <i class="fas fa-laptop"></i>
+                            <h3>Where You’re Logged In</h3>
+                        </div>
+                        <div class="account-card-body">
+                            <p class="login-devices-intro">Devices and browsers that recently used your account.</p>
+                            <div class="login-devices-list">
+                                <?php if (empty($login_devices)): ?>
+                                    <div class="login-devices-empty">No recent login activity yet.</div>
+                                <?php else: ?>
+                                    <?php foreach ($login_devices as $device): ?>
+                                        <div class="login-device-item<?php echo !empty($device['is_current']) ? ' is-current' : ''; ?>">
+                                            <div class="login-device-icon" aria-hidden="true">
+                                                <i class="fas <?php echo htmlspecialchars($device['icon'] ?? 'fa-desktop'); ?>"></i>
+                                            </div>
+                                            <div class="login-device-body">
+                                                <div class="login-device-title">
+                                                    <?php echo htmlspecialchars(($device['device'] ?? 'Unknown device') . ' · ' . ($device['browser'] ?? 'Unknown browser')); ?>
+                                                </div>
+                                                <div class="login-device-location">
+                                                    <?php echo htmlspecialchars($device['location'] ?? 'Unknown location'); ?>
+                                                </div>
+                                                <div class="login-device-meta">
+                                                    <span><?php echo htmlspecialchars($device['active_label'] ?? ''); ?></span>
+                                                    <?php if (!empty($device['is_current'])): ?>
+                                                        <span class="login-device-current-badge">Current Device</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                            <?php if (!empty($device['can_logout'])): ?>
+                                            <div class="login-device-actions">
+                                                <form method="POST" onsubmit="return confirm('Log out this device?');">
+                                                    <input type="hidden" name="action" value="logout_login_device">
+                                                    <input type="hidden" name="device_id" value="<?php echo (int)$device['id']; ?>">
+                                                    <button type="submit" class="btn-logout-device">Log Out</button>
+                                                </form>
+                                            </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </div>
 

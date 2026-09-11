@@ -77,6 +77,28 @@ try {
         // Column may already exist, ignore
     }
 
+    // Lightweight login-device history for Settings → Where You’re Logged In.
+    // Stores only display labels + last active time (never passwords/tokens/OTPs).
+    try {
+        $conn->query("CREATE TABLE IF NOT EXISTS user_login_devices (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            session_id VARCHAR(128) NOT NULL,
+            device_label VARCHAR(64) NOT NULL DEFAULT 'Unknown device',
+            browser_label VARCHAR(64) NOT NULL DEFAULT 'Unknown browser',
+            location_label VARCHAR(128) NOT NULL DEFAULT 'Unknown location',
+            ip_address VARCHAR(45) DEFAULT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            last_active TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_uld_user (user_id),
+            INDEX idx_uld_session (session_id),
+            INDEX idx_uld_user_active (user_id, is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log('user_login_devices table creation: ' . $e->getMessage());
+    }
+
     // Backfill last_activity from last_login for accounts with no activity tracked yet
     try {
         $conn->query("UPDATE users SET last_activity = last_login WHERE last_activity IS NULL AND last_login IS NOT NULL");
