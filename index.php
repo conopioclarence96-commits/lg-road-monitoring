@@ -62,6 +62,47 @@ function road_updates_resolve_image_url($path, $basePath) {
 }
 
 /**
+ * Map a transportation report type to a readable label for the updates
+ * section. Mirrors the labels used on transportation-updates.php.
+ */
+function transport_updates_type_label($type) {
+    $map = [
+        'traffic_jam' => 'Traffic Jam',
+        'accident' => 'Vehicle Accident',
+        'road_closure' => 'Road Closure',
+        'traffic_light_outage' => 'Traffic Light Outage',
+        'congestion' => 'Heavy Congestion',
+        'parking_violation' => 'Illegal Parking',
+        'public_transport_issue' => 'Public Transport Issue',
+        'vehicle_breakdown' => 'Vehicle Breakdown',
+        'traffic_sign_issue' => 'Traffic Sign Issue',
+    ];
+    $key = strtolower((string)$type);
+    if (isset($map[$key])) return $map[$key];
+    return ucfirst(str_replace('_', ' ', $key !== '' ? $key : 'advisory'));
+}
+
+/**
+ * Map a transportation report type to a badge color class. Mirrors the
+ * mapping used on transportation-updates.php.
+ */
+function transport_updates_badge_class($type) {
+    $map = [
+        'traffic_jam' => 'advisory',
+        'congestion' => 'advisory',
+        'parking_violation' => 'advisory',
+        'public_transport_issue' => 'maintenance',
+        'traffic_light_outage' => 'maintenance',
+        'traffic_sign_issue' => 'maintenance',
+        'vehicle_breakdown' => 'maintenance',
+        'accident' => 'closure',
+        'road_closure' => 'closure',
+    ];
+    $key = strtolower((string)$type);
+    return isset($map[$key]) ? $map[$key] : 'advisory';
+}
+
+/**
  * Safely format a date string. Returns a fallback if the value is empty or
  * unparseable, avoiding PHP deprecation warnings from strtotime(false|null).
  */
@@ -130,7 +171,7 @@ if ($database_available && $conn) {
         
         $order_field = $has_reported_date ? "reported_date" : "created_at";
         
-        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports ORDER BY $order_field DESC LIMIT 3");
+        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports WHERE report_category = 'road' ORDER BY $order_field DESC LIMIT 3");
         if (!$stmt) {
             error_log("index.php: road updates SELECT failed: " . $conn->error);
             throw new Exception("prepare failed");
@@ -177,6 +218,79 @@ if ($database_available && $conn) {
         // Log details internally, return a safe generic empty state to users
         error_log("index.php road updates query: " . $e->getMessage());
         $road_updates = [];
+    }
+}
+
+// Transportation updates are restricted to the Transportation Operations
+// Supervisor role only (mirrors transportation-updates.php). Non-authorized
+// visitors never receive the report data.
+$current_user_role = $_SESSION['role'] ?? '';
+$can_view_transport_updates = ($current_user_role === 'trans_ops_supervisor');
+
+$transport_updates = [];
+if ($can_view_transport_updates && $database_available && $conn) {
+    try {
+        $stmt = $conn->prepare("DESCRIBE road_transportation_reports");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $has_attachments = false;
+        $has_title = false;
+        $has_description = false;
+        $has_reported_date = false;
+        while ($row = $result->fetch_assoc()) {
+            if ($row['Field'] === 'attachments') $has_attachments = true;
+            if ($row['Field'] === 'title') $has_title = true;
+            if ($row['Field'] === 'description') $has_description = true;
+            if ($row['Field'] === 'reported_date') $has_reported_date = true;
+        }
+        $stmt->close();
+        $select_fields = "id";
+        if ($has_title) $select_fields .= ", title";
+        if ($has_description) $select_fields .= ", description";
+        if ($has_reported_date) $select_fields .= ", reported_date";
+        if ($has_attachments) $select_fields .= ", attachments";
+        $select_fields .= ", image_path";
+        if ($has_title) $select_fields .= ", report_type, priority, status, location";
+        $order_field = $has_reported_date ? "reported_date" : "created_at";
+        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports WHERE report_category = 'transportation' ORDER BY $order_field DESC LIMIT 12");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $transport_updates[] = $row;
+        }
+        $stmt->close();
+
+        if (!empty($transport_updates)) {
+            $ids = array_column($transport_updates, 'id');
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $types = str_repeat('i', count($ids));
+            $media_stmt = $conn->prepare(
+                "SELECT rum.file_path, rum.file_type, ru.report_id
+                 FROM report_update_media rum
+                 INNER JOIN report_updates ru ON rum.update_id = ru.id
+                 WHERE ru.report_id IN ($placeholders) AND rum.file_type = 'image'
+                 ORDER BY rum.id ASC"
+            );
+            $media_stmt->bind_param($types, ...$ids);
+            $media_stmt->execute();
+            $media_result = $media_stmt->get_result();
+            $media_by_report = [];
+            while ($m = $media_result->fetch_assoc()) {
+                $rid = $m['report_id'];
+                if (!isset($media_by_report[$rid])) {
+                    $media_by_report[$rid] = $m['file_path'];
+                }
+            }
+            $media_stmt->close();
+            foreach ($transport_updates as &$upd) {
+                if (empty($upd['_first_image']) && !empty($media_by_report[$upd['id']])) {
+                    $upd['_first_image'] = $media_by_report[$upd['id']];
+                }
+            }
+            unset($upd);
+        }
+    } catch (Exception $e) {
+        $transport_updates = [];
     }
 }
 
@@ -2049,6 +2163,26 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         .filter-empty.show { display: block; }
         .filter-empty i { font-size: 2rem; margin-bottom: 10px; color: var(--qc-shades-300); }
 
+        /* Road / Transportation update-type selector */
+        .update-type-select {
+            flex: 0 0 auto;
+            min-width: 224px;
+            border: 1px solid var(--qc-card-border);
+            border-radius: 999px;
+            background: #fff;
+            color: var(--qc-primary-800);
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: 'Montserrat', sans-serif;
+        }
+        .update-type-select:focus {
+            border-color: var(--qc-primary-500);
+            box-shadow: 0 0 0 3px rgba(33, 161, 214, 0.15);
+        }
+        .road-filter-bar.transport-active .filter-pill { display: none; }
+
         /* 4. Commuter FAQ Accordion */
         .faq-accordion .accordion-item {
             border: 1px solid var(--qc-card-border);
@@ -3588,6 +3722,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             background: rgba(255,255,255,0.22) !important;
             color: #fff !important;
         }
+        html.dark-mode .update-type-select {
+            background: var(--dm-elevated) !important;
+            border: 1px solid var(--dm-border-strong) !important;
+            color: var(--dm-text-body) !important;
+        }
         html.dark-mode .filter-empty { color: var(--dm-text-tertiary); }
 
         /* 16. FAQ accordion */
@@ -4010,15 +4149,22 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             <h2 class="section-title">Road and Transportation Updates</h2>
             <p class="section-subtitle">Stay informed about the latest road conditions and maintenance activities</p>
 
-            <!-- 3. Quick-Access Category Filter Bar -->
-            <div class="road-filter-bar" role="tablist" aria-label="Filter road updates by category">
-                <button type="button" class="filter-pill active" data-filter="all" role="tab" aria-selected="true"><i class="fas fa-layer-group"></i> All</button>
-                <button type="button" class="filter-pill" data-filter="traffic_light" role="tab" aria-selected="false"><i class="fas fa-traffic-light"></i> Traffic Lights</button>
-                <button type="button" class="filter-pill" data-filter="accident" role="tab" aria-selected="false"><i class="fas fa-car-crash"></i> Accidents</button>
-                <button type="button" class="filter-pill" data-filter="closure" role="tab" aria-selected="false"><i class="fas fa-road"></i> Road Closures</button>
-                <button type="button" class="filter-pill" data-filter="pothole" role="tab" aria-selected="false"><i class="fas fa-exclamation-circle"></i> Potholes</button>
+            <!-- Road / Transportation type selector + road category filter bar -->
+            <div class="road-filter-bar" id="updatesFilterBar">
+                <select id="updateTypeSelect" class="form-select update-type-select" aria-label="Filter updates by report type">
+                    <option value="road" selected>Road Reports</option>
+                    <option value="transportation">Transportation Reports</option>
+                </select>
+                <div class="road-category-filters" role="tablist" aria-label="Filter road updates by category">
+                    <button type="button" class="filter-pill active" data-filter="all" role="tab" aria-selected="true"><i class="fas fa-layer-group"></i> All</button>
+                    <button type="button" class="filter-pill" data-filter="traffic_light" role="tab" aria-selected="false"><i class="fas fa-traffic-light"></i> Traffic Lights</button>
+                    <button type="button" class="filter-pill" data-filter="accident" role="tab" aria-selected="false"><i class="fas fa-car-crash"></i> Accidents</button>
+                    <button type="button" class="filter-pill" data-filter="closure" role="tab" aria-selected="false"><i class="fas fa-road"></i> Road Closures</button>
+                    <button type="button" class="filter-pill" data-filter="pothole" role="tab" aria-selected="false"><i class="fas fa-exclamation-circle"></i> Potholes</button>
+                </div>
             </div>
             
+            <div id="roadUpdatesPanel">
             <div class="row g-4" id="roadUpdatesGrid">
                 <?php if (!empty($road_updates)): ?>
                     <?php foreach ($road_updates as $update):
@@ -4109,6 +4255,91 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                 <a href="road_status.php" class="btn btn-primary-hero btn-hero" style="font-size: 1rem; padding: 12px 28px;">
                     <i class="fas fa-list"></i> View All Road Reports
                 </a>
+            </div>
+            </div>
+
+            <div id="transportUpdatesPanel" style="display:none;">
+                <?php if ($can_view_transport_updates): ?>
+                    <div class="row g-4">
+                        <?php if (!empty($transport_updates)): ?>
+                            <?php foreach ($transport_updates as $update): ?>
+                                <div class="col-md-6 transport-update-item">
+                                    <div class="card update-card">
+                                        <div class="card-header position-relative">
+                                            <?php echo htmlspecialchars($update['title'] ?? 'Transportation Update'); ?>
+                                            <span class="update-badge badge-<?php echo transport_updates_badge_class($update['report_type'] ?? ''); ?>">
+                                                <?php echo transport_updates_type_label($update['report_type'] ?? ''); ?>
+                                            </span>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="card-text">
+                                                <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
+                                            </p>
+                                            <?php
+                                            $image_candidates = [];
+                                            if (!empty($update['attachments'])):
+                                                $attachments = json_decode($update['attachments'], true);
+                                                if (is_array($attachments) && !empty($attachments)):
+                                                    foreach ($attachments as $attachment):
+                                                        if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
+                                                            $image_candidates[] = $attachment['file_path'];
+                                                            break;
+                                                        endif;
+                                                    endforeach;
+                                                endif;
+                                            endif;
+                                            if (!empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
+                                                $image_candidates[] = $update['image_path'];
+                                            endif;
+                                            if (!empty($update['_first_image'])):
+                                                $image_candidates[] = $update['_first_image'];
+                                            endif;
+                                            $display_image = '';
+                                            foreach ($image_candidates as $candidate):
+                                                $resolved = road_updates_resolve_image_url($candidate, $basePath);
+                                                if ($resolved) { $display_image = $resolved; break; }
+                                            endforeach;
+                                            if ($display_image): ?>
+                                                <div class="mt-3">
+                                                    <img src="<?php echo htmlspecialchars($display_image); ?>"
+                                                         alt="<?php echo htmlspecialchars(($update['title'] ?? 'Transportation update') . ' report photo'); ?>"
+                                                         loading="lazy"
+                                                         class="img-fluid rounded shadow-sm"
+                                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                         onclick="window.open(this.src, '_blank')"
+                                                         title="Click to view full size">
+                                                </div>
+                                            <?php endif; ?>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar"></i>
+                                                <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="col-12">
+                                <div class="alert alert-warning text-center">
+                                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                                    <h5>No Transportation Updates Available</h5>
+                                    <p class="mb-0">No transportation reports have been posted yet. Please check back later.</p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="text-center mt-4">
+                        <a href="transportation-updates.php" class="btn btn-primary-hero btn-hero" style="font-size: 1rem; padding: 12px 28px;">
+                            <i class="fas fa-list"></i> View All Transportation Reports
+                        </a>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-secondary text-center">
+                        <i class="fas fa-lock fa-3x mb-3"></i>
+                        <h5>Access Restricted</h5>
+                        <p class="mb-0">Transportation reports are only available to authorized personnel.</p>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </section>
@@ -4657,7 +4888,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         var pills = document.querySelectorAll('.filter-pill');
         var items = document.querySelectorAll('.road-update-item');
         var emptyState = document.getElementById('filterEmptyState');
+        var currentRoadFilter = 'all';
         function applyFilter(cat){
+            currentRoadFilter = cat;
             var visible=0;
             items.forEach(function(card){
                 var c = card.getAttribute('data-category') || 'other';
@@ -4677,6 +4910,23 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             p.addEventListener('click', function(){ applyFilter(this.getAttribute('data-filter')); });
         });
         // keyboard accessible handled by button role
+
+        // Road / Transportation type selector — toggles between the road grid
+        // and the restricted transportation reports panel (transportation is
+        // rendered only for trans_ops_supervisor; others get an empty panel).
+        var typeSelect = document.getElementById('updateTypeSelect');
+        var updatesFilterBar = document.getElementById('updatesFilterBar');
+        var roadPanel = document.getElementById('roadUpdatesPanel');
+        var transportPanel = document.getElementById('transportUpdatesPanel');
+        if(typeSelect && roadPanel && transportPanel){
+            typeSelect.addEventListener('change', function(){
+                var isTransport = (this.value === 'transportation');
+                roadPanel.style.display = isTransport ? 'none' : '';
+                transportPanel.style.display = isTransport ? '' : 'none';
+                if(updatesFilterBar){ updatesFilterBar.classList.toggle('transport-active', isTransport); }
+                if(!isTransport){ applyFilter(currentRoadFilter); }
+            });
+        }
 
         // 2. Live Traffic — inline #liveTrafficMap removed per user request (FAB provides the GIS map).
         // Keep toggleLiveTraffic as a backward-compatible shim that opens the public-gis FAB and ensures traffic flow is visible.
