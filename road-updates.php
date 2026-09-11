@@ -70,9 +70,9 @@ if ($database_available && $conn) {
         if ($has_reported_date) $select_fields .= ", r.reported_date";
         if ($has_attachments) $select_fields .= ", r.attachments";
         $select_fields .= ", r.image_path";
-        if ($has_title) $select_fields .= ", r.report_type, r.priority, r.status, r.location";
+        if ($has_title) $select_fields .= ", r.report_type, r.priority, r.status, r.location, r.report_category, r.cimm_sync_status";
         $order_field = $has_reported_date ? "r.reported_date" : "r.created_at";
-        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports r INNER JOIN users u ON u.id = r.created_by WHERE u.role = 'road_ops_supervisor' ORDER BY $order_field DESC LIMIT 20");
+        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports r WHERE r.report_category = 'road' AND (r.status = 'approved' OR r.cimm_sync_status = 'verified') ORDER BY $order_field DESC LIMIT 20");
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
