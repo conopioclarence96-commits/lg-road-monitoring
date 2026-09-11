@@ -538,9 +538,9 @@ function ensure_archive_for_archive_cancel($conn) {
     }
 }
 
-// Move a cancelled report into the archive atomically: copy every column, then
-// delete the report from the active table plus its related notification / progress
-// / analytics records so no orphan references remain.
+// Move a cancelled/rejected report into the archive atomically: copy every
+// column, then delete the report from the active table plus its related
+// notification / progress / analytics records so no orphan references remain.
 function archive_cancelled_report($conn, $table, $report_id) {
     try {
         // Schema setup is idempotent DDL; run it before BEGIN so it does not
@@ -549,22 +549,97 @@ function archive_cancelled_report($conn, $table, $report_id) {
 
         $conn->begin_transaction();
 
+        $live_stmt = $conn->prepare("SELECT report_id FROM $table WHERE id = ?");
+        $live_stmt->bind_param('i', $report_id);
+        $live_stmt->execute();
+        $live_row = $live_stmt->get_result()->fetch_assoc();
+        $live_stmt->close();
+        if (!$live_row) {
+            throw new Exception("Report not found in $table");
+        }
+        $live_report_code = $live_row['report_id'] ?? null;
+
         $fields = [];
         $col_res = $conn->query("SHOW COLUMNS FROM $table");
         if ($col_res) { while ($col_row = $col_res->fetch_assoc()) { $fields[] = "`{$col_row['Field']}`"; } }
         if (empty($fields)) { throw new Exception("No columns found for table $table"); }
+
+        // Archive UNIQUE(report_id) / PRIMARY(id) collisions are common after
+        // restore + re-reject or after another module reused the same numeric
+        // id. Refresh or id-omit instead of failing the reject→archive move.
+        if ($live_report_code !== null && $live_report_code !== '') {
+            $rid = $conn->prepare("SELECT id FROM road_transportation_reports_archive WHERE report_id = ? LIMIT 1");
+            $rid->bind_param('s', $live_report_code);
+            $rid->execute();
+            $existing = $rid->get_result()->fetch_assoc();
+            $rid->close();
+            if ($existing) {
+                $arch_id = (int)$existing['id'];
+                // previous_status is intentionally NOT set — rejected reports
+                // must stay 'rejected' when restored.
+                $set_parts = ["a.archived_from = ?", "a.updated_at = NOW()"];
+                foreach ($fields as $f) {
+                    if ($f === '`id`') continue;
+                    $set_parts[] = "a.$f = l.$f";
+                }
+                $upd = "UPDATE road_transportation_reports_archive a
+                        JOIN $table l ON l.id = ?
+                        SET " . implode(', ', $set_parts) . "
+                        WHERE a.id = ?";
+                $stmt = $conn->prepare($upd);
+                $stmt->bind_param('sii', $table, $report_id, $arch_id);
+                $stmt->execute();
+
+                $del = $conn->prepare("DELETE FROM report_notifications WHERE report_id = ?");
+                $del->bind_param('i', $report_id);
+                $del->execute();
+
+                $del = $conn->prepare("DELETE FROM report_updates WHERE report_id = ?");
+                $del->bind_param('i', $report_id);
+                $del->execute();
+
+                $del = $conn->prepare("DELETE FROM project_analytics WHERE report_id = ? AND report_table = ?");
+                $del->bind_param('is', $report_id, $table);
+                $del->execute();
+
+                $del = $conn->prepare("DELETE FROM $table WHERE id = ?");
+                $del->bind_param('i', $report_id);
+                $del->execute();
+
+                $conn->commit();
+                return true;
+            }
+        }
+
         $cols = implode(', ', $fields);
 
-        // Copy ALL report information into the archive.
-        $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
-        $stmt->bind_param('i', $report_id);
-        $stmt->execute();
+        $id_chk = $conn->prepare("SELECT id FROM road_transportation_reports_archive WHERE id = ? LIMIT 1");
+        $id_chk->bind_param('i', $report_id);
+        $id_chk->execute();
+        $id_exists = $id_chk->get_result()->fetch_assoc();
+        $id_chk->close();
+
+        if ($id_exists) {
+            $no_id = [];
+            foreach ($fields as $f) { if ($f === '`id`') continue; $no_id[] = $f; }
+            $cols2 = implode(', ', $no_id);
+            $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols2) SELECT $cols2 FROM $table WHERE id = ?");
+            $stmt->bind_param('i', $report_id);
+            $stmt->execute();
+            $arch_insert_id = (int)$conn->insert_id;
+        } else {
+            // Copy ALL report information into the archive (keeps live id).
+            $stmt = $conn->prepare("INSERT INTO road_transportation_reports_archive ($cols) SELECT $cols FROM $table WHERE id = ?");
+            $stmt->bind_param('i', $report_id);
+            $stmt->execute();
+            $arch_insert_id = $report_id;
+        }
 
         // Stamp which live table this came from so Restore returns it to the
         // exact same module. (previous_status is intentionally NOT recorded —
         // rejected reports must stay 'rejected' when restored.)
         $ps = $conn->prepare("UPDATE road_transportation_reports_archive SET archived_from = ? WHERE id = ?");
-        $ps->bind_param('si', $table, $report_id);
+        $ps->bind_param('si', $table, $arch_insert_id);
         $ps->execute();
 
         // Remove related active records so the cancelled report leaves
@@ -589,7 +664,7 @@ function archive_cancelled_report($conn, $table, $report_id) {
         $conn->commit();
         return true;
     } catch (Exception $e) {
-        $conn->rollback();
+        try { $conn->rollback(); } catch (Throwable $rollback_error) { /* No active transaction */ }
         error_log('archive_cancelled_report failed: ' . $e->getMessage());
         return false;
     }
@@ -781,9 +856,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            // When a report is cancelled/rejected, automatically move it to the
-            // archive and remove it from every active report list. The archive
-            // copy preserves all report data (status becomes/remains 'cancelled').
+            // When a report is rejected, automatically move it to the archive
+            // and remove it from every active report list. The archive copy
+            // preserves all report data with status 'rejected'.
             if ($action === 'reject') {
                 $archived = archive_cancelled_report($conn, $table, $report_id);
                 if ($archived) {
@@ -837,9 +912,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && in_array
         }
     } else {
         $reason = trim($_POST['rejection_reason'] ?? 'Rejected by admin');
+        // Capture live PK before archive removes the row (needed so Road Ops
+        // Supervisor Your Reports can surface this reject in archive.php).
+        $cimm_live_id = 0;
+        $cimm_label = '';
+        try {
+            $cid = (int)$cimm_req_id;
+            $cstmt = $conn->prepare("SELECT id, reference_code, infrastructure FROM cimm_verification_reports WHERE cimm_req_id = ? OR id = ? LIMIT 1");
+            $cstmt->bind_param('si', $cimm_req_id, $cid);
+            $cstmt->execute();
+            $cimm_pre = $cstmt->get_result()->fetch_assoc();
+            $cstmt->close();
+            if ($cimm_pre) {
+                $cimm_live_id = (int)($cimm_pre['id'] ?? 0);
+                $cimm_label = (string)($cimm_pre['reference_code'] ?? $cimm_pre['infrastructure'] ?? '');
+            }
+        } catch (Exception $e) {
+            error_log('CIMM reject preload: ' . $e->getMessage());
+        }
+
         $archived = archive_cimm_rejected_report($conn, $cimm_req_id, $reason);
         if ($archived) {
             $_SESSION['verification_message'] = 'CIMM report #' . $cimm_req_id . ' rejected and moved to archive.';
+            if ($cimm_live_id > 0 && function_exists('log_audit_action')) {
+                log_audit_action(
+                    (int)($_SESSION['user_id'] ?? 0),
+                    'Rejected CIMM report',
+                    'Report ID: ' . $cimm_live_id . ', Label: ' . $cimm_label
+                );
+            }
         } else {
             $_SESSION['verification_message'] = 'Failed to reject CIMM report #' . $cimm_req_id . '.';
         }

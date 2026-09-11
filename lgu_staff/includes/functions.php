@@ -1886,7 +1886,7 @@ function rgmap_your_reports_archive_sql($user_id, $role) {
     }
 
     // First chronological assigner must be this user (ownership).
-    return "EXISTS (
+    $owned_sql = "EXISTS (
         SELECT 1 FROM report_assignments ra
         WHERE ra.assigned_by = {$user_id}
           AND ra.report_id = {$report_id_expr}
@@ -1903,6 +1903,69 @@ function rgmap_your_reports_archive_sql($user_id, $role) {
                 )
           )
     )";
+
+    // Road Ops Supervisor: archive.php defaults to Your Reports. Trash and
+    // verification X-reject can archive reports that were never assigned, so
+    // ownership-only filtering hides them (Admin sees all). Also include:
+    // - trash deletes (audit_logs)
+    // - verification rejects (audit_trails; auditor = user email)
+    if ($role === 'road_ops_supervisor') {
+        return "(
+            {$owned_sql}
+            OR EXISTS (
+                SELECT 1 FROM audit_logs al
+                WHERE al.user_id = {$user_id}
+                  AND (
+                    (al.action LIKE 'Deleted % report'
+                        AND al.details LIKE CONCAT('%Report ID: ', {$report_id_expr}, ',%'))
+                    OR (al.action = 'Deleted CIMM report'
+                        AND al.details LIKE CONCAT('%Report ID: ', {$report_id_expr}, ',%'))
+                    OR (al.action = 'Rejected CIMM report'
+                        AND al.details LIKE CONCAT('%Report ID: ', {$report_id_expr}, ',%'))
+                    OR (al.action = 'Deleted infrastructure project'
+                        AND al.details LIKE CONCAT('%Project ID: ', {$report_id_expr}, ',%'))
+                  )
+            )
+            OR EXISTS (
+                SELECT 1 FROM audit_trails atr
+                INNER JOIN users u ON u.id = {$user_id} AND u.email = atr.auditor
+                WHERE atr.status = 'rejected'
+                  AND (
+                    atr.title = CONCAT('Reject Report #', {$report_id_expr})
+                    OR atr.title = CONCAT('Reject Infrastructure Project #', {$report_id_expr})
+                    OR atr.description LIKE CONCAT('Report #', {$report_id_expr}, ' %')
+                    OR atr.description LIKE CONCAT('Infrastructure project #', {$report_id_expr}, ' %')
+                  )
+            )
+        )";
+    }
+
+    // Trans Ops Supervisor: Your Reports also misses trash deletes and
+    // verification X-rejects when the report was never assigned. Include those
+    // via this user's audits only. No CIMM/IPMS extras (Road module). Admin /
+    // Road Ops / handlers unchanged.
+    if ($role === 'trans_ops_supervisor') {
+        return "(
+            {$owned_sql}
+            OR EXISTS (
+                SELECT 1 FROM audit_logs al
+                WHERE al.user_id = {$user_id}
+                  AND al.action LIKE 'Deleted % report'
+                  AND al.details LIKE CONCAT('%Report ID: ', {$report_id_expr}, ',%')
+            )
+            OR EXISTS (
+                SELECT 1 FROM audit_trails atr
+                INNER JOIN users u ON u.id = {$user_id} AND u.email = atr.auditor
+                WHERE atr.status = 'rejected'
+                  AND (
+                    atr.title = CONCAT('Reject Report #', {$report_id_expr})
+                    OR atr.description LIKE CONCAT('Report #', {$report_id_expr}, ' %')
+                  )
+            )
+        )";
+    }
+
+    return $owned_sql;
 }
 
 /**
