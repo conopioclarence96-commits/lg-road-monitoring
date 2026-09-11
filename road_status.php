@@ -3,10 +3,10 @@
  * Road Status — Quezon City Road &amp; Transportation Department.
  *
  * Public transparency module with three report sources: CIMM reports, LGU
- * roads reports (transportation + maintenance submitted by Road Operations
- * Supervisors) and infrastructure projects. All data-access logic, helper
- * functions and interactive components (detail modal, progress timeline,
- * lightbox) are preserved.
+ * roads reports (transportation + maintenance submitted by LGU staff, synced
+ * with the report management page logic) and infrastructure projects. All
+ * data-access logic, helper functions and interactive components (detail
+ * modal, progress timeline, lightbox) are preserved.
  */
 session_start();
 require_once 'lgu_staff/includes/config.php';
@@ -39,45 +39,41 @@ if ($conn) {
             ELSE 'pending'
         END";
 
-        // 1. LGU Roads Reports — transportation + maintenance submitted by
-        // road_ops_supervisor users (created_by references users.id; the
-        // INNER JOIN enforces the role). These are displayed regardless of
-        // their status (pending / in-progress / completed).
+        // 1. LGU Roads Reports — mirrors the LGU Monitoring panel on
+        // report_management.php (getLguReportsForManagement()): staff-created
+        // local reports from any LGU staff role are listed while ACTIVE
+        // (approved / in-progress / cancelled-but-restored-from-archive).
+        // Pending, completed and rejected rows are excluded to match the
+        // report management page.
         if ($type_filter === 'lgu') {
             // Transportation reports
-            $t_conditions = [];
-            $t_params   = [];
-            $t_types    = '';
-            $t_conditions[] = "u.role = ?";
-            $t_params[]     = 'road_ops_supervisor';
-            $t_types       .= "s";
-            $t_where = " WHERE " . implode(' AND ', $t_conditions);
-
             $t_query = "SELECT t.id, t.report_id, t.title, t.description, t.location, t.latitude, t.longitude,
-                    t.priority, t.status, t.severity, t.image_path, t.attachments, t.reporter_name,
+                    t.priority, t.status, t.severity, t.image_path, t.attachments,
+                    COALESCE(u.full_name, t.reporter_name, 'LGU Staff') AS reporter_name,
                     t.reported_date, t.created_at, t.department,
                     'lgu' AS source
                 FROM road_transportation_reports t
-                INNER JOIN users u ON u.id = t.created_by" . $t_where . " ORDER BY t.created_at DESC LIMIT 50";
+                LEFT JOIN users u ON u.id = t.created_by
+                WHERE t.report_source = 'local'
+                    AND t.created_by != 0
+                    AND t.report_type != 'infrastructure_issue'
+                    AND (t.status IN ('approved', 'in-progress') OR (t.status = 'cancelled' AND t.restored_from_archive = 1))
+                ORDER BY t.created_at DESC LIMIT 50";
 
-            $transport = !empty($t_params) ? fetch_all($t_query, $t_params, $t_types) : fetch_all($t_query);
+            $transport = fetch_all($t_query);
             $all_reports = array_merge($all_reports, $transport ?: []);
 
-            // Maintenance reports
-            $m_conditions = [];
-            $m_params   = [];
-            $m_types    = '';
-            $m_conditions[] = "u.role = ?";
-            $m_params[]     = 'road_ops_supervisor';
-            $m_types       .= "s";
-            $m_where = " WHERE " . implode(' AND ', $m_conditions);
-
+            // Maintenance reports (same active-status rule as the transport feed)
             $m_query = "SELECT m.id, m.report_id, m.title, m.description, m.location, m.priority, m.status,
+                    COALESCE(u.full_name, 'LGU Staff') AS reporter_name,
                     m.created_at, m.department, 'maintenance' AS source
                 FROM road_maintenance_reports m
-                INNER JOIN users u ON u.id = m.created_by" . $m_where . " ORDER BY m.created_at DESC LIMIT 50";
+                LEFT JOIN users u ON u.id = m.created_by
+                WHERE m.created_by != 0
+                    AND (m.status IN ('approved', 'in-progress') OR (m.status = 'cancelled' AND m.restored_from_archive = 1))
+                ORDER BY m.created_at DESC LIMIT 50";
 
-            $maintenance = !empty($m_params) ? fetch_all($m_query, $m_params, $m_types) : fetch_all($m_query);
+            $maintenance = fetch_all($m_query);
             $all_reports = array_merge($all_reports, $maintenance ?: []);
         }
 
@@ -125,7 +121,8 @@ if ($conn) {
         }
 
         // Apply status filter only to CIMM / infrastructure sources. LGU roads
-        // reports (road_ops_supervisor role) always display regardless of status.
+        // reports are pre-filtered to active (approved/in-progress/restored)
+        // rows and always display regardless of the ?status= query parameter.
         if ($status_filter !== 'all') {
             $all_reports = array_values(array_filter($all_reports, function($r) use ($status_filter) {
                 $lgu_sources = ['lgu', 'maintenance'];
@@ -136,13 +133,20 @@ if ($conn) {
             }));
         }
 
-        // Stats (also restricted to reports submitted by road_ops_supervisor users)
-        $supervisor_ids = "(SELECT id FROM users WHERE role = 'road_ops_supervisor')";
-        $supervisor_where = "WHERE created_by IN $supervisor_ids";
-        $stats['total_reports']       = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports $supervisor_where")['c'] + fetch_one("SELECT COUNT(*) as c FROM road_maintenance_reports $supervisor_where")['c'];
-        $stats['problem_roads']       = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports $supervisor_where AND status IN ('pending','in-progress') AND priority IN ('high','critical')")['c'] ?? 0;
-        $stats['under_construction']  = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports $supervisor_where AND status = 'in-progress'")['c'] ?? 0;
-        $stats['resolved_issues']     = fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports $supervisor_where AND status = 'completed'")['c'] ?? 0;
+        // Stats — same dataset definition as the LGU feed above (active,
+        // staff-created local reports), plus completed LGU reports as the
+        // historical "resolved issues" total.
+        $stats_lgu_active = "report_source = 'local' AND created_by != 0 AND report_type != 'infrastructure_issue'
+            AND (status IN ('approved', 'in-progress') OR (status = 'cancelled' AND restored_from_archive = 1))";
+        $stats_maintenance_active = "created_by != 0
+            AND (status IN ('approved', 'in-progress') OR (status = 'cancelled' AND restored_from_archive = 1))";
+        $stats['total_reports']       = (int)(fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE $stats_lgu_active")['c'] ?? 0)
+                                      + (int)(fetch_one("SELECT COUNT(*) as c FROM road_maintenance_reports WHERE $stats_maintenance_active")['c'] ?? 0);
+        $stats['problem_roads']       = (int)(fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE $stats_lgu_active AND priority IN ('high', 'critical')")['c'] ?? 0);
+        $stats['under_construction']  = (int)(fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE $stats_lgu_active AND status = 'in-progress'")['c'] ?? 0)
+                                      + (int)(fetch_one("SELECT COUNT(*) as c FROM road_maintenance_reports WHERE $stats_maintenance_active AND status = 'in-progress'")['c'] ?? 0);
+        $stats['resolved_issues']     = (int)(fetch_one("SELECT COUNT(*) as c FROM road_transportation_reports WHERE report_source = 'local' AND created_by != 0 AND report_type != 'infrastructure_issue' AND status = 'completed'")['c'] ?? 0)
+                                      + (int)(fetch_one("SELECT COUNT(*) as c FROM road_maintenance_reports WHERE created_by != 0 AND status = 'completed'")['c'] ?? 0);
     } catch (Exception $e) {
         error_log("Road status error: " . $e->getMessage());
     }
