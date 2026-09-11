@@ -22,35 +22,27 @@ if ($conn) {
             ELSE 'pending'
         END";
 
-        // 1. Transportation Reports (citizen + lgu + supervisor) — source is computed via CASE
-        if ($type_filter === 'all' || $type_filter === 'citizen' || $type_filter === 'road_ops_supervisor') {
+        // 1. Transportation Reports (citizen + lgu) — source is computed via CASE
+        if ($type_filter === 'all' || $type_filter === 'citizen') {
             $t_conditions = [];
             $t_params   = [];
             $t_types    = '';
 
             if ($status_filter !== 'all') {
-                $t_conditions[] = "t.status = ?";
+                $t_conditions[] = "status = ?";
                 $t_params[]     = $status_filter;
                 $t_types       .= "s";
             }
             if ($type_filter === 'citizen') {
-                $t_conditions[] = "(t.created_by IS NULL OR t.created_by = 0)";
-            }
-            if ($type_filter === 'road_ops_supervisor') {
-                $t_conditions[] = "u.role = 'road_ops_supervisor'";
+                $t_conditions[] = "(created_by IS NULL OR created_by = 0)";
             }
             $t_where = !empty($t_conditions) ? " WHERE " . implode(' AND ', $t_conditions) : '';
 
-            $t_query = "SELECT t.id, t.report_id, t.title, t.description, t.location, t.latitude, t.longitude,
-                    t.priority, t.status, t.severity, t.image_path, t.attachments, t.reporter_name,
-                    t.reported_date, t.created_at, t.department,
-                    CASE
-                        WHEN t.created_by IS NULL OR t.created_by = 0 THEN 'citizen'
-                        WHEN u.role = 'road_ops_supervisor' THEN 'road_ops_supervisor'
-                        ELSE 'lgu'
-                    END AS source
-                FROM road_transportation_reports t
-                LEFT JOIN users u ON u.id = t.created_by" . $t_where . " ORDER BY t.created_at DESC LIMIT 50";
+            $t_query = "SELECT id, report_id, title, description, location, latitude, longitude,
+                    priority, status, severity, image_path, attachments, reporter_name,
+                    reported_date, created_at, department,
+                    CASE WHEN created_by IS NULL OR created_by = 0 THEN 'citizen' ELSE 'lgu' END AS source
+                FROM road_transportation_reports" . $t_where . " ORDER BY created_at DESC LIMIT 50";
 
             $transport = !empty($t_params) ? fetch_all($t_query, $t_params, $t_types) : fetch_all($t_query);
             $all_reports = array_merge($all_reports, $transport ?: []);
@@ -192,18 +184,6 @@ function getPriorityBadge($priority) {
     $map = ['high' => 'danger', 'critical' => 'danger', 'medium' => 'warning', 'low' => 'success'];
     $class = $map[$priority] ?? 'secondary';
     return "<span class=\"badge bg-{$class}\">" . ucfirst($priority) . "</span>";
-}
-
-function getSourceLabel($source) {
-    $map = [
-        'citizen' => 'Citizen',
-        'road_ops_supervisor' => 'Road Ops Supervisor',
-        'lgu' => 'LGU',
-        'maintenance' => 'Maintenance',
-        'infrastructure' => 'Infrastructure',
-        'cimm' => 'CIMM',
-    ];
-    return $map[$source] ?? ucfirst(str_replace('_', ' ', $source));
 }
 
 function getSeverityIcon($status) {
@@ -562,7 +542,6 @@ function getTimeAgoShort($datetime) {
             <select id="typeFilter" onchange="applyFilters()">
                 <option value="all" <?php echo $type_filter === 'all' ? 'selected' : ''; ?>>All Types</option>
                 <option value="citizen" <?php echo $type_filter === 'citizen' ? 'selected' : ''; ?>>Citizen Reports</option>
-                <option value="road_ops_supervisor" <?php echo $type_filter === 'road_ops_supervisor' ? 'selected' : ''; ?>>Road Ops Supervisor Reports</option>
                 <option value="cimm" <?php echo $type_filter === 'cimm' ? 'selected' : ''; ?>>CIMM Reports</option>
                 <option value="infrastructure" <?php echo $type_filter === 'infrastructure' ? 'selected' : ''; ?>>Infrastructure Projects</option>
             </select>
@@ -590,7 +569,6 @@ function getTimeAgoShort($datetime) {
                 'status' => $r['status'] ?? 'pending',
                 'priority' => $r['priority'] ?? 'medium',
                 'source' => $r['source'] ?? 'transportation',
-                'source_label' => getSourceLabel($r['source'] ?? 'transportation'),
                 'reported_date' => $r['reported_date'] ?? $r['created_at'] ?? '',
                 'reporter' => $r['reporter_name'] ?? 'Anonymous',
                 'department' => $r['department'] ?? 'Not specified',
@@ -630,7 +608,7 @@ function getTimeAgoShort($datetime) {
                     </div>
                     <div class="report-footer">
                         <span><i class="far fa-clock"></i> <?php echo getTimeAgoShort($r['reported_date'] ?? $r['created_at'] ?? ''); ?></span>
-                        <span class="report-source"><i class="fas fa-tag"></i> <?php echo htmlspecialchars(getSourceLabel($r['source'] ?? 'transportation')); ?></span>
+                        <span class="report-source"><i class="fas fa-tag"></i> <?php echo ucfirst($r['source'] ?? 'transportation'); ?></span>
                     </div>
                 </div>
             </div>
@@ -739,7 +717,7 @@ function getTimeAgoShort($datetime) {
                 <div class="info-row"><span class="label"><i class="fas fa-exclamation-circle"></i> Priority</span><span class="value"><span class="badge ${priorityClass}">${data.priority}</span></span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-map-marker-alt"></i> Location</span><span class="value">${data.location}</span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-building"></i> Department</span><span class="value">${data.department}</span></div>
-                <div class="info-row"><span class="label"><i class="fas fa-tag"></i> Type</span><span class="value">${escapeHtml(data.source_label || data.source)}</span></div>
+                <div class="info-row"><span class="label"><i class="fas fa-tag"></i> Type</span><span class="value">${data.source}</span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-clock"></i> Reported</span><span class="value">${data.reported_date || 'Not specified'}</span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-user"></i> Reporter</span><span class="value">${data.reporter}</span></div>
                 <div class="info-row"><span class="label"><i class="fas fa-tachometer-alt"></i> Severity</span><span class="value">${data.severity}</span></div>
