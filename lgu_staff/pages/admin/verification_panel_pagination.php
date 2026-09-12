@@ -617,7 +617,19 @@ function vm_render_cimm_panel_tbody(array $cimm_reports, $sql_reports = null, bo
             </td>
             <td><?php echo htmlspecialchars((string)($row['rep_number'] ?? '')); ?></td>
             <td><?php echo htmlspecialchars((string)($row['infrastructure'] ?? '')); ?></td>
-            <td><?php echo htmlspecialchars((string)($row['location'] ?? '')); ?></td>
+            <td><?php
+                $cimm_location = trim((string)($row['location'] ?? ''));
+                if ($cimm_location === '') {
+                    echo '—';
+                } else {
+                    $cimm_loc_short = strlen($cimm_location) > 40
+                        ? substr($cimm_location, 0, 40) . '...'
+                        : $cimm_location;
+                    echo '<span title="' . htmlspecialchars($cimm_location) . '">'
+                        . htmlspecialchars($cimm_loc_short)
+                        . '</span>';
+                }
+            ?></td>
             <td><?php
                 $cimm_district = trim((string)($row['district'] ?? ''));
                 echo $cimm_district !== '' ? htmlspecialchars($cimm_district) : '—';
