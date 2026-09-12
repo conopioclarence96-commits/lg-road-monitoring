@@ -171,7 +171,11 @@ if ($database_available && $conn) {
         
         $order_field = $has_reported_date ? "reported_date" : "created_at";
         
-        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports WHERE report_category = 'road' ORDER BY $order_field DESC LIMIT 3");
+        // Citizen reports (created via the Make a Report button on this landing
+        // page) are stored as report_source = 'local' with created_by = 0. They
+        // must never surface in the public roadUpdatesGrid — only LGU staff /
+        // CIMM road reports and authorized transport reports are shown here.
+        $stmt = $conn->prepare("SELECT $select_fields FROM road_transportation_reports WHERE report_category = 'road' AND NOT (report_source = 'local' AND COALESCE(created_by, 0) = 0) ORDER BY $order_field DESC LIMIT 3");
         if (!$stmt) {
             error_log("index.php: road updates SELECT failed: " . $conn->error);
             throw new Exception("prepare failed");
@@ -221,11 +225,12 @@ if ($database_available && $conn) {
     }
 }
 
-// Transportation updates are restricted to the Transportation Operations
-// Supervisor role only (mirrors transportation-updates.php). Non-authorized
-// visitors never receive the report data.
+// Transportation updates (which include citizen reports submitted through the
+// Make a Report button) are restricted to the Transportation Operations
+// Supervisor and System Administrator roles only. Any other role (and
+// logged-out visitors) never receives the report data.
 $current_user_role = $_SESSION['role'] ?? '';
-$can_view_transport_updates = ($current_user_role === 'trans_ops_supervisor');
+$can_view_transport_updates = in_array($current_user_role, ['trans_ops_supervisor', 'system_admin'], true);
 
 $transport_updates = [];
 if ($can_view_transport_updates && $database_available && $conn) {
@@ -4913,7 +4918,8 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         // Road / Transportation type selector — toggles between the road grid
         // and the restricted transportation reports panel (transportation is
-        // rendered only for trans_ops_supervisor; others get an empty panel).
+        // rendered only for trans_ops_supervisor and system_admin; others get
+        // an empty panel).
         var typeSelect = document.getElementById('updateTypeSelect');
         var updatesFilterBar = document.getElementById('updatesFilterBar');
         var roadPanel = document.getElementById('roadUpdatesPanel');

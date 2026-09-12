@@ -85,9 +85,9 @@ function transport_updates_badge_class($type) {
 $current_user_role = $_SESSION['role'] ?? '';
 
 // The transportation reports section is restricted to the Transportation
-// Operations Supervisor role only; every other role (and logged-out
-// visitors) must not see the reports.
-$can_view_transport_updates = ($current_user_role === 'trans_ops_supervisor');
+// Operations Supervisor and System Administrator roles only; every other
+// role (and logged-out visitors) must not see the reports.
+$can_view_transport_updates = in_array($current_user_role, ['trans_ops_supervisor', 'system_admin'], true);
 
 $transport_updates = [];
 if ($can_view_transport_updates && $database_available && $conn) {
