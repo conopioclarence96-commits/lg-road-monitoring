@@ -747,33 +747,16 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         /* Road Updates Cards — multi-layered card (uiverse.io weather card concept) */
         .update-card {
-            height: auto;
+            height: 100%;
         }
 
         /* Card container — sits in the normal flow so it works inside the
            Bootstrap grid (adapted from the uiverse.io .cardm which was
-           absolutely positioned). Two things keep the hovered card from
-           obscuring / being obscured by the cards below:
-           1) isolation: isolate makes each .cardm its own stacking context, so
-              the layered .card(z:2)/.card2(z:1) z-index values no longer leak
-              into the page-wide stacking order (where a following card's
-              .card could otherwise paint OVER a hovered neighbor's expanded
-              .card2).
-           2) an explicit, animatable height that grows on hover pushes the
-              next grid row down in the flow instead of letting the expanded
-              .card2 overlap and cover it. */
+           absolutely positioned). */
         .cardm {
             position: relative;
-            isolation: isolate;
             width: 100%;
-            height: 130px;
             margin-bottom: 10px;
-            transition: height 0.4s ease-in-out, opacity 0.6s ease, transform 0.6s ease;
-        }
-
-        .cardm:hover {
-            height: 300px;
-            z-index: 10;
         }
 
         /* Top layer — always visible */
@@ -796,7 +779,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             border-radius: 25px;
         }
 
-        .cardm:hover .card {
+        .cardm .card:hover {
             background-color: #FFE87C;
         }
 
@@ -856,15 +839,13 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         /* Hover: expand the backing card downward (bottom corners stay
            rounded so the .card3 bar keeps its rounded silhouette — they are
-           clipped by card2's overflow:hidden, which is what we want).
-           Keyed to .cardm:hover (not .card:hover) so the whole expanded card
-           stays open while the pointer moves across the revealed row. */
-        .cardm:hover .card2 {
+           clipped by card2's overflow:hidden, which is what we want). */
+        .cardm .card:hover + .card2 {
             height: 300px;
         }
 
         /* Hover: shift the lower detail row into view */
-        .cardm:hover .card2 .lower {
+        .cardm .card:hover + .card2 .lower {
             top: 212px;
         }
 
@@ -1891,7 +1872,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             background: var(--dm-elevated, #1d2025);
             color: var(--dm-text-primary, #e4e6ea);
         }
-        html.dark-mode .cardm:hover .card { background-color: #4a4a15; }
+        html.dark-mode .cardm .card:hover { background-color: #4a4a15; }
         html.dark-mode .cardm .card2 { background: var(--dm-surface-2, #23272e); }
         html.dark-mode .cardm .main,
         html.dark-mode .cardm .upper-value,
@@ -2073,11 +2054,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             /* Sections & cards */
             .section { padding: 48px 0 40px; }
             .section-subtitle { font-size: 0.95rem; margin-bottom: 36px; }
-            .cardm { height: 120px; }
             .cardm .card { height: 120px; padding: 14px 16px; gap: 10px; }
             .cardm .weather { width: 42px; height: 42px; font-size: 1.2rem; }
             .cardm .main { font-size: 0.95rem; }
-            .cardm:hover .card2 .lower { top: 214px; }
+            .cardm .card:hover + .card2 .lower { top: 214px; }
 
             /* Statistics — keep numbers from overflowing 2-col layout */
             .stat-card { padding: 22px 10px; }
@@ -3368,7 +3348,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             background: var(--dm-elevated) !important;
             border: 1px solid var(--dm-border) !important;
         }
-        html.dark-mode .cardm:hover .card { background: #3d3d12 !important; }
+        html.dark-mode .cardm .card:hover { background: #3d3d12 !important; }
         html.dark-mode .cardm .card2 {
             background: var(--dm-surface-2) !important;
             box-shadow: var(--dm-shadow-base);
