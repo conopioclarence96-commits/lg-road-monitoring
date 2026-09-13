@@ -29,8 +29,6 @@
     body.high-contrast .hero, body.high-contrast .hero-bar, body.high-contrast .service-hero { background: #000 !important; }
     body.high-contrast .section, body.high-contrast .contact-section, body.high-contrast .content-section { background: #111 !important; }
     body.high-contrast .stat-card, body.high-contrast .service-card, body.high-contrast .update-card, body.high-contrast .mission-card, body.high-contrast .feature-card, body.high-contrast .emergency-card, body.high-contrast .report-card, body.high-contrast .info-card, body.high-contrast .publication-feed-card { background: #1a1a1a !important; color: #fff !important; }
-    body.high-contrast .update-card.flip-card { background: transparent !important; border: 0 none !important; box-shadow: none !important; }
-    body.high-contrast .update-card .flip-card-front { background: #1a1a1a !important; color: #fff !important; border-color: #000 !important; }
     body.high-contrast footer { background: #000 !important; }
     body.high-contrast h1, body.high-contrast h2, body.high-contrast h3, body.high-contrast h4, body.high-contrast h5, body.high-contrast h6, body.high-contrast .section-title, body.high-contrast .stat-number, body.high-contrast .service-title { color: #fff !important; }
     body.high-contrast p, body.high-contrast .card-text, body.high-contrast .stat-label, body.high-contrast .text-muted, body.high-contrast .report-desc, body.high-contrast .publication-feed-card__desc { color: #ccc !important; }
@@ -79,9 +77,6 @@
     html.dark-mode .service-card p, html.dark-mode .service-card .service-desc { color: #bbb !important; }
     html.dark-mode .update-card h5, html.dark-mode .update-card h4 { color: #fff !important; }
     html.dark-mode .update-card p, html.dark-mode .update-card .card-text { color: #bbb !important; }
-    html.dark-mode .update-card.flip-card { background: transparent !important; border: 0 none !important; box-shadow: none !important; }
-    html.dark-mode .update-card .flip-card-front { background: #1e1e1e !important; color: #e0e0e0 !important; border-color: #333 !important; }
-    html.dark-mode .flip-card-back { background: #000 !important; color: #fff !important; }
     html.dark-mode .mission-card h3 { color: #fff !important; }
     html.dark-mode .mission-card p { color: #bbb !important; }
     html.dark-mode .feature-card h3, html.dark-mode .feature-card h4 { color: #fff !important; }

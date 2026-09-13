@@ -761,104 +761,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             box-shadow: 0 10px 24px rgba(17, 82, 114, 0.1);
         }
 
-        /* Road Updates — 3D flip card (front: report summary, back: details) */
-        .update-card.flip-card {
-            background-color: transparent;
-            width: 100%;
-            height: 100%;
-            min-height: 300px;
-            border: none;
-            box-shadow: none;
-            overflow: hidden;
-            perspective: 1000px;
-            font-family: inherit;
-            cursor: pointer;
-        }
-
-        .flip-card-inner {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            text-align: center;
-            transition: transform 0.6s;
-            transition-timing-function: cubic-bezier(0.61, 0.98, 0.48, 1.01);
-            transform-style: preserve-3d;
-        }
-
-        .update-card.flip-card:hover .flip-card-inner,
-        .update-card.flip-card:focus-within .flip-card-inner {
-            transform: rotateY(180deg);
-        }
-
-        .flip-card-front,
-        .flip-card-back {
-            box-shadow: 0 8px 14px 0 rgba(0, 0, 0, 0.2);
-            position: absolute;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            width: 100%;
-            height: 100%;
-            padding: 18px 20px;
-            -webkit-backface-visibility: hidden;
-            backface-visibility: hidden;
-            border-radius: 1rem;
-            overflow: hidden;
-        }
-
-        .flip-card-front {
-            background: #fff;
-            color: #000;
-            border: 1px solid var(--qc-card-border);
-        }
-
-        .flip-card-back {
-            background: #000;
-            color: #fff;
-            transform: rotateY(180deg);
-        }
-
-        .flip-card-back .title {
-            font-size: 1.35rem;
-            font-weight: 900;
-            text-align: center;
-            margin: 0 0 10px;
-            color: #fff;
-        }
-
-        .flip-card-back .text-muted {
-            color: rgba(255, 255, 255, 0.72) !important;
-        }
-
-        .flip-card-thumb img {
-            max-height: 120px;
-            object-fit: cover;
-            width: 100%;
-            cursor: pointer;
-        }
-
-        .flip-card-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-top: auto;
-            padding: 10px 20px;
-            border-radius: 8px;
-            background: #fff;
-            color: #000;
-            font-weight: 700;
-            font-size: 0.9rem;
-            text-decoration: none;
-            transition: transform 0.2s ease, background 0.2s ease;
-        }
-
-        .flip-card-btn:hover {
-            transform: translateY(-2px);
-            background: #d6e9f8;
-            color: #0b4f6c;
-        }
-
         .update-card .card-header {
             background: #ffffff;
             border-bottom: 1px solid #eef3f6;
@@ -4274,72 +4176,58 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         else $filterCat = 'other';
                     ?>
                         <div class="col-md-6 road-update-item" data-category="<?php echo htmlspecialchars($filterCat); ?>">
-                            <div class="card update-card flip-card">
-                                <div class="flip-card-inner">
-                                    <div class="flip-card-front">
-                                        <div class="card-header position-relative">
-                                            <?php echo htmlspecialchars($update['title'] ?? 'Road Update'); ?>
-                                            <span class="update-badge badge-<?php echo strtolower($update['report_type'] ?? 'advisory'); ?>">
-                                                <?php echo ucfirst(str_replace('_', ' ', $update['report_type'] ?? 'Advisory')); ?>
-                                            </span>
-                                        </div>
-                                        <div class="card-body">
-                                            <p class="card-text">
-                                                <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
-                                            </p>
-                                            <small class="text-muted">
-                                                <i class="fas fa-calendar"></i>
-                                                <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
-                                            </small>
-                                            <?php
-                                            $image_candidates = [];
-                                            if (!empty($update['attachments'])):
-                                                $attachments = json_decode($update['attachments'], true);
-                                                if (is_array($attachments) && !empty($attachments)):
-                                                    foreach ($attachments as $attachment):
-                                                        if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
-                                                            $image_candidates[] = $attachment['file_path'];
-                                                            break;
-                                                        endif;
-                                                    endforeach;
+                            <div class="card update-card">
+                                <div class="card-header position-relative">
+                                    <?php echo htmlspecialchars($update['title'] ?? 'Road Update'); ?>
+                                    <span class="update-badge badge-<?php echo strtolower($update['report_type'] ?? 'advisory'); ?>">
+                                        <?php echo ucfirst(str_replace('_', ' ', $update['report_type'] ?? 'Advisory')); ?>
+                                    </span>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">
+                                        <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
+                                    </p>
+                                    
+                                    <?php
+                                    $image_candidates = [];
+                                    if (!empty($update['attachments'])):
+                                        $attachments = json_decode($update['attachments'], true);
+                                        if (is_array($attachments) && !empty($attachments)):
+                                            foreach ($attachments as $attachment):
+                                                if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
+                                                    $image_candidates[] = $attachment['file_path'];
+                                                    break;
                                                 endif;
-                                            endif;
-                                            if (!empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
-                                                $image_candidates[] = $update['image_path'];
-                                            endif;
-                                            if (!empty($update['_first_image'])):
-                                                $image_candidates[] = $update['_first_image'];
-                                            endif;
-                                            $display_image = '';
-                                            foreach ($image_candidates as $candidate):
-                                                $resolved = road_updates_resolve_image_url($candidate, $basePath);
-                                                if ($resolved) { $display_image = $resolved; break; }
                                             endforeach;
-                                            if ($display_image): ?>
-                                                <div class="mt-3 flip-card-thumb">
-                                                    <img src="<?php echo htmlspecialchars($display_image); ?>"
-                                                         alt="<?php echo htmlspecialchars(($update['title'] ?? 'Road update') . ' report photo'); ?>"
-                                                         loading="lazy"
-                                                         class="img-fluid rounded"
-                                                         onclick="window.open(this.src, '_blank')"
-                                                         title="Click to view full size">
-                                                </div>
-                                            <?php endif; ?>
+                                        endif;
+                                    endif;
+                                    if (!empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
+                                        $image_candidates[] = $update['image_path'];
+                                    endif;
+                                    if (!empty($update['_first_image'])):
+                                        $image_candidates[] = $update['_first_image'];
+                                    endif;
+                                    $display_image = '';
+                                    foreach ($image_candidates as $candidate):
+                                        $resolved = road_updates_resolve_image_url($candidate, $basePath);
+                                        if ($resolved) { $display_image = $resolved; break; }
+                                    endforeach;
+                                    if ($display_image): ?>
+                                        <div class="mt-3">
+                                            <img src="<?php echo htmlspecialchars($display_image); ?>" 
+                                                 alt="<?php echo htmlspecialchars(($update['title'] ?? 'Road update') . ' report photo'); ?>" 
+                                                 loading="lazy"
+                                                 class="img-fluid rounded shadow-sm"
+                                                 style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                 onclick="window.open(this.src, '_blank')"
+                                                 title="Click to view full size">
                                         </div>
-                                    </div>
-                                    <div class="flip-card-back">
-                                        <h5 class="title"><?php echo htmlspecialchars($update['title'] ?? 'Road Update'); ?></h5>
-                                        <p class="mb-3">
-                                            <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 220)); ?>
-                                        </p>
-                                        <small class="text-muted mb-3">
-                                            <i class="fas fa-calendar"></i>
-                                            <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
-                                        </small>
-                                        <a href="road_status.php?report_id=<?php echo (int)($update['id'] ?? 0); ?>" class="flip-card-btn">
-                                            <i class="fas fa-eye"></i> View Details
-                                        </a>
-                                    </div>
+                                    <?php endif; ?>
+                                    
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar"></i> 
+                                        <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
+                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -4374,72 +4262,56 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <?php if (!empty($transport_updates)): ?>
                             <?php foreach ($transport_updates as $update): ?>
                                 <div class="col-md-6 transport-update-item">
-                                    <div class="card update-card flip-card">
-                                        <div class="flip-card-inner">
-                                            <div class="flip-card-front">
-                                                <div class="card-header position-relative">
-                                                    <?php echo htmlspecialchars($update['title'] ?? 'Transportation Update'); ?>
-                                                    <span class="update-badge badge-<?php echo transport_updates_badge_class($update['report_type'] ?? ''); ?>">
-                                                        <?php echo transport_updates_type_label($update['report_type'] ?? ''); ?>
-                                                    </span>
-                                                </div>
-                                                <div class="card-body">
-                                                    <p class="card-text">
-                                                        <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
-                                                    </p>
-                                                    <small class="text-muted">
-                                                        <i class="fas fa-calendar"></i>
-                                                        <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
-                                                    </small>
-                                                    <?php
-                                                    $image_candidates = [];
-                                                    if (!empty($update['attachments'])):
-                                                        $attachments = json_decode($update['attachments'], true);
-                                                        if (is_array($attachments) && !empty($attachments)):
-                                                            foreach ($attachments as $attachment):
-                                                                if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
-                                                                    $image_candidates[] = $attachment['file_path'];
-                                                                    break;
-                                                                endif;
-                                                            endforeach;
+                                    <div class="card update-card">
+                                        <div class="card-header position-relative">
+                                            <?php echo htmlspecialchars($update['title'] ?? 'Transportation Update'); ?>
+                                            <span class="update-badge badge-<?php echo transport_updates_badge_class($update['report_type'] ?? ''); ?>">
+                                                <?php echo transport_updates_type_label($update['report_type'] ?? ''); ?>
+                                            </span>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="card-text">
+                                                <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
+                                            </p>
+                                            <?php
+                                            $image_candidates = [];
+                                            if (!empty($update['attachments'])):
+                                                $attachments = json_decode($update['attachments'], true);
+                                                if (is_array($attachments) && !empty($attachments)):
+                                                    foreach ($attachments as $attachment):
+                                                        if (isset($attachment['type']) && $attachment['type'] === 'image' && isset($attachment['file_path'])):
+                                                            $image_candidates[] = $attachment['file_path'];
+                                                            break;
                                                         endif;
-                                                    endif;
-                                                    if (!empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
-                                                        $image_candidates[] = $update['image_path'];
-                                                    endif;
-                                                    if (!empty($update['_first_image'])):
-                                                        $image_candidates[] = $update['_first_image'];
-                                                    endif;
-                                                    $display_image = '';
-                                                    foreach ($image_candidates as $candidate):
-                                                        $resolved = road_updates_resolve_image_url($candidate, $basePath);
-                                                        if ($resolved) { $display_image = $resolved; break; }
                                                     endforeach;
-                                                    if ($display_image): ?>
-                                                        <div class="mt-3 flip-card-thumb">
-                                                            <img src="<?php echo htmlspecialchars($display_image); ?>"
-                                                                 alt="<?php echo htmlspecialchars(($update['title'] ?? 'Transportation update') . ' report photo'); ?>"
-                                                                 loading="lazy"
-                                                                 class="img-fluid rounded"
-                                                                 onclick="window.open(this.src, '_blank')"
-                                                                 title="Click to view full size">
-                                                        </div>
-                                                    <?php endif; ?>
+                                                endif;
+                                            endif;
+                                            if (!empty($update['image_path']) && $update['image_path'] !== '0' && $update['image_path'] !== 'null'):
+                                                $image_candidates[] = $update['image_path'];
+                                            endif;
+                                            if (!empty($update['_first_image'])):
+                                                $image_candidates[] = $update['_first_image'];
+                                            endif;
+                                            $display_image = '';
+                                            foreach ($image_candidates as $candidate):
+                                                $resolved = road_updates_resolve_image_url($candidate, $basePath);
+                                                if ($resolved) { $display_image = $resolved; break; }
+                                            endforeach;
+                                            if ($display_image): ?>
+                                                <div class="mt-3">
+                                                    <img src="<?php echo htmlspecialchars($display_image); ?>"
+                                                         alt="<?php echo htmlspecialchars(($update['title'] ?? 'Transportation update') . ' report photo'); ?>"
+                                                         loading="lazy"
+                                                         class="img-fluid rounded shadow-sm"
+                                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
+                                                         onclick="window.open(this.src, '_blank')"
+                                                         title="Click to view full size">
                                                 </div>
-                                            </div>
-                                            <div class="flip-card-back">
-                                                <h5 class="title"><?php echo htmlspecialchars($update['title'] ?? 'Transportation Update'); ?></h5>
-                                                <p class="mb-3">
-                                                    <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 220)); ?>
-                                                </p>
-                                                <small class="text-muted mb-3">
-                                                    <i class="fas fa-calendar"></i>
-                                                    <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
-                                                </small>
-                                                <a href="road_status.php?report_id=<?php echo (int)($update['id'] ?? 0); ?>" class="flip-card-btn">
-                                                    <i class="fas fa-eye"></i> View Details
-                                                </a>
-                                            </div>
+                                            <?php endif; ?>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar"></i>
+                                                <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
+                                            </small>
                                         </div>
                                     </div>
                                 </div>
