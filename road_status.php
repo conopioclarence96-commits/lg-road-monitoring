@@ -156,20 +156,82 @@ usort($all_reports, function($a, $b) {
     return strtotime($b['created_at'] ?? 'now') - strtotime($a['created_at'] ?? 'now');
 });
 
+// Enrich each report with the first progress-update photo (report_update_media
+// → report_updates join), mirroring the landing page road-updates feed. Staff
+// progress updates are a primary source of report photos.
+if (!empty($all_reports)) {
+    try {
+        $report_ids = array_values(array_filter(array_map('intval', array_column($all_reports, 'id')), function($v) {
+            return $v > 0;
+        }));
+        if ($conn && !empty($report_ids)) {
+            $placeholders = implode(',', array_fill(0, count($report_ids), '?'));
+            $types = str_repeat('i', count($report_ids));
+            $media_stmt = $conn->prepare(
+                "SELECT rum.file_path, rum.file_type, ru.report_id
+                 FROM report_update_media rum
+                 INNER JOIN report_updates ru ON rum.update_id = ru.id
+                 WHERE ru.report_id IN ($placeholders) AND rum.file_type = 'image'
+                 ORDER BY rum.id ASC"
+            );
+            if ($media_stmt) {
+                $media_stmt->bind_param($types, ...$report_ids);
+                $media_stmt->execute();
+                $media_result = $media_stmt->get_result();
+                $media_by_report = [];
+                while ($m = $media_result->fetch_assoc()) {
+                    $rid = (int)$m['report_id'];
+                    if (!isset($media_by_report[$rid])) {
+                        $media_by_report[$rid] = $m['file_path'];
+                    }
+                }
+                $media_stmt->close();
+                foreach ($all_reports as &$upd) {
+                    $upd_id = (int)($upd['id'] ?? 0);
+                    if ($upd_id > 0 && empty($upd['_first_image']) && !empty($media_by_report[$upd_id])) {
+                        $upd['_first_image'] = $media_by_report[$upd_id];
+                    }
+                }
+                unset($upd);
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Road status media enrich error: " . $e->getMessage());
+    }
+}
+
 function getReportPhoto($report) {
-    $raw = null;
-    if (!empty($report['image_path'])) {
-        $raw = $report['image_path'];
-    } elseif (!empty($report['attachments'])) {
+    $image_candidates = [];
+
+    // 1. Attachments JSON — use the first image-type attachment, matching index.php.
+    if (!empty($report['attachments'])) {
         $atts = json_decode($report['attachments'], true);
         if (is_array($atts)) {
             foreach ($atts as $att) {
-                $path = $att['file_path'] ?? $att['file'] ?? '';
-                if ($path) { $raw = $path; break; }
+                if (isset($att['type']) && $att['type'] === 'image' && isset($att['file_path'])) {
+                    $image_candidates[] = $att['file_path'];
+                    break;
+                }
             }
         }
     }
-    return road_updates_resolve_image_url($raw, '');
+
+    // 2. Direct image_path column
+    if (!empty($report['image_path']) && $report['image_path'] !== '0' && strtolower((string)$report['image_path']) !== 'null') {
+        $image_candidates[] = $report['image_path'];
+    }
+
+    // 3. First progress-update media photo (enriched above)
+    if (!empty($report['_first_image'])) {
+        $image_candidates[] = $report['_first_image'];
+    }
+
+    // Return the first candidate that actually resolves to a file on disk.
+    foreach ($image_candidates as $candidate) {
+        $resolved = road_updates_resolve_image_url($candidate, '');
+        if ($resolved) return $resolved;
+    }
+    return '';
 }
 
 /**
