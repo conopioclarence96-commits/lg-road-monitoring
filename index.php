@@ -226,11 +226,9 @@ if ($database_available && $conn) {
 }
 
 // Transportation updates (which include citizen reports submitted through the
-// Make a Report button) are restricted to the Transportation Operations
-// Supervisor and System Administrator roles only. Any other role (and
-// logged-out visitors) never receives the report data.
+// Make a Report button) are visible to the public (and all roles).
 $current_user_role = $_SESSION['role'] ?? '';
-$can_view_transport_updates = in_array($current_user_role, ['trans_ops_supervisor', 'system_admin'], true);
+$can_view_transport_updates = true;
 
 $transport_updates = [];
 if ($can_view_transport_updates && $database_available && $conn) {
