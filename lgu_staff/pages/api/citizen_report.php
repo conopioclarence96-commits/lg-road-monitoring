@@ -105,7 +105,6 @@ function handleSubmitReport() {
     $issueType = trim($_POST['issue_type'] ?? '');
     $severity = trim($_POST['severity'] ?? 'medium');
     $reporterName = trim($_POST['reporter_name'] ?? '');
-    $reporterPhone = trim($_POST['phone'] ?? '');
 
     if (empty($latitude) || empty($longitude)) {
         echo json_encode(['success' => false, 'message' => 'Please pin a location on the map.']);
@@ -128,15 +127,6 @@ function handleSubmitReport() {
     }
     if (empty($reporterName)) {
         echo json_encode(['success' => false, 'message' => 'Please enter your full name.']);
-        return;
-    }
-    // Normalize phone: convert +639... to 09...
-    $reporterPhone = trim(preg_replace('/\s+/', '', $reporterPhone));
-    if (preg_match('/^\+639([0-9]{9})$/', $reporterPhone, $m)) {
-        $reporterPhone = '09' . $m[1];
-    }
-    if (empty($reporterPhone) || !preg_match('/^09[0-9]{9}$/', $reporterPhone)) {
-        echo json_encode(['success' => false, 'message' => 'Please enter a valid Philippine mobile number.']);
         return;
     }
     if (empty($description)) {
@@ -303,11 +293,11 @@ function handleSubmitReport() {
             (report_id, report_type, report_category, report_source, title, description, 
              latitude, longitude, location, detected_district, barangay, street_name,
              severity, priority, status, created_date, 
-             reporter_email, reporter_name, reporter_phone, attachments, image_path, created_by)
-            VALUES (?, ?, 'transportation', 'local', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, ?, 0)");
+             reporter_email, reporter_name, attachments, image_path, created_by)
+            VALUES (?, ?, 'transportation', 'local', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', CURDATE(), ?, ?, ?, ?, 0)");
 
         $attachmentsJson = json_encode($attachments);
-        $stmt->bind_param('ssssddsssssssssss',
+        $stmt->bind_param('ssssddssssssssss',
             $reportId,
             $issueType,
             $title,
@@ -322,7 +312,6 @@ function handleSubmitReport() {
             $priority,
             $email,
             $reporterName,
-            $reporterPhone,
             $attachmentsJson,
             $imagePath
         );

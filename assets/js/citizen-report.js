@@ -484,50 +484,6 @@
             });
     }
 
-    // Philippine mobile number validation
-    function normalizePhone(val) {
-        return val.replace(/\s/g, '');
-    }
-
-    function validatePhone(val) {
-        var clean = normalizePhone(val);
-        var localRe = /^09[0-9]{9}$/;
-        var intlRe = /^\+639[0-9]{9}$/;
-        if (localRe.test(clean)) return { valid: true, normalized: clean, format: 'local' };
-        if (intlRe.test(clean)) return { valid: true, normalized: '09' + clean.slice(3), format: 'intl' };
-        return { valid: false, normalized: clean, format: null };
-    }
-
-    function applyPhoneFormat(raw) {
-        if (raw.startsWith('+')) {
-            if (!raw.startsWith('+63')) return '+63';
-            var after = raw.slice(3).replace(/[^0-9]/g, '').slice(0, 9);
-            var r = '+63';
-            if (after.length > 0) r += ' ' + after.slice(0, 2);
-            if (after.length > 2) r += ' ' + after.slice(2, 5);
-            if (after.length > 5) r += ' ' + after.slice(5);
-            return r;
-        }
-        var d = raw.replace(/[^0-9]/g, '').slice(0, 11);
-        var res = d;
-        if (d.length > 4) res = d.slice(0, 4) + ' ' + d.slice(4, 7) + ' ' + d.slice(7);
-        else if (d.length > 2) res = d.slice(0, 4) + ' ' + d.slice(4);
-        return res;
-    }
-
-    function showPhoneError(input, show) {
-        var errEl = document.getElementById('crPhoneError');
-        if (show) {
-            input.classList.add('error');
-            input.setAttribute('aria-invalid', 'true');
-            errEl.classList.add('show');
-        } else {
-            input.classList.remove('error');
-            input.removeAttribute('aria-invalid');
-            errEl.classList.remove('show');
-        }
-    }
-
     function setPhotoError(show) {
         var label = document.querySelector('.file-upload-label');
         var errEl = document.getElementById('crPhotosError');
@@ -556,21 +512,6 @@
 
         var name = document.getElementById('crName').value.trim();
         if (!name) errors.push('Please enter your full name.');
-
-        var phoneInput = document.getElementById('crPhone');
-        var phone = normalizePhone(phoneInput.value);
-        if (!phone) {
-            errors.push('Please enter your phone number.');
-            showPhoneError(phoneInput, true);
-        } else {
-            var phoneResult = validatePhone(phone);
-            if (!phoneResult.valid) {
-                errors.push('Please enter a valid Philippine mobile number.');
-                showPhoneError(phoneInput, true);
-            } else {
-                showPhoneError(phoneInput, false);
-            }
-        }
 
         var desc = document.getElementById('crDescription').value.trim();
         if (!desc) errors.push('Please describe the issue.');
@@ -609,7 +550,6 @@
         fd.append('issue_type', document.getElementById('crIssueType').value);
         fd.append('severity', document.getElementById('crSeverity').value);
         fd.append('reporter_name', document.getElementById('crName').value.trim());
-        fd.append('phone', normalizePhone(document.getElementById('crPhone').value));
         fd.append('description', document.getElementById('crDescription').value.trim());
         // One FormData entry per distinct photo — never re-append the same file.
         photoFiles = dedupePhotoFiles(photoFiles);
@@ -652,9 +592,6 @@
         document.getElementById('submitReportBtn').disabled = true;
         document.getElementById('verifyOtpBtn').disabled = true;
         document.getElementById('sendOtpBtn').disabled = false;
-        document.getElementById('crPhone').classList.remove('error');
-        document.getElementById('crPhone').removeAttribute('aria-invalid');
-        document.getElementById('crPhoneError').classList.remove('show');
         document.getElementById('crEmail').readOnly = false;
         document.getElementById('citizenMap').classList.remove('has-pin');
         document.getElementById('crAddress').value = '';
@@ -744,47 +681,6 @@
 
     document.getElementById('sendOtpBtn').addEventListener('click', sendOtp);
     document.getElementById('verifyOtpBtn').addEventListener('click', verifyOtp);
-
-    var crPhoneInput = document.getElementById('crPhone');
-    crPhoneInput.addEventListener('input', function () {
-        var raw = this.value.replace(/[^0-9+]/g, '');
-        var plusCount = (raw.match(/\+/g) || []).length;
-        if (plusCount > 1) {
-            raw = '+' + raw.replace(/\+/g, '');
-        } else if (plusCount === 1 && !raw.startsWith('+')) {
-            raw = '+' + raw.replace(/\+/g, '');
-        }
-        var cursorPos = this.selectionStart;
-        var rawBefore = this.value.slice(0, cursorPos).replace(/[^0-9+]/g, '').length;
-
-        var formatted = applyPhoneFormat(raw);
-        this.value = formatted;
-
-        var rawAfter = formatted.replace(/[^0-9+]/g, '');
-        var newPos = 0, digitCount = 0;
-        for (var i = 0; i < formatted.length && digitCount < rawBefore; i++) {
-            if (/[0-9+]/.test(formatted[i])) digitCount++;
-            newPos = i + 1;
-        }
-        if (digitCount < rawBefore) newPos = formatted.length;
-        this.setSelectionRange(newPos, newPos);
-
-        var result = validatePhone(normalizePhone(formatted));
-        showPhoneError(this, formatted.length > 0 && !result.valid);
-    });
-
-    crPhoneInput.addEventListener('blur', function () {
-        var val = normalizePhone(this.value);
-        if (val.length > 0) {
-            var result = validatePhone(val);
-            showPhoneError(this, !result.valid);
-            if (result.valid) {
-                this.value = applyPhoneFormat(result.normalized);
-            }
-        } else {
-            showPhoneError(this, false);
-        }
-    });
 
     formEl.addEventListener('submit', function (e) {
         e.preventDefault();

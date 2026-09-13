@@ -4091,16 +4091,9 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                             <input type="text" name="reporter_name" id="crName" required placeholder="Enter your full name">
                         </div>
 
-                        <div class="cr-form-row">
-                            <div class="cr-form-group">
-                                <label for="crPhone"><i class="fas fa-phone"></i> Phone Number <span class="text-danger">*</span></label>
-                                <input type="tel" name="phone" id="crPhone" required placeholder="0917 123 4567 or +639 17 123 4567" inputmode="numeric" autocomplete="tel" aria-describedby="crPhoneError">
-                                <div class="field-error" id="crPhoneError" role="alert">Please enter a valid Philippine mobile number.</div>
-                            </div>
-                            <div class="cr-form-group">
-                                <label><i class="fas fa-comment"></i> Description <span class="text-danger">*</span></label>
-                                <textarea name="description" id="crDescription" rows="3" required placeholder="Describe what you observed..."></textarea>
-                            </div>
+                        <div class="cr-form-group">
+                            <label><i class="fas fa-comment"></i> Description <span class="text-danger">*</span></label>
+                            <textarea name="description" id="crDescription" rows="3" required placeholder="Describe what you observed..."></textarea>
                         </div>
 
                         <div class="cr-form-group">
