@@ -745,19 +745,20 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             margin-right: auto;
         }
 
-        /* Road Updates Cards — frosted-glass card with hover-reveal layers
-           (adapted from the animated uiverse.io "card" design: glass panel +
-           gradient glow, hover wipes the title and spins the thumbnail in). */
+        /* Road Updates Cards — multi-layered card (uiverse.io weather card concept) */
         .update-card {
             height: auto;
         }
 
         /* Card container — sits in the normal flow so it works inside the
-           Bootstrap grid. Two things keep the hovered card from obscuring /
-           being obscured by the cards below:
+           Bootstrap grid (adapted from the uiverse.io .cardm which was
+           absolutely positioned). Two things keep the hovered card from
+           obscuring / being obscured by the cards below:
            1) isolation: isolate makes each .cardm its own stacking context, so
               the layered .card(z:2)/.card2(z:1) z-index values no longer leak
-              into the page-wide stacking order.
+              into the page-wide stacking order (where a following card's
+              .card could otherwise paint OVER a hovered neighbor's expanded
+              .card2).
            2) an explicit, animatable height that grows on hover pushes the
               next grid row down in the flow instead of letting the expanded
               .card2 overlap and cover it. */
@@ -765,91 +766,67 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             position: relative;
             isolation: isolate;
             width: 100%;
-            height: 160px;
-            margin-bottom: 12px;
+            height: 130px;
+            margin-bottom: 10px;
             transition: height 0.4s ease-in-out, opacity 0.6s ease, transform 0.6s ease;
         }
 
         .cardm:hover {
-            height: 340px;
+            height: 300px;
             z-index: 10;
         }
 
-        /* Top layer — frosted-glass face, always visible */
+        /* Top layer — always visible */
         .cardm .card {
             position: relative;
             width: 100%;
-            height: 160px;
-            padding: 16px 20px;
-            border: 1px solid #fff;
-            border-radius: 25px;
-            background-color: rgba(113, 113, 113, 0.6);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            color: #fff;
+            height: 130px;
+            border: none;
+            background: whitesmoke;
+            color: black;
             z-index: 2;
+            transition: background-color 0.4s ease-in-out;
             overflow: hidden;
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
-            justify-content: center;
-            gap: 10px;
-            text-align: center;
+            padding: 16px 20px;
+            gap: 12px;
             cursor: pointer;
-            transition: transform 500ms ease, background-color 0.4s ease-in-out;
+            border-radius: 25px;
         }
 
-        /* Gradient glow that the glass card sits on */
-        .cardm .card::before {
-            content: '';
-            height: 110%;
-            width: 110%;
-            position: absolute;
-            top: -5%;
-            left: -5%;
-            z-index: -1;
-            background: linear-gradient(to right, #0f0c29, #302b63, #24243e);
-            filter: blur(30px);
-            border-radius: 25px;
+        .cardm:hover .card {
+            background-color: #FFE87C;
         }
 
         /* Weather / icon slot */
         .cardm .weather {
             position: relative;
             flex-shrink: 0;
-            width: 52px;
-            height: 52px;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.14);
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: var(--qc-icon-bg);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
-            color: #fff;
-            transition: transform 500ms ease;
+            font-size: 1.4rem;
+            color: var(--qc-primary-800);
         }
 
-        /* Main title — big centered label, wipes to scale(0) on hover
-           (the ".card__hover" behaviour from the reference design) */
+        /* Main title (maps from the old .card-header) */
         .cardm .main {
             position: relative;
-            max-width: 100%;
-            margin: 0;
-            font-size: 1.6rem;
-            font-weight: 600;
-            color: #fff;
-            letter-spacing: 2px;
-            line-height: 1.25;
+            flex: 1;
+            min-width: 0;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--qc-primary-900);
+            line-height: 1.3;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            font-family: var(--font-mulish, 'Mulish', sans-serif);
-            transition: transform 500ms ease, opacity 500ms ease;
-        }
-
-        .cardm:hover .main {
-            transform: scale(0);
-            opacity: 0;
         }
 
         /* Sub-label row (maps from the old status badge) */
@@ -867,17 +844,14 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             display: flex;
             flex-direction: column;
             width: 100%;
-            height: 160px;
+            height: 130px;
             border-radius: 35px;
-            background-color: rgba(48, 44, 99, 0.75);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            background-image: linear-gradient(to right, #0f0c29, #302b63, #24243e);
-            color: #fff;
+            background: white;
+            color: black;
             z-index: 1;
             transition: height 0.4s ease-in-out, border-radius 0.4s ease-in-out;
             overflow: hidden;
-            box-shadow: 0 8px 20px rgba(15, 12, 41, 0.45);
+            box-shadow: 0 8px 20px rgba(17, 82, 114, 0.12);
         }
 
         /* Hover: expand the backing card downward (bottom corners stay
@@ -886,30 +860,23 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
            Keyed to .cardm:hover (not .card:hover) so the whole expanded card
            stays open while the pointer moves across the revealed row. */
         .cardm:hover .card2 {
-            height: 340px;
+            height: 300px;
         }
 
         /* Hover: shift the lower detail row into view */
         .cardm:hover .card2 .lower {
-            top: 236px;
+            top: 212px;
         }
 
-        /* Upper detail rows (Report Type / Priority) — scale in like the
-           reference ".card__info" block */
+        /* Upper detail rows (Report Type / Priority) */
         .cardm .upper {
             display: flex;
             flex-direction: row;
             position: absolute;
-            top: 150px;
+            top: 138px;
             left: 24px;
             gap: 3.5em;
-            color: #fff;
-            transform: scale(0);
-            transition: transform 600ms ease 100ms;
-        }
-
-        .cardm:hover .upper {
-            transform: scale(1);
+            color: black;
         }
 
         .cardm .humiditytext,
@@ -918,39 +885,33 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             font-size: 0.62rem;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: rgba(255, 255, 255, 0.7);
+            letter-spacing: 0.5px;
+            color: var(--qc-shades-500);
             margin-bottom: 4px;
         }
 
         .cardm .upper-value {
             font-weight: 700;
             font-size: 0.85rem;
-            color: #fff;
+            color: var(--qc-primary-900);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 180px;
         }
 
-        /* Lower detail row (date + description) — slides down and scales in
-           on hover, like the reference ".card__info" block */
+        /* Lower detail row (date + description) — slides down on hover */
         .cardm .lower {
             display: flex;
             flex-direction: row;
             position: absolute;
             text-align: center;
-            color: #fff;
+            color: black;
             left: 24px;
-            top: 26px;
+            top: 12px;
             margin-top: 0.7em;
             font-size: 0.9rem;
-            transform: scale(0);
-            transition: top 0.4s ease-in-out, transform 600ms ease 100ms;
-        }
-
-        .cardm:hover .lower {
-            transform: scale(1);
+            transition: top 0.4s ease-in-out;
         }
 
         .cardm .aqi {
@@ -958,7 +919,6 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             font-weight: 700;
             white-space: nowrap;
             text-align: left;
-            color: #fff;
         }
 
         .cardm .realfeel {
@@ -968,7 +928,7 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            color: rgba(255, 255, 255, 0.75);
+            color: var(--qc-shades-500);
         }
 
         /* Bottom bar — rounded edge of the expanded card */
@@ -979,39 +939,32 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             justify-content: center;
             align-items: center;
             width: 100%;
-            height: 32px;
+            height: 30px;
             bottom: 0;
             left: 0;
             font-size: 0.8rem;
             color: #fff;
             border-bottom-left-radius: 35px;
             border-bottom-right-radius: 35px;
-            background: linear-gradient(to right, #11998e, #38ef7d);
+            background: limegreen;
             transition: background-color 0.4s ease-in-out;
             overflow: hidden;
             white-space: nowrap;
             padding: 0 1em;
         }
 
-        /* Optional thumbnail shown in the expanded backing card — spins in
-           on hover, mirroring the reference ".card__figure" animation */
+        /* Optional thumbnail shown in the expanded backing card */
         .cardm .update-card-thumb {
             position: absolute;
-            top: 148px;
+            top: 136px;
             right: 20px;
-            width: 130px;
-            height: 80px;
+            width: 110px;
+            height: 64px;
             border-radius: 10px;
             overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-            background: rgba(255, 255, 255, 0.06);
-            transform: scale(0) rotate(45deg);
-            transition: transform 600ms ease 100ms;
-        }
-
-        .cardm:hover .update-card-thumb {
-            transform: scale(1) rotate(0deg);
+            border: 1px solid var(--qc-card-border);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            background: #f1f5f9;
         }
 
         .cardm .update-card-thumb img {
@@ -1935,14 +1888,11 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             box-shadow: none !important;
         }
         html.dark-mode .cardm .card {
-            background-color: rgba(35, 39, 46, 0.6) !important;
+            background: var(--dm-elevated, #1d2025);
             color: var(--dm-text-primary, #e4e6ea);
         }
-        html.dark-mode .cardm:hover .card { background-color: rgba(35, 39, 46, 0.6); }
-        html.dark-mode .cardm .card2 {
-            background-color: rgba(23, 26, 31, 0.85) !important;
-            background-image: linear-gradient(to right, #0f0c29, #302b63, #24243e);
-        }
+        html.dark-mode .cardm:hover .card { background-color: #4a4a15; }
+        html.dark-mode .cardm .card2 { background: var(--dm-surface-2, #23272e); }
         html.dark-mode .cardm .main,
         html.dark-mode .cardm .upper-value,
         html.dark-mode .cardm .aqi,
@@ -2123,14 +2073,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             /* Sections & cards */
             .section { padding: 48px 0 40px; }
             .section-subtitle { font-size: 0.95rem; margin-bottom: 36px; }
-            .cardm { height: 130px; }
-            .cardm:hover { height: 300px; }
-            .cardm .card { height: 130px; padding: 14px 16px; gap: 10px; }
-            .cardm .card2 { height: 130px; }
-            .cardm:hover .card2 { height: 300px; }
-            .cardm .weather { width: 44px; height: 44px; font-size: 1.2rem; }
-            .cardm .main { font-size: 1rem; letter-spacing: 1px; }
-            .cardm:hover .upper { top: 150px; }
+            .cardm { height: 120px; }
+            .cardm .card { height: 120px; padding: 14px 16px; gap: 10px; }
+            .cardm .weather { width: 42px; height: 42px; font-size: 1.2rem; }
+            .cardm .main { font-size: 0.95rem; }
             .cardm:hover .card2 .lower { top: 214px; }
 
             /* Statistics — keep numbers from overflowing 2-col layout */
@@ -3419,13 +3365,12 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             transition: none;
         }
         html.dark-mode .cardm .card {
-            background-color: rgba(35, 39, 46, 0.6) !important;
+            background: var(--dm-elevated) !important;
             border: 1px solid var(--dm-border) !important;
         }
-        html.dark-mode .cardm:hover .card { background: rgba(35, 39, 46, 0.6) !important; }
+        html.dark-mode .cardm:hover .card { background: #3d3d12 !important; }
         html.dark-mode .cardm .card2 {
-            background-color: rgba(23, 26, 31, 0.85) !important;
-            background-image: linear-gradient(to right, #0f0c29, #302b63, #24243e);
+            background: var(--dm-surface-2) !important;
             box-shadow: var(--dm-shadow-base);
         }
         html.dark-mode .cardm .card3 { filter: brightness(0.8); }
