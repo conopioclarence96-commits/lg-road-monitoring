@@ -745,43 +745,233 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             margin-right: auto;
         }
 
-        /* Road Updates Cards — flat QC style */
+        /* Road Updates Cards — multi-layered card (uiverse.io weather card concept) */
         .update-card {
-            border: 1px solid var(--qc-card-border);
-            border-radius: 12px;
-            box-shadow: none;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
             height: 100%;
+        }
+
+        /* Card container — sits in the normal flow so it works inside the
+           Bootstrap grid (adapted from the uiverse.io .cardm which was
+           absolutely positioned). */
+        .cardm {
+            position: relative;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        /* Top layer — always visible */
+        .cardm .card {
+            position: relative;
+            width: 100%;
+            height: 130px;
+            border: none;
+            background: whitesmoke;
+            color: black;
+            z-index: 2;
+            transition: background-color 0.4s ease-in-out;
             overflow: hidden;
-            background: #fff;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            padding: 16px 20px;
+            gap: 12px;
+            cursor: pointer;
+            border-radius: 25px;
         }
 
-        .update-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 24px rgba(17, 82, 114, 0.1);
+        .cardm .card:hover {
+            background-color: #FFE87C;
         }
 
-        .update-card .card-header {
-            background: #ffffff;
-            border-bottom: 1px solid #eef3f6;
-            color: var(--qc-primary-900);
-            border-radius: 12px 12px 0 0 !important;
+        /* Weather / icon slot */
+        .cardm .weather {
+            position: relative;
+            flex-shrink: 0;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: var(--qc-icon-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            color: var(--qc-primary-800);
+        }
+
+        /* Main title (maps from the old .card-header) */
+        .cardm .main {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+            font-size: 1.05rem;
             font-weight: 700;
-            font-size: 1.02rem;
-            line-height: 1.35;
-            padding: 16px 118px 14px 20px;
+            color: var(--qc-primary-900);
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Sub-label row (maps from the old status badge) */
+        .cardm .mainsub {
+            position: relative;
+            flex-shrink: 0;
+            font-size: 0.65rem;
+        }
+
+        /* Backing layer — expands on hover to reveal detail rows */
+        .cardm .card2 {
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 130px;
+            border-radius: 35px;
+            background: white;
+            color: black;
+            z-index: 1;
+            transition: height 0.4s ease-in-out, border-radius 0.4s ease-in-out;
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(17, 82, 114, 0.12);
+        }
+
+        /* Hover: expand the backing card downward (bottom corners stay
+           rounded so the .card3 bar keeps its rounded silhouette — they are
+           clipped by card2's overflow:hidden, which is what we want). */
+        .cardm .card:hover + .card2 {
+            height: 300px;
+        }
+
+        /* Hover: shift the lower detail row into view */
+        .cardm .card:hover + .card2 .lower {
+            top: 212px;
+        }
+
+        /* Upper detail rows (Report Type / Priority) */
+        .cardm .upper {
+            display: flex;
+            flex-direction: row;
+            position: absolute;
+            top: 138px;
+            left: 24px;
+            gap: 3.5em;
+            color: black;
+        }
+
+        .cardm .humiditytext,
+        .cardm .airtext {
+            position: relative;
+            font-size: 0.62rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--qc-shades-500);
+            margin-bottom: 4px;
+        }
+
+        .cardm .upper-value {
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: var(--qc-primary-900);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px;
+        }
+
+        /* Lower detail row (date + description) — slides down on hover */
+        .cardm .lower {
+            display: flex;
+            flex-direction: row;
+            position: absolute;
+            text-align: center;
+            color: black;
+            left: 24px;
+            top: 12px;
+            margin-top: 0.7em;
+            font-size: 0.9rem;
+            transition: top 0.4s ease-in-out;
+        }
+
+        .cardm .aqi {
+            margin-right: 2.5em;
+            font-weight: 700;
+            white-space: nowrap;
+            text-align: left;
+        }
+
+        .cardm .realfeel {
+            margin-right: 1em;
+            text-align: left;
+            max-width: 62%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--qc-shades-500);
+        }
+
+        /* Bottom bar — rounded edge of the expanded card */
+        .cardm .card3 {
+            position: absolute;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 30px;
+            bottom: 0;
+            left: 0;
+            font-size: 0.8rem;
+            color: #fff;
+            border-bottom-left-radius: 35px;
+            border-bottom-right-radius: 35px;
+            background: limegreen;
+            transition: background-color 0.4s ease-in-out;
+            overflow: hidden;
+            white-space: nowrap;
+            padding: 0 1em;
+        }
+
+        /* Optional thumbnail shown in the expanded backing card */
+        .cardm .update-card-thumb {
+            position: absolute;
+            top: 136px;
+            right: 20px;
+            width: 110px;
+            height: 64px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--qc-card-border);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            background: #f1f5f9;
+        }
+
+        .cardm .update-card-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            cursor: pointer;
         }
 
         .update-badge {
-            position: absolute;
-            top: 14px;
-            right: 14px;
+            display: inline-block;
             padding: 5px 12px;
             border-radius: 20px;
-            font-size: 0.68rem;
+            font-size: 0.65rem;
             font-weight: 700;
             letter-spacing: 0.5px;
             text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .cardm .mainsub .update-badge {
+            max-width: 170px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: middle;
         }
 
         .badge-maintenance {
@@ -1672,7 +1862,26 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
         html.dark-mode .hamburger-btn .bar { background: #fff !important; }
 
         /* Cards & badges */
-        html.dark-mode .update-card .card-header { background: #1e1e1e; }
+        html.dark-mode .cardm.update-card,
+        body.high-contrast .cardm.update-card {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        html.dark-mode .cardm .card {
+            background: var(--dm-elevated, #1d2025);
+            color: var(--dm-text-primary, #e4e6ea);
+        }
+        html.dark-mode .cardm .card:hover { background-color: #4a4a15; }
+        html.dark-mode .cardm .card2 { background: var(--dm-surface-2, #23272e); }
+        html.dark-mode .cardm .main,
+        html.dark-mode .cardm .upper-value,
+        html.dark-mode .cardm .aqi,
+        html.dark-mode .cardm .lower { color: var(--dm-text-primary, #e4e6ea); }
+        html.dark-mode .cardm .realfeel,
+        html.dark-mode .cardm .humiditytext,
+        html.dark-mode .cardm .airtext { color: var(--dm-text-secondary, #9ca3af) !important; }
+        html.dark-mode .cardm .update-card-thumb { background: #171a1f; border-color: #2d323b; }
         html.dark-mode .badge-maintenance { background: #4a3f13; color: #fde68a; }
         html.dark-mode .badge-advisory { background: #123044; color: #93c5fd; }
         html.dark-mode .badge-closure { background: #3f1d1d; color: #fca5a5; }
@@ -1845,7 +2054,10 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
             /* Sections & cards */
             .section { padding: 48px 0 40px; }
             .section-subtitle { font-size: 0.95rem; margin-bottom: 36px; }
-            .update-card .card-header { padding: 14px 96px 12px 16px; }
+            .cardm .card { height: 120px; padding: 14px 16px; gap: 10px; }
+            .cardm .weather { width: 42px; height: 42px; font-size: 1.2rem; }
+            .cardm .main { font-size: 0.95rem; }
+            .cardm .card:hover + .card2 .lower { top: 214px; }
 
             /* Statistics — keep numbers from overflowing 2-col layout */
             .stat-card { padding: 22px 10px; }
@@ -3127,25 +3339,33 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
 
         /* 7. Cards & surfaces */
         html.dark-mode .update-card {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            transition: none;
+        }
+        html.dark-mode .cardm .card {
             background: var(--dm-elevated) !important;
             border: 1px solid var(--dm-border) !important;
-            border-radius: 12px;
-            box-shadow: var(--dm-shadow-base);
-            transition: transform 0.22s ease, box-shadow 0.22s ease;
         }
-        html.dark-mode .update-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--dm-glow-hover);
-        }
-        html.dark-mode .update-card .card-header {
+        html.dark-mode .cardm .card:hover { background: #3d3d12 !important; }
+        html.dark-mode .cardm .card2 {
             background: var(--dm-surface-2) !important;
-            border-bottom: 1px solid var(--dm-border) !important;
+            box-shadow: var(--dm-shadow-base);
+        }
+        html.dark-mode .cardm .card3 { filter: brightness(0.8); }
+        html.dark-mode .cardm .main,
+        html.dark-mode .cardm .upper-value,
+        html.dark-mode .cardm .aqi,
+        html.dark-mode .cardm .lower {
             color: var(--dm-text-primary) !important;
-            border-radius: 12px 12px 0 0;
         }
-        html.dark-mode .update-card .card-text {
-            color: var(--dm-text-secondary);
+        html.dark-mode .cardm .realfeel,
+        html.dark-mode .cardm .humiditytext,
+        html.dark-mode .cardm .airtext {
+            color: var(--dm-text-secondary) !important;
         }
+        html.dark-mode .cardm .update-card-thumb { border-color: var(--dm-border); }
 
         html.dark-mode .stat-card {
             background: var(--dm-elevated) !important;
@@ -4176,18 +4396,38 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         else $filterCat = 'other';
                     ?>
                         <div class="col-md-6 road-update-item" data-category="<?php echo htmlspecialchars($filterCat); ?>">
-                            <div class="card update-card">
-                                <div class="card-header position-relative">
-                                    <?php echo htmlspecialchars($update['title'] ?? 'Road Update'); ?>
-                                    <span class="update-badge badge-<?php echo strtolower($update['report_type'] ?? 'advisory'); ?>">
-                                        <?php echo ucfirst(str_replace('_', ' ', $update['report_type'] ?? 'Advisory')); ?>
-                                    </span>
+                            <div class="cardm update-card">
+                                <div class="card">
+                                    <div class="weather">
+                                        <?php
+                                        switch ($filterCat) {
+                                            case 'traffic_light': $icon = 'fa-traffic-light'; break;
+                                            case 'accident': $icon = 'fa-car-crash'; break;
+                                            case 'closure': $icon = 'fa-road'; break;
+                                            case 'pothole': $icon = 'fa-circle-exclamation'; break;
+                                            default: $icon = 'fa-exclamation-triangle';
+                                        }
+                                        ?>
+                                        <i class="fas <?php echo $icon; ?>"></i>
+                                    </div>
+                                    <div class="main"><?php echo htmlspecialchars($update['title'] ?? 'Road Update'); ?></div>
+                                    <div class="mainsub">
+                                        <span class="update-badge badge-<?php echo strtolower($update['report_type'] ?? 'advisory'); ?>">
+                                            <?php echo ucfirst(str_replace('_', ' ', $update['report_type'] ?? 'Advisory')); ?>
+                                        </span>
+                                    </div>
                                 </div>
-                                <div class="card-body">
-                                    <p class="card-text">
-                                        <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
-                                    </p>
-                                    
+                                <div class="card2">
+                                    <div class="upper">
+                                        <div>
+                                            <div class="humiditytext">Report Type</div>
+                                            <div class="upper-value"><?php echo ucfirst(str_replace('_', ' ', $update['report_type'] ?? 'Road Report')); ?></div>
+                                        </div>
+                                        <div>
+                                            <div class="airtext">Priority</div>
+                                            <div class="upper-value"><?php echo ucfirst($update['priority'] ?? 'Normal'); ?></div>
+                                        </div>
+                                    </div>
                                     <?php
                                     $image_candidates = [];
                                     if (!empty($update['attachments'])):
@@ -4213,21 +4453,35 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                         if ($resolved) { $display_image = $resolved; break; }
                                     endforeach;
                                     if ($display_image): ?>
-                                        <div class="mt-3">
-                                            <img src="<?php echo htmlspecialchars($display_image); ?>" 
-                                                 alt="<?php echo htmlspecialchars(($update['title'] ?? 'Road update') . ' report photo'); ?>" 
+                                        <div class="update-card-thumb">
+                                            <img src="<?php echo htmlspecialchars($display_image); ?>"
+                                                 alt="<?php echo htmlspecialchars(($update['title'] ?? 'Road update') . ' report photo'); ?>"
                                                  loading="lazy"
-                                                 class="img-fluid rounded shadow-sm"
-                                                 style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
                                                  onclick="window.open(this.src, '_blank')"
                                                  title="Click to view full size">
                                         </div>
                                     <?php endif; ?>
-                                    
-                                    <small class="text-muted">
-                                        <i class="fas fa-calendar"></i> 
-                                        <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
-                                    </small>
+                                    <div class="lower">
+                                        <div class="aqi">
+                                            <i class="fas fa-calendar"></i>
+                                            <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
+                                        </div>
+                                        <div class="realfeel"><?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 60)); ?>...</div>
+                                    </div>
+                                    <div class="card3">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        <?php
+                                        $card_status = strtolower($update['status'] ?? '');
+                                        $status_map = [
+                                            'completed' => 'Resolved',
+                                            'in-progress' => 'Ongoing Repair',
+                                            'ongoing' => 'Ongoing Repair',
+                                            'pending' => 'Pending Action',
+                                            'open' => 'Open',
+                                        ];
+                                        echo $status_map[$card_status] ?? (ucfirst($card_status !== '' ? $card_status : 'Open'));
+                                        ?>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -4262,17 +4516,43 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                         <?php if (!empty($transport_updates)): ?>
                             <?php foreach ($transport_updates as $update): ?>
                                 <div class="col-md-6 transport-update-item">
-                                    <div class="card update-card">
-                                        <div class="card-header position-relative">
-                                            <?php echo htmlspecialchars($update['title'] ?? 'Transportation Update'); ?>
-                                            <span class="update-badge badge-<?php echo transport_updates_badge_class($update['report_type'] ?? ''); ?>">
-                                                <?php echo transport_updates_type_label($update['report_type'] ?? ''); ?>
-                                            </span>
+                                    <div class="cardm update-card">
+                                        <div class="card">
+                                            <div class="weather">
+                                                <?php
+                                                switch (strtolower($update['report_type'] ?? '')) {
+                                                    case 'traffic_jam':
+                                                    case 'congestion': $icon = 'fa-car'; break;
+                                                    case 'accident': $icon = 'fa-car-crash'; break;
+                                                    case 'road_closure': $icon = 'fa-road'; break;
+                                                    case 'traffic_light_outage': $icon = 'fa-traffic-light'; break;
+                                                    case 'parking_violation': $icon = 'fa-parking'; break;
+                                                    case 'public_transport_issue': $icon = 'fa-bus'; break;
+                                                    case 'vehicle_breakdown': $icon = 'fa-wrench'; break;
+                                                    case 'traffic_sign_issue': $icon = 'fa-sign'; break;
+                                                    default: $icon = 'fa-shuttle-van';
+                                                }
+                                                ?>
+                                                <i class="fas <?php echo $icon; ?>"></i>
+                                            </div>
+                                            <div class="main"><?php echo htmlspecialchars($update['title'] ?? 'Transportation Update'); ?></div>
+                                            <div class="mainsub">
+                                                <span class="update-badge badge-<?php echo transport_updates_badge_class($update['report_type'] ?? ''); ?>">
+                                                    <?php echo transport_updates_type_label($update['report_type'] ?? ''); ?>
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div class="card-body">
-                                            <p class="card-text">
-                                                <?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 100)) . '...'; ?>
-                                            </p>
+                                        <div class="card2">
+                                            <div class="upper">
+                                                <div>
+                                                    <div class="humiditytext">Report Type</div>
+                                                    <div class="upper-value"><?php echo transport_updates_type_label($update['report_type'] ?? ''); ?></div>
+                                                </div>
+                                                <div>
+                                                    <div class="airtext">Priority</div>
+                                                    <div class="upper-value"><?php echo ucfirst($update['priority'] ?? 'Normal'); ?></div>
+                                                </div>
+                                            </div>
                                             <?php
                                             $image_candidates = [];
                                             if (!empty($update['attachments'])):
@@ -4298,20 +4578,35 @@ $redirect_url = $access_settings['redirect_url'] ?? '';
                                                 if ($resolved) { $display_image = $resolved; break; }
                                             endforeach;
                                             if ($display_image): ?>
-                                                <div class="mt-3">
+                                                <div class="update-card-thumb">
                                                     <img src="<?php echo htmlspecialchars($display_image); ?>"
                                                          alt="<?php echo htmlspecialchars(($update['title'] ?? 'Transportation update') . ' report photo'); ?>"
                                                          loading="lazy"
-                                                         class="img-fluid rounded shadow-sm"
-                                                         style="max-height: 200px; object-fit: cover; width: 100%; cursor: pointer;"
                                                          onclick="window.open(this.src, '_blank')"
                                                          title="Click to view full size">
                                                 </div>
                                             <?php endif; ?>
-                                            <small class="text-muted">
-                                                <i class="fas fa-calendar"></i>
-                                                <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
-                                            </small>
+                                            <div class="lower">
+                                                <div class="aqi">
+                                                    <i class="fas fa-calendar"></i>
+                                                    <?php echo safe_date_fmt($update['reported_date'] ?? ''); ?>
+                                                </div>
+                                                <div class="realfeel"><?php echo htmlspecialchars(substr($update['description'] ?? 'No description available', 0, 60)); ?>...</div>
+                                            </div>
+                                            <div class="card3">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                <?php
+                                                $card_status = strtolower($update['status'] ?? '');
+                                                $status_map = [
+                                                    'completed' => 'Resolved',
+                                                    'in-progress' => 'Ongoing',
+                                                    'ongoing' => 'Ongoing',
+                                                    'pending' => 'Pending Action',
+                                                    'open' => 'Open',
+                                                ];
+                                                echo $status_map[$card_status] ?? (ucfirst($card_status !== '' ? $card_status : 'Open'));
+                                                ?>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
