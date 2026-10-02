@@ -6979,13 +6979,6 @@ if ($is_completed_projects_view || $is_system_admin) {
                 if (addUpdateBtn) addUpdateBtn.style.display = 'none';
                 return true;
             }
-            // System Admin does not complete or cancel from this page.
-            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) {
-                if (completeBtn) completeBtn.style.display = 'none';
-                if (cancelBtn) cancelBtn.style.display = 'none';
-                if (addUpdateBtn) addUpdateBtn.style.display = 'inline-flex';
-                return false;
-            }
             // Not terminal yet: show Complete, Cancel, and Add Update
             // (officer assignment checks may refine Complete/Cancel afterward)
             if (completeBtn) completeBtn.style.display = 'inline-flex';
@@ -7048,15 +7041,9 @@ if ($is_completed_projects_view || $is_system_admin) {
             if (tag) role = tag.getAttribute('data-role') || '';
             var isOfficer = (role === 'road_monitoring_officer' || role === 'trans_monitoring_officer');
 
-            // System Admin does not complete or cancel from this page.
-            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) {
-                completeBtn.style.display = 'none';
-                if (cancelBtn) cancelBtn.style.display = 'none';
-                return;
-            }
-
-            // Non-officers (supervisors, etc.) use direct Complete/Cancel —
-            // but only when they own the report (first assigner).
+            // Non-officers (supervisors, System Admin, etc.) use direct
+            // Complete/Cancel — but supervisors only when they own the report
+            // (first assigner).
             if (!isOfficer) {
                 if ((typeof IS_ROAD_SUPERVISOR !== 'undefined' && IS_ROAD_SUPERVISOR)
                     || (typeof IS_TRANS_SUPERVISOR !== 'undefined' && IS_TRANS_SUPERVISOR)) {
@@ -7727,7 +7714,6 @@ if ($is_completed_projects_view || $is_system_admin) {
          */
         function requestCompleteOrCancel(action) {
             if (!currentUpdatesReportId) return;
-            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) return;
 
             if (isOfficerRole()) {
                 submitReviewRequest(action === 'complete' ? 'completion' : 'cancellation');
@@ -7830,7 +7816,6 @@ if ($is_completed_projects_view || $is_system_admin) {
 
         function executeCompleteReport() {
             if (!currentUpdatesReportId) return;
-            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) return;
             if (isCompleting) return; // Prevent multiple clicks
 
             var completionPct = parseCompletionPercentage(
@@ -7933,7 +7918,6 @@ if ($is_completed_projects_view || $is_system_admin) {
 
         function executeCancelReport() {
             if (!currentUpdatesReportId) return;
-            if (typeof IS_SYSTEM_ADMIN !== 'undefined' && IS_SYSTEM_ADMIN) return;
             
             var newStatus = (currentUpdatesReportSource === 'cimm') ? 'Cancelled' : 'cancelled';
             var formData = new FormData();
@@ -10297,7 +10281,7 @@ if ($is_completed_projects_view || $is_system_admin) {
                         <?php if ($is_officer_role): ?>
                         <button type="button" class="btn-success-custom" id="completeBtn"><i class="fas fa-clipboard-check"></i> Request Completion</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn"><i class="fas fa-ban"></i> Request Cancellation</button>
-                        <?php elseif (!$is_system_admin): ?>
+                        <?php else: ?>
                         <button type="button" class="btn-success-custom" id="completeBtn"><i class="fas fa-circle-check"></i> Complete</button>
                         <button type="button" class="btn-danger-custom" id="cancelBtn"><i class="fas fa-ban"></i> Cancel</button>
                         <?php endif; ?>

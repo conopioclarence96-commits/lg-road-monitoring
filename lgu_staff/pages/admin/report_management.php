@@ -1305,8 +1305,8 @@ function rm_render_lgu_panel_tbody(
     $colspan = (($is_road_supervisor || $user_role === 'system_admin') ? 10 : 8)
         + ($user_role === 'system_admin' ? 1 : 0)
         + ($show_assignment_cols ? 2 : 0);
-    // Assign is supervisor-only — system admin has no Assign/Edit action here.
-    $can_assign_role = $is_road_supervisor || $is_transport_supervisor;
+    // Assign is available to the Operations Supervisors and the System Admin.
+    $can_assign_role = $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
     $show_engineer = $is_road_supervisor || $user_role === 'system_admin';
     $show_category = ($user_role === 'system_admin');
 
@@ -1506,8 +1506,8 @@ function rm_render_citizen_panel_tbody(
     ];
     $colspan = 8 + (rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor) ? 2 : 0);
     $show_assignment_cols = rm_show_assignment_columns($user_role, $is_road_supervisor, $is_transport_supervisor);
-    // Assign is supervisor-only — system admin has no Assign/Edit action here.
-    $can_assign_role = $is_road_supervisor || $is_transport_supervisor;
+    // Assign is available to the Operations Supervisors and the System Admin.
+    $can_assign_role = $is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin';
 
     ob_start();
     if (!empty($reports)):
@@ -1679,7 +1679,7 @@ function rm_render_cimm_panel_tbody(array $reports): string {
     $is_admin = ($role === 'system_admin');
     $is_road_sup = !empty($is_road_supervisor) || ($role === 'road_ops_supervisor');
     $is_trans_sup = !empty($is_transport_supervisor) || ($role === 'trans_ops_supervisor');
-    $can_assign_role = $is_road_sup || $is_trans_sup;
+    $can_assign_role = $is_road_sup || $is_trans_sup || $is_admin;
     $show_assignment_cols = rm_show_assignment_columns($role, $is_road_sup, $is_trans_sup);
     $cimm_colspan = 10 + ($show_assignment_cols ? 2 : 0);
 
@@ -6634,7 +6634,7 @@ if ($focus_id > 0) {
                                     $infra_st = strtolower(trim((string)($report['status'] ?? '')));
                                     $infra_restored_cancelled = ($infra_st === 'cancelled' || $infra_st === 'canceled')
                                         && (int)($report['restored_from_archive'] ?? 0) === 1;
-                                    $infra_can_assign = ($is_road_supervisor || $is_transport_supervisor)
+                                    $infra_can_assign = ($is_road_supervisor || $is_transport_supervisor || $user_role === 'system_admin')
                                         && $infra_can_manage
                                         && !$infra_restored_cancelled;
                                     $infra_rtype = htmlspecialchars((string)($report['report_type'] ?? 'infrastructure_issue'), ENT_QUOTES);
