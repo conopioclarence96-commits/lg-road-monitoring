@@ -38,6 +38,17 @@ $prefill_request_id = ($is_admin && isset($_GET['transparency_request']))
     ? max(0, (int)$_GET['transparency_request'])
     : 0;
 
+$prefill_report_id = 0;
+$prefill_report_source = '';
+if ($is_admin && isset($_GET['transparency_report_id'])) {
+    $prefill_report_id = max(0, (int)$_GET['transparency_report_id']);
+    $src = strtolower(trim((string)($_GET['transparency_source'] ?? 'lgu')));
+    if (!in_array($src, ['lgu', 'citizen', 'cimm', 'ipms'], true)) {
+        $src = 'lgu';
+    }
+    $prefill_report_source = $src;
+}
+
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -2187,12 +2198,14 @@ if ($conn) {
     // until the admin reviews the fields and submits the form.
     const TRANSPARENCY_REQUEST_API = '../api/transparency_request_api.php';
     const PREFILL_REQUEST_ID = <?php echo (int)$prefill_request_id; ?>;
+    const PREFILL_REPORT_ID = <?php echo (int)$prefill_report_id; ?>;
+    const PREFILL_REPORT_SOURCE = <?php echo json_encode($prefill_report_source); ?>;
 
     function showImportReviewBanner(req, data) {
         const banner = document.getElementById('importReviewBanner');
         if (!banner) return;
         const id = (req && req.id) ? req.id : PREFILL_REQUEST_ID;
-        const who = (req && req.requested_by_name) ? req.requested_by_name : 'the Road Operations Supervisor';
+        const who = (req && req.requested_by_name) ? req.requested_by_name : 'Administrator';
         const project = (req && req.report_title) ? '"' + req.report_title + '"' : 'the approved project';
         const reporter = (data && data.reporter_name) ? data.reporter_name : '';
         const email = (data && data.reporter_email) ? data.reporter_email : '';
@@ -2203,7 +2216,8 @@ if ($conn) {
                 + (email ? ' (' + email + ')' : '')
                 + ' — they will be emailed when you publish.';
         }
-        document.getElementById('importReviewTitle').textContent = 'Imported from approved request #' + id;
+        const titleText = (id && id > 0) ? 'Imported from approved request #' + id : 'Imported from completed project';
+        document.getElementById('importReviewTitle').textContent = titleText;
         document.getElementById('importReviewText').textContent =
             'Progress update data for ' + project + ', requested by ' + who
             + ', has been filled in below. Review every field, then save as draft or publish.'
@@ -2239,25 +2253,49 @@ if ($conn) {
     }
 
     function loadApprovedTransparencyPrefill() {
-        if (!PREFILL_REQUEST_ID || !document.getElementById('projectFormEl')) return;
+        if (!document.getElementById('projectFormEl')) return;
 
-        fetch(TRANSPARENCY_REQUEST_API + '?action=prefill&request_id=' + encodeURIComponent(PREFILL_REQUEST_ID))
-            .then(r => r.json())
-            .then(resp => {
-                if (!resp || !resp.success || !resp.data) {
-                    showToast((resp && resp.message) || 'Could not import the approved project', 'error');
-                    return;
-                }
-                applyPrefilledProject(resp.data);
-                showImportReviewBanner(resp.request, resp.data);
-                // Drop the parameter so the reload after saving does not re-import.
-                if (window.history && window.history.replaceState) {
-                    window.history.replaceState({}, '', 'public_transparency.php');
-                }
-                showToast('Approved project imported — review, then save', 'success');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            })
-            .catch(() => showToast('Network error while importing the approved project', 'error'));
+        if (PREFILL_REQUEST_ID > 0) {
+            fetch(TRANSPARENCY_REQUEST_API + '?action=prefill&request_id=' + encodeURIComponent(PREFILL_REQUEST_ID))
+                .then(r => r.json())
+                .then(resp => {
+                    if (!resp || !resp.success || !resp.data) {
+                        showToast((resp && resp.message) || 'Could not import the approved project', 'error');
+                        return;
+                    }
+                    applyPrefilledProject(resp.data);
+                    showImportReviewBanner(resp.request, resp.data);
+                    // Drop the parameter so the reload after saving does not re-import.
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, '', 'public_transparency.php');
+                    }
+                    showToast('Approved project imported — review, then save', 'success');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                })
+                .catch(() => showToast('Network error while importing the approved project', 'error'));
+            return;
+        }
+
+        if (PREFILL_REPORT_ID > 0) {
+            fetch(TRANSPARENCY_REQUEST_API + '?action=prefill_by_report&report_id=' + encodeURIComponent(PREFILL_REPORT_ID) + '&source=' + encodeURIComponent(PREFILL_REPORT_SOURCE || 'lgu'))
+                .then(r => r.json())
+                .then(resp => {
+                    if (!resp || !resp.success || !resp.data) {
+                        showToast((resp && resp.message) || 'Could not import the completed project', 'error');
+                        return;
+                    }
+                    applyPrefilledProject(resp.data);
+                    showImportReviewBanner(resp.request, resp.data);
+                    // Drop the parameter so the reload after saving does not re-import.
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, '', 'public_transparency.php');
+                    }
+                    showToast('Completed project imported — review, then save', 'success');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                })
+                .catch(() => showToast('Network error while importing the completed project', 'error'));
+            return;
+        }
     }
 
     loadApprovedTransparencyPrefill();

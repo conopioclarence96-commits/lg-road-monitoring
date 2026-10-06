@@ -111,11 +111,50 @@ switch ($action) {
     // can be pulled in. Built on first call and cached on the request row so the
     // before/after photos are only ever copied once.
     case 'prefill':
+    case 'prefill_by_report':
         if (!$is_admin) {
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'Only administrators can import transparency data']);
             exit;
         }
+
+        if ($action === 'prefill_by_report') {
+            $report_id = (int)($_GET['report_id'] ?? 0);
+            $source = sanitize_input($_GET['source'] ?? '');
+            $source_key = strtolower(trim($source));
+            if (!in_array($source_key, ['lgu', 'citizen', 'cimm', 'ipms'], true)) {
+                $source_key = 'lgu';
+            }
+
+            if ($report_id <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Invalid report ID']);
+                exit;
+            }
+
+            try {
+                $data = transparency_build_import_data($conn, $report_id, $source_key);
+            } catch (Exception $e) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                exit;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'data' => $data,
+                'request' => [
+                    'id' => 0,
+                    'report_id' => $report_id,
+                    'report_source' => $source_key,
+                    'report_title' => (string)($data['title'] ?? ''),
+                    'requested_by_name' => 'Administrator',
+                    'reviewed_at' => (string)date('Y-m-d H:i:s'),
+                ],
+            ]);
+            break;
+        }
+
         $request_id = (int)($_GET['request_id'] ?? 0);
         if ($request_id <= 0) {
             http_response_code(400);

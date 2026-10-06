@@ -6773,6 +6773,27 @@ if ($is_completed_projects_view || $is_system_admin) {
             loadTransparencyStatus();
         }
 
+        function adminDirectTransparencyUpload() {
+            if (!IS_SYSTEM_ADMIN || !currentUpdatesReportId) return;
+            var status = String(currentUpdatesReportStatus || '').toLowerCase().replace(/_/g, ' ').trim();
+            if (status !== 'completed') {
+                showNotification('Only completed projects can be uploaded to transparency.', 'error');
+                return;
+            }
+            var source = String(currentUpdatesReportSource || '').toLowerCase();
+            if (TRANSPARENCY_SOURCES.indexOf(source) === -1) {
+                showNotification('This project is not eligible for transparency upload.', 'error');
+                return;
+            }
+            if (!confirm('Upload this completed project directly to Transparency? This will open the Transparency Upload form with this project pre-filled.')) {
+                return;
+            }
+            var params = new URLSearchParams();
+            params.set('transparency_report_id', currentUpdatesReportId);
+            params.set('transparency_source', source || 'lgu');
+            window.location.href = '../shared/public_transparency.php?' + params.toString();
+        }
+
         function requestTransparencyUpload() {
             if (!currentUpdatesReportId || !canRequestTransparencyUpload()) return;
             if (!confirm('Send this completed project to the administrator for transparency upload review?')) return;
@@ -6955,6 +6976,16 @@ if ($is_completed_projects_view || $is_system_admin) {
             if (exportButtons) exportButtons.style.display = 'none';
             refreshTransparencyRequestButton();
             refreshTransparencyStatusPanel();
+            var adminBtn = document.getElementById('adminTransparencyUploadBtn');
+            if (IS_SYSTEM_ADMIN && adminBtn) {
+                var aStatus = String(currentUpdatesReportStatus || '').toLowerCase().replace(/_/g, ' ').trim();
+                var aSource = String(currentUpdatesReportSource || '').toLowerCase();
+                if (aStatus === 'completed' && TRANSPARENCY_SOURCES.indexOf(aSource) !== -1) {
+                    adminBtn.style.display = 'inline-flex';
+                } else {
+                    adminBtn.style.display = 'none';
+                }
+            }
             if (isTerminalUpdatesStatus()) {
                 // Completed / cancelled: hide Complete, Cancel, and Add Update
                 if (completeBtn) completeBtn.style.display = 'none';
@@ -10123,6 +10154,9 @@ if ($is_completed_projects_view || $is_system_admin) {
                         <button type="button" class="btn-action" id="exportWordBtn" onclick="exportUpdatesToExcel()"><i class="fas fa-file-word"></i> Export as Word</button>
                         <?php if ($is_road_supervisor || $is_trans_ops_supervisor): ?>
                         <button type="button" class="btn-action" id="requestTransparencyBtn" style="display:none;background:linear-gradient(135deg,#3762c8,#2748a0);color:#fff;" onclick="requestTransparencyUpload()"><i class="fas fa-bullhorn"></i> Request Transparency Upload</button>
+                        <?php endif; ?>
+                        <?php if ($is_system_admin): ?>
+                        <button type="button" class="btn-action" id="adminTransparencyUploadBtn" style="display:none;background:linear-gradient(135deg,#0f766e,#115e59);color:#fff;" onclick="adminDirectTransparencyUpload()"><i class="fas fa-cloud-upload-alt"></i> Transparency Upload</button>
                         <?php endif; ?>
                     </div>
                     <div style="display: flex; gap: 8px;">
